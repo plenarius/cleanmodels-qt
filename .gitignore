@@ -31,6 +31,8 @@ Makefile*
 *build-*
 *.qm
 *.prl
+release
+debug
 
 # Qt unit tests
 target_wrapper.*
@@ -50,3 +52,8 @@ compile_commands.json
 
 # QtCreator local machine specific files for imported projects
 *creator.user*
+
+*_qmlcache.qrc
+
+# CLion
+.idea*
