@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<RCC version="1.0">
+	<qresource prefix="icons">
+		<file alias="reading-mdl">icons/reading-mdl.png</file>
+		<file alias="cleaning-mdl">icons/cleaning-mdl.png</file>
+		<file alias="clean-success">icons/clean-success.png</file>
+		<file alias="clean-error">icons/clean-error.png</file>
+		<file alias="clean-button">icons/clean-button.png</file>
+		<file alias="abort-button">icons/abort-button.png</file>
+		<file alias="decompile-button">icons/decompile-button.png</file>
+		<file alias="load-preset">icons/load-preset.png</file>
+		<file alias="save-preset">icons/save-preset.png</file>
+		<file alias="whats-this">icons/whats-this.png</file>
+		<file alias="mdl-ascii">icons/mdl-ascii.png</file>
+		<file alias="mdl-binary">icons/mdl-binary.png</file>
+		<file alias="indir">icons/outdir.png</file>
+		<file alias="outdir">icons/indir.png</file>
+		<file alias="lock-rescale">icons/lock-rescale.png</file>
+		<file alias="unlock-rescale">icons/unlock-rescale.png</file>
+	</qresource>
+</RCC>

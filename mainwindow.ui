@@ -1,0 +1,2793 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>880</width>
+    <height>632</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>880</width>
+    <height>0</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>16777215</width>
+    <height>16777215</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Clean Models:EE QT</string>
+  </property>
+  <property name="toolButtonStyle">
+   <enum>Qt::ToolButtonIconOnly</enum>
+  </property>
+  <widget class="QWidget" name="centralWidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <layout class="QVBoxLayout" name="mainVerticalLayout">
+      <property name="spacing">
+       <number>6</number>
+      </property>
+      <item>
+       <widget class="QTabWidget" name="mainTabs">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>858</width>
+          <height>328</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>328</height>
+         </size>
+        </property>
+        <property name="tabPosition">
+         <enum>QTabWidget::West</enum>
+        </property>
+        <property name="tabShape">
+         <enum>QTabWidget::Rounded</enum>
+        </property>
+        <property name="currentIndex">
+         <number>0</number>
+        </property>
+        <widget class="QWidget" name="generalTab">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>858</width>
+           <height>324</height>
+          </size>
+         </property>
+         <attribute name="title">
+          <string>General</string>
+         </attribute>
+         <attribute name="toolTip">
+          <string>General settings.</string>
+         </attribute>
+         <widget class="QPushButton" name="outdirButton">
+          <property name="geometry">
+           <rect>
+            <x>260</x>
+            <y>40</y>
+            <width>41</width>
+            <height>28</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="icon">
+           <iconset theme="go-down">
+            <normaloff>.</normaloff>.</iconset>
+          </property>
+         </widget>
+         <widget class="QPushButton" name="indirButton">
+          <property name="geometry">
+           <rect>
+            <x>260</x>
+            <y>10</y>
+            <width>41</width>
+            <height>28</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="icon">
+           <iconset theme="go-up">
+            <normaloff>.</normaloff>.</iconset>
+          </property>
+         </widget>
+         <widget class="QFrame" name="coreFixesBox">
+          <property name="geometry">
+           <rect>
+            <x>310</x>
+            <y>10</y>
+            <width>220</width>
+            <height>304</height>
+           </rect>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <widget class="QFrame" name="transBitmapKeyFrame">
+           <property name="geometry">
+            <rect>
+             <x>9</x>
+             <y>250</y>
+             <width>201</width>
+             <height>51</height>
+            </rect>
+           </property>
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Raised</enum>
+           </property>
+           <widget class="QLabel" name="transBitmapKeyLabel">
+            <property name="geometry">
+             <rect>
+              <x>2</x>
+              <y>-4</y>
+              <width>181</width>
+              <height>20</height>
+             </rect>
+            </property>
+            <property name="text">
+             <string>Transparent Bitmap Key(s)</string>
+            </property>
+           </widget>
+           <widget class="QLineEdit" name="transparentBitmapKeys">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="geometry">
+             <rect>
+              <x>0</x>
+              <y>18</y>
+              <width>201</width>
+              <height>28</height>
+             </rect>
+            </property>
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Separate multiple keys by spaces&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="toolTipDuration">
+             <number>-1</number>
+            </property>
+            <property name="maxLength">
+             <number>512</number>
+            </property>
+           </widget>
+          </widget>
+          <widget class="QCheckBox" name="forceWhiteCheck">
+           <property name="geometry">
+            <rect>
+             <x>8</x>
+             <y>4</y>
+             <width>208</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>Sets all ambient and diffuse values to 1 1 1</string>
+           </property>
+           <property name="text">
+            <string>Ambient/Diffuse to 1</string>
+           </property>
+          </widget>
+          <widget class="QCheckBox" name="meshMergeCheck">
+           <property name="geometry">
+            <rect>
+             <x>8</x>
+             <y>34</y>
+             <width>208</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If enabled, trimesh nodes with the same bitmap will be merged into a single node. It applies to all classes of model but will be skipped if the model has a non NULL supermodel. Meshes must be set to shadow 0 to be merged but if the “shadow none” option is set, that will be applied before merging is attempted. The resulting trimesh node will be parented directly to the Aurora base at position and orientation zero and have the same name as one of the original ones. Mesh repairs, vertex welding and so on are applied after merging, in the normal way. If one mesh has vertexcolors and another has not, the missing vertexcolors will be padded with white (1 1 1).&lt;/p&gt;&lt;p&gt;The following will &lt;span style=&quot; font-weight:600;&quot;&gt;not&lt;/span&gt; be merged together:&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;meshes with incompatible parameters (render, alpha, ambient, diffuse, rotatetexture, ...)&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;meshes with animation keys or animated parents&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;meshes with child nodes&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;meshes with a scale other than unity or any of whose ancestors has a scale other than unity&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;in the case of tile models, meshes descending from the 'a' node.&lt;/li&gt;&lt;/ul&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="text">
+            <string>MeshMerge by bitmap</string>
+           </property>
+          </widget>
+          <widget class="QCheckBox" name="cullInvisibleCheck">
+           <property name="geometry">
+            <rect>
+             <x>8</x>
+             <y>64</y>
+             <width>208</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If checked, any mesh node (other than an aabb node) that is set to render 0 and shadow 0 will be converted to a dummy unless the model contains animations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="text">
+            <string>Cull Invisible Meshes</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="renderTrimeshLabel">
+           <property name="geometry">
+            <rect>
+             <x>8</x>
+             <y>94</y>
+             <width>120</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>120</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>120</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Render Trimeshes</string>
+           </property>
+          </widget>
+          <widget class="QComboBox" name="renderTrimeshCombo">
+           <property name="geometry">
+            <rect>
+             <x>132</x>
+             <y>94</y>
+             <width>78</width>
+             <height>25</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>78</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>78</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <item>
+            <property name="text">
+             <string>Default</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>All</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+          </widget>
+          <widget class="QLabel" name="renderShadows">
+           <property name="geometry">
+            <rect>
+             <x>8</x>
+             <y>126</y>
+             <width>120</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>120</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>120</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Shadows</string>
+           </property>
+          </widget>
+          <widget class="QComboBox" name="renderShadowsCombo">
+           <property name="geometry">
+            <rect>
+             <x>132</x>
+             <y>125</y>
+             <width>78</width>
+             <height>26</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>78</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>78</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <item>
+            <property name="text">
+             <string>Default</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>All</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+          </widget>
+          <widget class="QLabel" name="snapLabel">
+           <property name="geometry">
+            <rect>
+             <x>8</x>
+             <y>157</y>
+             <width>120</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>120</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>120</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If you choose &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Binary&lt;/span&gt;&amp;quot;, all mesh vertices and positions will be snapped to exact multiples of 1/128 metres (0.0078125). The ascii value exported will exactly represent the binary one and, whether you import the resulting model into NWN, nwnmdlcomp, Gmax/3dsMax or back into CleanModels 3, the binary value inside that program will exactly correspond to it. So there is no loss of precision.&lt;/p&gt;&lt;p&gt;If you choose &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Decimal&lt;/span&gt;&amp;quot;, vertices and positions will be snapped to multiples of 0.01 metres and exported values will use only as many decimal places as necessary (thus saving characters in the ascii file). This corresponds to the behaviour of NWmax. Although GMax and 3dsMax work in binary floats internally, NWMax doesn't export in binary precision. (Even if you select the &amp;quot;compile exported model&amp;quot; option, it exports the model in ascii first, discarding the precision, and then compiles it from that).&lt;/p&gt;&lt;p&gt;&amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Fine&lt;/span&gt;&amp;quot; is like decimal but 10 times smaller, with a snap interval of 1 millimetre (0.001 metres, one tenth of a unit in 3dsMax or GMax) and will be exported with up to 3 decimal places. This is mainly intended for items and character parts where you want the advantage of snapping and welding but the usual 1cm snap is too coarse and would result in model detail being lost.&lt;/p&gt;&lt;p&gt;Which one is best, really depends on what you are going to do with the exported models. If you are going to load them straight into NWN or run them through nwnmdlcomp, binary precision is best. If you are going to re-import them into Gmax or 3dsMax, you might as well use decimal precision (and save a few bytes of file size) because that is all you will get back out again anyway.&lt;/p&gt;&lt;p&gt;If you are working on tiles, you should use the same precision across the entire tileset, otherwise you may get geometry mismatches between one tile and its neighbours in an area.&lt;/p&gt;&lt;p&gt;Snapping is done after orientations are reset and before repivoting. Vertices are held fixed in absolute position while node positions are snapped, then they themselves are snapped. This avoids problems with rounding errors.&lt;/p&gt;&lt;p&gt;Snapping is not applied to the positions of the parents of animmesh nodes, nor to the parents of nodes which have animated positions or positionkeys.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="text">
+            <string>Snap</string>
+           </property>
+          </widget>
+          <widget class="QComboBox" name="snapCombo">
+           <property name="geometry">
+            <rect>
+             <x>132</x>
+             <y>157</y>
+             <width>78</width>
+             <height>25</height>
+            </rect>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>78</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>78</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If you choose &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Binary&lt;/span&gt;&amp;quot;, all mesh vertices and positions will be snapped to exact multiples of 1/128 metres (0.0078125). The ascii value exported will exactly represent the binary one and, whether you import the resulting model into NWN, nwnmdlcomp, Gmax/3dsMax or back into CleanModels 3, the binary value inside that program will exactly correspond to it. So there is no loss of precision.&lt;/p&gt;&lt;p&gt;If you choose &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Decimal&lt;/span&gt;&amp;quot;, vertices and positions will be snapped to multiples of 0.01 metres and exported values will use only as many decimal places as necessary (thus saving characters in the ascii file). This corresponds to the behaviour of NWmax. Although GMax and 3dsMax work in binary floats internally, NWMax doesn't export in binary precision. (Even if you select the &amp;quot;compile exported model&amp;quot; option, it exports the model in ascii first, discarding the precision, and then compiles it from that).&lt;/p&gt;&lt;p&gt;&amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Fine&lt;/span&gt;&amp;quot; is like decimal but 10 times smaller, with a snap interval of 1 millimetre (0.001 metres, one tenth of a unit in 3dsMax or GMax) and will be exported with up to 3 decimal places. This is mainly intended for items and character parts where you want the advantage of snapping and welding but the usual 1cm snap is too coarse and would result in model detail being lost.&lt;/p&gt;&lt;p&gt;Which one is best, really depends on what you are going to do with the exported models. If you are going to load them straight into NWN or run them through nwnmdlcomp, binary precision is best. If you are going to re-import them into Gmax or 3dsMax, you might as well use decimal precision (and save a few bytes of file size) because that is all you will get back out again anyway.&lt;/p&gt;&lt;p&gt;If you are working on tiles, you should use the same precision across the entire tileset, otherwise you may get geometry mismatches between one tile and its neighbours in an area.&lt;/p&gt;&lt;p&gt;Snapping is done after orientations are reset and before repivoting. Vertices are held fixed in absolute position while node positions are snapped, then they themselves are snapped. This avoids problems with rounding errors.&lt;/p&gt;&lt;p&gt;Snapping is not applied to the positions of the parents of animmesh nodes, nor to the parents of nodes which have animated positions or positionkeys.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Binary</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Decimal</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Fine</string>
+            </property>
+           </item>
+          </widget>
+          <widget class="QLabel" name="snapTVertLabel">
+           <property name="geometry">
+            <rect>
+             <x>8</x>
+             <y>188</y>
+             <width>120</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>120</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>120</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Snap tverts</string>
+           </property>
+          </widget>
+          <widget class="QComboBox" name="snapTVertsCombo">
+           <property name="geometry">
+            <rect>
+             <x>132</x>
+             <y>188</y>
+             <width>78</width>
+             <height>25</height>
+            </rect>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>78</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>78</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <item>
+            <property name="text">
+             <string>No</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>256</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>512</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>1024</string>
+            </property>
+           </item>
+          </widget>
+          <widget class="QCheckBox" name="placeableWithTransparencyCheck">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+           <property name="geometry">
+            <rect>
+             <x>8</x>
+             <y>219</y>
+             <width>208</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>24</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Only applicable to &lt;span style=&quot; font-weight:600;&quot;&gt;Character&lt;/span&gt; model classification&lt;/p&gt;&lt;p&gt;If checked, meshes that match the specified bitmap key(s) entered below are re-parented to an '&lt;span style=&quot; font-weight:600;&quot;&gt;a'&lt;/span&gt; node just as if they were splotches in a tile, unless the model has a non-NULL supermodel. An '&lt;span style=&quot; font-weight:600;&quot;&gt;a'&lt;/span&gt; node will be created or repaired if necessary.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="text">
+            <string>Placeable with transparency</string>
+           </property>
+          </widget>
+         </widget>
+         <widget class="QFrame" name="pivotFrame">
+          <property name="geometry">
+           <rect>
+            <x>530</x>
+            <y>10</y>
+            <width>291</width>
+            <height>271</height>
+           </rect>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>1</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="whatsThis">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bad pivots are one of the causes of shadow errors, particularly in tiles. The pivot of a mesh is regarded as &amp;quot;bad&amp;quot; if the mesh has any faces whose outward normals are directed towards the pivot rather than away from it.&lt;/p&gt;&lt;p&gt;Unless you set the Repivot option to &amp;quot;none&amp;quot; in the GUI or if there is a non-NULL supermodel, the program checks the pivots of all trimesh nodes that are set to shadow 1, except nodes whose position or orientation is changed in an animation. If it finds a bad pivot, it will try to fix it by moving the pivot to a position inside the mesh where it is no longer &amp;quot;bad&amp;quot;. If it succeeds, it will say so in the detailed log. However, this is not always possible. A common example is a door frame or window frame where the sides are facing each other inwards. Wherever you put the pivot, it would be in front of at least one of the sides Often, these situations can be resolved by splitting the mesh into suitable pieces, each of which can be successfully pivoted. There is an option to allow the program to try to do this automatically for you. If you set the Repivot option to &amp;quot;all&amp;quot;, the program will repivot nodes to conform to its own algorithms, even if their existing position is not actually &amp;quot;bad&amp;quot;. This may be useful on a first pass through a raw tileset, for example.The program will first try setting the pivot at the top of the object. If this is unsatisfactory, it will next try the centroid of the centroids of the faces of the object. If that also fails, it will compute the polyhedron within which the pivot must lie and if that polyhedron is convex it will use the centre of its bounding box as a pivot.&lt;/p&gt;&lt;p&gt;If snap is being used, the new position of the pivot will be snapped if possible. Sometimes, if the pivoting is critical, this is not possible. For example, if the program has calculated that the only possible position for a pivot is between 1.234 and 1.235, snapping it to 1.23 is not going to work. In this case, the pivot will be set to 1.2345 and the vertex co-ordinates, which are expressed relative to the pivot, will be released so that their absolute positions (relative to the rest of the geometry) can remain exact.&lt;/p&gt;&lt;p&gt;In the case of tile models, the program will look for a pivot within the XY boundaries of the tile. Objects in tiles do not cast shadows if they have a pivot below Z=0 so you may want to tell CM3 to keep pivots on or above the Z=0 plane. The GUI option “Pivots below Z=0” controls this. The third option 'slice' will cause meshes that cross the Z=0 place to be sliced at Z=0, the upper part repivoted and the lower part set to shadow 0.&lt;/p&gt;&lt;p&gt;Repivoting is not recommended for character models (it is likely to ruin animations) or doors (which do not cast shadows anyway).&lt;/p&gt;&lt;p&gt;The memory needed to find the bounding polyhedron increases as the third power of the number of faces. &lt;/p&gt;&lt;p&gt;For trimesh nodes of up to 150 faces, the program will use an exact algorithm that will certainly succeed in fixing the pivot if it is geometrically possible. Beyond 150 faces and up to 400 faces it will use a looser algorithm that is less memory-intensive and will usually succeed (about 99% of the time) but may occasionally fail. Beyond 400 faces it will not even try.&lt;/p&gt;&lt;p&gt;Occasionally, repositioning a difficult pivot may be achieved by exploiting rounding errors in the calculation of very small distances and the pivot may be placed the &amp;quot;wrong side&amp;quot; of a face by a microscopic distance. If this happens, a warning will be printed in the detailed log file.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::NoFrame</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <widget class="QFrame" name="repivotBox">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>33</y>
+             <width>276</width>
+             <height>225</height>
+            </rect>
+           </property>
+           <property name="frameShape">
+            <enum>QFrame::StyledPanel</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Raised</enum>
+           </property>
+           <widget class="QFrame" name="allowSplittingFrame">
+            <property name="geometry">
+             <rect>
+              <x>12</x>
+              <y>110</y>
+              <width>251</width>
+              <height>106</height>
+             </rect>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If you turn on the &amp;quot;splitting&amp;quot; option, when the program fails to find a satisfactory pivot position for an object, it will split the object into parts that can each be pivoted separately. It creates new names for the parts by adding suffix numbers to the original node name (having checked that they are not already in use) and it randomises the wirecolors of the new objects. If it fails to repivot one of the parts (which can happen with a really twisted geometry) it will set its wirecolor to red (1 0 0).&lt;/p&gt;&lt;p&gt;When splitting an object, the program first separates isolated objects that are not connected to each other by common edges. If that isn't enough, it tries splitting objects into distinct smoothing group. Then it tries detaching pieces of floor and anything below them. After that, it looks for pieces that are entirely convex or entirely concave and detaches those. Finally it looks for groups of faces that form plane polygons. When it separates a piece, it checks to see if that piece and the remaining part can be pivoted. If they can, it need go no further. Otherwise, it will try splitting them again in another way.&lt;/p&gt;&lt;p&gt;There are some options in the GUI to control the splitting process. You can tell it to use smoothing groups, as described above, or to totally ignore them (if you think the models are not well smoothed anyway) or to protect smoothing groups and not allow them to be split further even if the pivot is still bad.&lt;/p&gt;&lt;p&gt;There is also a spinner to set the minimum size (number of faces) of pieces after splitting. Setting it to 4 is often a good choice but you might need to try different values on problematic models. Usually, it works better for concave pieces to be identified before convex ones. For some geometries, however, it may be better to do it the other way around. The radio button in the GUI lets you to choose which way you want the program to do it. If you find a particular model is problematic and the program seems to generate a large number of pieces which it can't repivot, try changing this option and running the original file through the program again.When splitting shadow meshes (trimesh nodes set to render 0 shadow 1), the option to protect smoothing groups is ignored for that node (because smoothing is meaningless if the node is not rendered) and the minimum piece size of 2 is used, regardless of GUI options. This is so that, if a node is so convoluted that it cannot be pivoted without breaking smoothing, you can try creating a shadow mesh for it that can certainly be repivoted.&lt;/p&gt;&lt;p&gt;If a trimesh node cannot be successfully repivoted, even with splitting, you can opt to move it to the top, middle or bottom of the object or to leave it where it is. 'Top' means the centroid of the top-most vertices; 'Middle' means the centroid of those vertices that lie at or above Z=0 and 'Bottom' means the centroid of the bottom-most vertices. One of these choices will quite often, but not always, resolve remaining shadow errors but a warning is still printed in the log because visual inspection of the shadows on the model will still be needed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::WinPanel</enum>
+            </property>
+            <property name="frameShadow">
+             <enum>QFrame::Sunken</enum>
+            </property>
+            <widget class="QWidget" name="layoutWidget_D">
+             <property name="geometry">
+              <rect>
+               <x>10</x>
+               <y>40</y>
+               <width>231</width>
+               <height>30</height>
+              </rect>
+             </property>
+             <layout class="QHBoxLayout" name="smoothingGroupsLayout">
+              <item>
+               <widget class="QLabel" name="smoothingGroupsLabel">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Smoothing Groups</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="smoothingGroupsCombo">
+                <item>
+                 <property name="text">
+                  <string>Use</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Ignore</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Protect</string>
+                 </property>
+                </item>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+            <widget class="QWidget" name="layoutWidget_E">
+             <property name="geometry">
+              <rect>
+               <x>10</x>
+               <y>10</y>
+               <width>232</width>
+               <height>31</height>
+              </rect>
+             </property>
+             <layout class="QHBoxLayout" name="subObjectsMinFacesLayout">
+              <property name="sizeConstraint">
+               <enum>QLayout::SetMinimumSize</enum>
+              </property>
+              <item>
+               <widget class="QLabel" name="subObjectMinFacesLabel">
+                <property name="text">
+                 <string>Sub-Object Minimum Faces</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="subObjectSpin">
+                <property name="minimum">
+                 <number>2</number>
+                </property>
+                <property name="maximum">
+                 <number>8</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+            <widget class="QWidget" name="layoutWidget_F">
+             <property name="geometry">
+              <rect>
+               <x>10</x>
+               <y>70</y>
+               <width>231</width>
+               <height>30</height>
+              </rect>
+             </property>
+             <layout class="QHBoxLayout" name="splitFirstLayout">
+              <property name="sizeConstraint">
+               <enum>QLayout::SetMinimumSize</enum>
+              </property>
+              <item>
+               <widget class="QLabel" name="splitFirstLabel">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Split First</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="splitFirstCombo">
+                <item>
+                 <property name="text">
+                  <string>Convex</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Concave</string>
+                 </property>
+                </item>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </widget>
+           <widget class="QWidget" name="layoutWidget2">
+            <property name="geometry">
+             <rect>
+              <x>13</x>
+              <y>10</y>
+              <width>251</width>
+              <height>96</height>
+             </rect>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_5">
+             <item row="0" column="0">
+              <widget class="QLabel" name="pivotsBelowZeroZLabel">
+               <property name="text">
+                <string>Pivots Below Z=0</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QComboBox" name="pivotsBelowZeroZCombo">
+               <item>
+                <property name="text">
+                 <string>Disallow</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Allow</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Slice</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="moveBadPivotsLabel">
+               <property name="text">
+                <string>Move Bad Pivots</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QComboBox" name="moveBadPivotsCombo">
+               <item>
+                <property name="text">
+                 <string>No</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Top</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Middle</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Bottom</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QCheckBox" name="allowSplittingCheck">
+               <property name="minimumSize">
+                <size>
+                 <width>140</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="whatsThis">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If you turn on the &amp;quot;splitting&amp;quot; option, when the program fails to find a satisfactory pivot position for an object, it will split the object into parts that can each be pivoted separately. It creates new names for the parts by adding suffix numbers to the original node name (having checked that they are not already in use) and it randomises the wirecolors of the new objects. If it fails to repivot one of the parts (which can happen with a really twisted geometry) it will set its wirecolor to red (1 0 0).&lt;/p&gt;&lt;p&gt;When splitting an object, the program first separates isolated objects that are not connected to each other by common edges. If that isn't enough, it tries splitting objects into distinct smoothing group. Then it tries detaching pieces of floor and anything below them. After that, it looks for pieces that are entirely convex or entirely concave and detaches those. Finally it looks for groups of faces that form plane polygons. When it separates a piece, it checks to see if that piece and the remaining part can be pivoted. If they can, it need go no further. Otherwise, it will try splitting them again in another way.&lt;/p&gt;&lt;p&gt;There are some options in the GUI to control the splitting process. You can tell it to use smoothing groups, as described above, or to totally ignore them (if you think the models are not well smoothed anyway) or to protect smoothing groups and not allow them to be split further even if the pivot is still bad.&lt;/p&gt;&lt;p&gt;There is also a spinner to set the minimum size (number of faces) of pieces after splitting. Setting it to 4 is often a good choice but you might need to try different values on problematic models. Usually, it works better for concave pieces to be identified before convex ones. For some geometries, however, it may be better to do it the other way around. The radio button in the GUI lets you to choose which way you want the program to do it. If you find a particular model is problematic and the program seems to generate a large number of pieces which it can't repivot, try changing this option and running the original file through the program again.When splitting shadow meshes (trimesh nodes set to render 0 shadow 1), the option to protect smoothing groups is ignored for that node (because smoothing is meaningless if the node is not rendered) and the minimum piece size of 2 is used, regardless of GUI options. This is so that, if a node is so convoluted that it cannot be pivoted without breaking smoothing, you can try creating a shadow mesh for it that can certainly be repivoted.&lt;/p&gt;&lt;p&gt;If a trimesh node cannot be successfully repivoted, even with splitting, you can opt to move it to the top, middle or bottom of the object or to leave it where it is. 'Top' means the centroid of the top-most vertices; 'Middle' means the centroid of those vertices that lie at or above Z=0 and 'Bottom' means the centroid of the bottom-most vertices. One of these choices will quite often, but not always, resolve remaining shadow errors but a warning is still printed in the log because visual inspection of the shadows on the model will still be needed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Allow Splitting</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+          <widget class="QLabel" name="repivotLabel">
+           <property name="geometry">
+            <rect>
+             <x>13</x>
+             <y>4</y>
+             <width>51</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Repivot</string>
+           </property>
+          </widget>
+          <widget class="QComboBox" name="repivotCombo">
+           <property name="geometry">
+            <rect>
+             <x>68</x>
+             <y>0</y>
+             <width>111</width>
+             <height>28</height>
+            </rect>
+           </property>
+           <item>
+            <property name="text">
+             <string>If needed</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>All</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+          </widget>
+         </widget>
+         <widget class="QLineEdit" name="inDirectory">
+          <property name="geometry">
+           <rect>
+            <x>50</x>
+            <y>10</y>
+            <width>211</width>
+            <height>28</height>
+           </rect>
+          </property>
+          <property name="toolTip">
+           <string>You can type addresses relative to the CM3 install directory using &quot;.&quot; and &quot;..&quot;</string>
+          </property>
+          <property name="statusTip">
+           <string/>
+          </property>
+          <property name="maxLength">
+           <number>512</number>
+          </property>
+         </widget>
+         <widget class="QLineEdit" name="outDirectory">
+          <property name="geometry">
+           <rect>
+            <x>50</x>
+            <y>40</y>
+            <width>211</width>
+            <height>28</height>
+           </rect>
+          </property>
+          <property name="toolTip">
+           <string>You can type addresses relative to the CM3 install directory using &quot;.&quot; and &quot;..&quot;</string>
+          </property>
+          <property name="statusTip">
+           <string/>
+          </property>
+          <property name="maxLength">
+           <number>512</number>
+          </property>
+         </widget>
+         <widget class="QLineEdit" name="filePattern">
+          <property name="geometry">
+           <rect>
+            <x>90</x>
+            <y>70</y>
+            <width>211</width>
+            <height>28</height>
+           </rect>
+          </property>
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Changing the filename pattern allows you to focus on just a few models at a time it you want to. Use Unix-style patterns, for example, &lt;span style=&quot; font-weight:600;&quot;&gt;a_*[bf]a_*.mdl&lt;/span&gt; to pick out certain animation supermodels or &lt;span style=&quot; font-weight:600;&quot;&gt;tcxy?_[a-d]*.mdl&lt;/span&gt; to pick out just the a,b,c and d series tiles of the tcxy tileset.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="maxLength">
+           <number>32</number>
+          </property>
+         </widget>
+         <widget class="QFrame" name="classSnapBox">
+          <property name="geometry">
+           <rect>
+            <x>10</x>
+            <y>160</y>
+            <width>291</width>
+            <height>41</height>
+           </rect>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::NoFrame</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <widget class="QWidget" name="layoutWidget_I">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>3</y>
+             <width>291</width>
+             <height>31</height>
+            </rect>
+           </property>
+           <layout class="QHBoxLayout" name="modelClassLayout">
+            <property name="sizeConstraint">
+             <enum>QLayout::SetMinimumSize</enum>
+            </property>
+            <item>
+             <widget class="QLabel" name="modelClassLabel">
+              <property name="whatsThis">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Allows you to override the classification of models. It should normally be left on &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Automatic&lt;/span&gt;&amp;quot; and the program will assume that the classification parameter in each input model is true and correct and process it and output it accordingly. However, if you know that all of the models are supposed to be of a single type and suspect that some may have the wrong classification, you can set the drop down to one of the specific options to force all the models to be processed and output as if they were of that particular type. There is no distinct classification for placeables because in NWN, placeables are classed as '&lt;span style=&quot; font-weight:600;&quot;&gt;Characters'&lt;/span&gt;. Note that, if the classification is set to anything other than '&lt;span style=&quot; font-weight:600;&quot;&gt;Tile&lt;/span&gt;' or '&lt;span style=&quot; font-weight:600;&quot;&gt;Automatic&lt;/span&gt;', the program will not attempt to load edge tile 2da's.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>Model Classification</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="modelClassCombo">
+              <property name="whatsThis">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Allows you to override the classification of models. It should normally be left on &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Automatic&lt;/span&gt;&amp;quot; and the program will assume that the classification parameter in each input model is true and correct and process it and output it accordingly. However, if you know that all of the models are supposed to be of a single type and suspect that some may have the wrong classification, you can set the drop down to one of the specific options to force all the models to be processed and output as if they were of that particular type. There is no distinct classification for placeables because in NWN, placeables are classed as '&lt;span style=&quot; font-weight:600;&quot;&gt;Characters'&lt;/span&gt;. Note that, if the classification is set to anything other than '&lt;span style=&quot; font-weight:600;&quot;&gt;Tile&lt;/span&gt;' or '&lt;span style=&quot; font-weight:600;&quot;&gt;Automatic&lt;/span&gt;', the program will not attempt to load edge tile 2da's.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="editable">
+               <bool>false</bool>
+              </property>
+              <property name="currentText">
+               <string>Automatic</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Automatic</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Character</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Door</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Effect</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Item</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Tile</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+         <widget class="QLineEdit" name="logFileName">
+          <property name="geometry">
+           <rect>
+            <x>90</x>
+            <y>100</y>
+            <width>211</width>
+            <height>28</height>
+           </rect>
+          </property>
+          <property name="whatsThis">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Will record details of all the faults the program has identified and all the fixes it has done. It may be quite long but it is there so that you can see what kinds of faults the models had in them, that needed fixing.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="maxLength">
+           <number>32</number>
+          </property>
+         </widget>
+         <widget class="QLineEdit" name="summaryLogFileName">
+          <property name="geometry">
+           <rect>
+            <x>90</x>
+            <y>130</y>
+            <width>211</width>
+            <height>28</height>
+           </rect>
+          </property>
+          <property name="whatsThis">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A summary log that only lists the remaining, unfixed faults that will need to be investigated and repaired manually. Serious errors that prevented a model being exported at all are flagged in the summary file with &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;*** Error&lt;/span&gt;&amp;quot; so that they can be found quickly.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="maxLength">
+           <number>32</number>
+          </property>
+         </widget>
+         <widget class="QFrame" name="rescaleFrame">
+          <property name="geometry">
+           <rect>
+            <x>540</x>
+            <y>276</y>
+            <width>276</width>
+            <height>38</height>
+           </rect>
+          </property>
+          <property name="whatsThis">
+           <string>Model rescaling. Press the lock button to synchronize the X, Y and Z scaling. A scale of 1,1,1 is considered off.</string>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <widget class="QDoubleSpinBox" name="rescaleXSpin">
+           <property name="geometry">
+            <rect>
+             <x>58</x>
+             <y>5</y>
+             <width>60</width>
+             <height>29</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>60</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>60</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>X Scale</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="value">
+            <double>1.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="rescaleYSpin">
+           <property name="geometry">
+            <rect>
+             <x>120</x>
+             <y>5</y>
+             <width>60</width>
+             <height>29</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>60</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>60</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Y Scale</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="value">
+            <double>1.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QLabel" name="rescaleLabel">
+           <property name="geometry">
+            <rect>
+             <x>6</x>
+             <y>9</y>
+             <width>52</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>52</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>52</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Rescale</string>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="rescaleZSpin">
+           <property name="geometry">
+            <rect>
+             <x>182</x>
+             <y>5</y>
+             <width>60</width>
+             <height>29</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>60</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>60</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Z Scale</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="value">
+            <double>1.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="rescaleLockBtn">
+           <property name="geometry">
+            <rect>
+             <x>246</x>
+             <y>7</y>
+             <width>24</width>
+             <height>24</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>24</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>24</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Lock Y and Z with X scale.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset resource="icons.qrc">
+             <normaloff>:/icons/unlock-rescale</normaloff>:/icons/unlock-rescale</iconset>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+           <property name="flat">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </widget>
+         <widget class="QGroupBox" name="groupBox">
+          <property name="geometry">
+           <rect>
+            <x>10</x>
+            <y>200</y>
+            <width>291</width>
+            <height>114</height>
+           </rect>
+          </property>
+          <property name="title">
+           <string>Clean Summary</string>
+          </property>
+          <widget class="QLabel" name="mdlsDetectedLabel">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>30</y>
+             <width>261</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Files Detected</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="mdlsCleanedLabel">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>57</y>
+             <width>261</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Files Cleaned</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="mdlsFailedLabel">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>84</y>
+             <width>221</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Failures</string>
+           </property>
+          </widget>
+         </widget>
+         <widget class="QLabel" name="label">
+          <property name="geometry">
+           <rect>
+            <x>11</x>
+            <y>72</y>
+            <width>75</width>
+            <height>20</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>File Pattern</string>
+          </property>
+         </widget>
+         <widget class="QLabel" name="summaryLogLabel">
+          <property name="geometry">
+           <rect>
+            <x>11</x>
+            <y>132</y>
+            <width>63</width>
+            <height>20</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Summary</string>
+          </property>
+         </widget>
+         <widget class="QLabel" name="indirLabel">
+          <property name="geometry">
+           <rect>
+            <x>11</x>
+            <y>12</y>
+            <width>16</width>
+            <height>20</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>In</string>
+          </property>
+         </widget>
+         <widget class="QLabel" name="logLabel">
+          <property name="geometry">
+           <rect>
+            <x>11</x>
+            <y>102</y>
+            <width>25</width>
+            <height>20</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Log</string>
+          </property>
+         </widget>
+         <widget class="QLabel" name="outdirLabel">
+          <property name="geometry">
+           <rect>
+            <x>11</x>
+            <y>42</y>
+            <width>26</width>
+            <height>20</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Out</string>
+          </property>
+         </widget>
+        </widget>
+        <widget class="QWidget" name="tilesTab">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>858</width>
+           <height>324</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string/>
+         </property>
+         <attribute name="title">
+          <string>Tiles</string>
+         </attribute>
+         <attribute name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fixes specific to tiles.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </attribute>
+         <widget class="QFrame" name="waterFrame">
+          <property name="geometry">
+           <rect>
+            <x>301</x>
+            <y>34</y>
+            <width>261</width>
+            <height>203</height>
+           </rect>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <widget class="QWidget" name="layoutWidget5">
+           <property name="geometry">
+            <rect>
+             <x>11</x>
+             <y>4</y>
+             <width>241</width>
+             <height>201</height>
+            </rect>
+           </property>
+           <layout class="QGridLayout" name="waterFixesLayout">
+            <item row="0" column="0" colspan="2">
+             <widget class="QLabel" name="waterBitmapKeysLabel">
+              <property name="minimumSize">
+               <size>
+                <width>160</width>
+                <height>20</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>20</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Water Bitmap Key(s)</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0" colspan="2">
+             <widget class="QLineEdit" name="waterBitmapKeys">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>27</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>27</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Separate multiple keys by spaces</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="dynamicWaterLabel">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>20</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>20</height>
+               </size>
+              </property>
+              <property name="whatsThis">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The &amp;quot;Dynamic Water&amp;quot; sub-option offers three choices.&lt;ul&gt;&lt;li&gt;Select &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;yes&lt;/span&gt;&amp;quot; if you want the program to ensure that water surfaces descend from the tile's 'a&lt;span style=&quot; font-weight:600;&quot;&gt;'&lt;/span&gt; node but don't want to do anything special with animmesh animations. The program will create the '&lt;span style=&quot; font-weight:600;&quot;&gt;a&lt;/span&gt;' node if it needs to and move water meshes up and across the hierarchy as appropriate. This option should normally be chosen if there is walkable water (such as stream and pools) in the tileset. (If the water is not attached to the '&lt;span style=&quot; font-weight:600;&quot;&gt;a&lt;/span&gt;' node, creatures' feet will be invisible when they walk through the water).&lt;/li&gt;&lt;li&gt;The &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;no&lt;/span&gt;&amp;quot; option de-animates water, removing it from the '&lt;span style=&quot; font-weight:600;&quot;&gt;a&lt;/span&gt;' node, and if it is animmesh water it strips it back to trimesh and deletes any associated animations. This option is mainly intended for repairing really broken tiles and getting back to something safe.&lt;/li&gt;&lt;li&gt;The &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;wavy&lt;/span&gt;&amp;quot; option allows you to add or repair swooshy sea waves like the ones in the TNO01 tileset. It moves water onto the '&lt;span style=&quot; font-weight:600;&quot;&gt;a&lt;/span&gt;' node (if it wasn't already), converts it from trimesh to animmesh (if it wasn't already), forces its pivot to be at the tile origin with zero orientation, snaps and welds vertices, tessellates the mesh by halving edges until all edges are &amp;lt; 200cm, creates an animloop03 animation is there isn't one and creates new animmesh animations, overwriting any previous ones.&lt;/li&gt;&lt;/ul&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>Dynamic Water</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QComboBox" name="dynamicWaterCombo">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="whatsThis">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The &amp;quot;Dynamic Water&amp;quot; sub-option offers three choices.&lt;ul&gt;&lt;li&gt;Select &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;yes&lt;/span&gt;&amp;quot; if you want the program to ensure that water surfaces descend from the tile's 'a&lt;span style=&quot; font-weight:600;&quot;&gt;'&lt;/span&gt; node but don't want to do anything special with animmesh animations. The program will create the '&lt;span style=&quot; font-weight:600;&quot;&gt;a&lt;/span&gt;' node if it needs to and move water meshes up and across the hierarchy as appropriate. This option should normally be chosen if there is walkable water (such as stream and pools) in the tileset. (If the water is not attached to the '&lt;span style=&quot; font-weight:600;&quot;&gt;a&lt;/span&gt;' node, creatures' feet will be invisible when they walk through the water).&lt;/li&gt;&lt;li&gt;The &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;no&lt;/span&gt;&amp;quot; option de-animates water, removing it from the '&lt;span style=&quot; font-weight:600;&quot;&gt;a&lt;/span&gt;' node, and if it is animmesh water it strips it back to trimesh and deletes any associated animations. This option is mainly intended for repairing really broken tiles and getting back to something safe.&lt;/li&gt;&lt;li&gt;The &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;wavy&lt;/span&gt;&amp;quot; option allows you to add or repair swooshy sea waves like the ones in the TNO01 tileset. It moves water onto the '&lt;span style=&quot; font-weight:600;&quot;&gt;a&lt;/span&gt;' node (if it wasn't already), converts it from trimesh to animmesh (if it wasn't already), forces its pivot to be at the tile origin with zero orientation, snaps and welds vertices, tessellates the mesh by halving edges until all edges are &amp;lt; 200cm, creates an animloop03 animation is there isn't one and creates new animmesh animations, overwriting any previous ones.&lt;/li&gt;&lt;/ul&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Yes</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>No</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Wavy</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item row="3" column="0" colspan="2">
+             <widget class="QFrame" name="waveHeightFrame">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>34</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>34</height>
+               </size>
+              </property>
+              <property name="whatsThis">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The wave pattern for wavy water is randomised afresh for each tile so if you don't like the pattern it gives you, run the same tile through CM3 again and you will get a different one. If a tile contains more than one water mesh, the same random keys are used for all of them. Think twice before adding waves to a tileset. There are pitfalls.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;• Wavy water conflicts with shinywater. If the water bitmap has a .txi that defines it as shinywater and you try to animate it, the texture will not paint properly in clients that have shinywater enabled and, depending on the graphics card, it might even crash. The bitmap used for the wavy sea in TNO01 is not shinywater.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;• The NWN engine does not apply rotatetexture to animmesh objects, even if the flag is set to 1. To avoid getting visible seams in wavy water at tile edges, your water bitmap needs to have 8-fold rotational symmetry around its perimeter. Most water bitmaps do not have this so you may need to craft your own.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;• If you add waves to a tile, you can no longer re-import it into Gmax or 3dsMax because NWMax cannot import animmesh animations. Only add waves at the last stage when all other editing has been finalised. You can work around this problem by using the &amp;quot;no&amp;quot; option to remove theanimmesh, do the editing in Gmax or 3dsMax and then rerun CM3 with the &amp;quot;wavy&amp;quot; option set to reconstruct the waves. You won't get the same wave pattern as before, though.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;There is a spinner for selecting an average wave height between 10cm and 1.0m in units of 10cm. Setting it to 5 is usually about right but it rather depends on what objects lie in the tile at the water's edge. You might use setting of 9 or 10 for dramatic waves pounding the foot of towering cliffs but more like 1 or 2 for ripples gently lapping a sloping beach.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;Only interior vertices are animated. Ones along the tile edge are kept static otherwise they wouldn't match the next tile.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;Note that the option to redo UV the mapping is not available for water that has already been made wavy.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::WinPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Sunken</enum>
+              </property>
+              <widget class="QLabel" name="waveHeightLabel">
+               <property name="geometry">
+                <rect>
+                 <x>10</x>
+                 <y>3</y>
+                 <width>144</width>
+                 <height>30</height>
+                </rect>
+               </property>
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>30</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>30</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>Wave Height (x10cm)</string>
+               </property>
+              </widget>
+              <widget class="QDoubleSpinBox" name="waveHeightSpin">
+               <property name="geometry">
+                <rect>
+                 <x>161</x>
+                 <y>3</y>
+                 <width>56</width>
+                 <height>30</height>
+                </rect>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>56</width>
+                 <height>30</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>56</width>
+                 <height>30</height>
+                </size>
+               </property>
+               <property name="decimals">
+                <number>1</number>
+               </property>
+               <property name="minimum">
+                <double>0.100000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>10.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>1.000000000000000</double>
+               </property>
+              </widget>
+             </widget>
+            </item>
+            <item row="4" column="0">
+             <widget class="QLabel" name="rotateTextureWaterLabel">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>20</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>20</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Water rotatetexture</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="1">
+             <widget class="QComboBox" name="waterRotateTextureCombo">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>28</height>
+               </size>
+              </property>
+              <item>
+               <property name="text">
+                <string>No change</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>1</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>0</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item row="5" column="0">
+             <widget class="QLabel" name="retileWaterLabel">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>20</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>20</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Re-tile water</string>
+              </property>
+             </widget>
+            </item>
+            <item row="5" column="1">
+             <widget class="QComboBox" name="retileWaterCombo">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>28</height>
+               </size>
+              </property>
+              <item>
+               <property name="text">
+                <string>No change</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>1x1</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>2x2</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>3x3</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+         <widget class="QGroupBox" name="tweaksGroupBox">
+          <property name="geometry">
+           <rect>
+            <x>10</x>
+            <y>10</y>
+            <width>281</width>
+            <height>306</height>
+           </rect>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Maximum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>306</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>306</height>
+           </size>
+          </property>
+          <property name="title">
+           <string>Tweaks</string>
+          </property>
+          <widget class="QLabel" name="sliceForTilefadeLabel">
+           <property name="geometry">
+            <rect>
+             <x>12</x>
+             <y>106</y>
+             <width>110</width>
+             <height>30</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If you select &amp;quot;Slice for Tilefading&amp;quot;, you can then specify a slice height in the range 2 to 10 metres in units of 10cm. For each tile separately, a slice plane is computed at that height above the highest walkable point in the walkmesh (after the walkmesh has been repaired if necessary, of course), rounded down to the nearest 10cm. Different tiles may therefore be sliced at different heights but it will be generally appropriate to the terrain. As a special case, if there are animated objects in the tile that would project above the slice plane, the slice plane for that tile will be raised to clear them (it tends to look silly, otherwise).&lt;/p&gt;&lt;p&gt;Slicing is not applied to edge tiles, to unrendered objects, to objects already set to tilefade, to objects with animation keys or any other objects that descend from the tile's 'a' node. Otherwise, objects clear above the slice plane are set to fade, objects clear below it to not fade and objects that cross it are sliced to create fading tops and non-fading bottom parts.&lt;/p&gt;&lt;p&gt;If Tree Foliage is also set to &amp;quot;tilefade&amp;quot;, as an exception, foliage objects are not sliced. Quite simply, if the foliage object extends above the slice plane the whole object is set to fade otherwise it is set to not fade.&lt;/p&gt;&lt;p&gt;Black bases are automatically constructed for fading objects and set to tilefade 2. The algorithm used gives good results in most cases but may fail if the sliced meshes have annular holes and so the bases it generates should always be checked visually for glitches. Before constructing bases it deletes any existing ones so if you know that your tiles already have satisfactorily bases, it is better to set tilefade to &amp;quot;no&amp;quot; to preserve the status quo ante rather than risk disrupting them.&lt;/p&gt;&lt;p&gt;The &amp;quot;undo&amp;quot; option removes tilefading completely. Objects set to tilefade 2 (usually, black tops that appear when upper parts fade and uncover them) are deleted and other objects with tilefade 1 (fade) or 4 (neighbour) are reset to tilefade 0. It does not weld together meshes that have previously been sliced apart but the “Meshmerge by Bitmap” option may be helpful in such cases.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="text">
+            <string>Slice for Tilefade</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="raiseLowerLabel">
+           <property name="geometry">
+            <rect>
+             <x>12</x>
+             <y>69</y>
+             <width>132</width>
+             <height>30</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>132</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Raise/Lower tileset</string>
+           </property>
+          </widget>
+          <widget class="QCheckBox" name="changeWokMatCheck">
+           <property name="geometry">
+            <rect>
+             <x>12</x>
+             <y>208</y>
+             <width>199</width>
+             <height>30</height>
+            </rect>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Change Walkmesh material</string>
+           </property>
+          </widget>
+          <widget class="QComboBox" name="sliceForTileFadeCombo">
+           <property name="geometry">
+            <rect>
+             <x>139</x>
+             <y>106</y>
+             <width>132</width>
+             <height>30</height>
+            </rect>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>132</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>132</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If you select &amp;quot;Slice for Tilefading&amp;quot;, you can then specify a slice height in the range 2 to 10 metres in units of 10cm. For each tile separately, a slice plane is computed at that height above the highest walkable point in the walkmesh (after the walkmesh has been repaired if necessary, of course), rounded down to the nearest 10cm. Different tiles may therefore be sliced at different heights but it will be generally appropriate to the terrain. As a special case, if there are animated objects in the tile that would project above the slice plane, the slice plane for that tile will be raised to clear them (it tends to look silly, otherwise).&lt;/p&gt;&lt;p&gt;Slicing is not applied to edge tiles, to unrendered objects, to objects already set to tilefade, to objects with animation keys or any other objects that descend from the tile's 'a' node. Otherwise, objects clear above the slice plane are set to fade, objects clear below it to not fade and objects that cross it are sliced to create fading tops and non-fading bottom parts.&lt;/p&gt;&lt;p&gt;If Tree Foliage is also set to &amp;quot;tilefade&amp;quot;, as an exception, foliage objects are not sliced. Quite simply, if the foliage object extends above the slice plane the whole object is set to fade otherwise it is set to not fade.&lt;/p&gt;&lt;p&gt;Black bases are automatically constructed for fading objects and set to tilefade 2. The algorithm used gives good results in most cases but may fail if the sliced meshes have annular holes and so the bases it generates should always be checked visually for glitches. Before constructing bases it deletes any existing ones so if you know that your tiles already have satisfactorily bases, it is better to set tilefade to &amp;quot;no&amp;quot; to preserve the status quo ante rather than risk disrupting them.&lt;/p&gt;&lt;p&gt;The &amp;quot;undo&amp;quot; option removes tilefading completely. Objects set to tilefade 2 (usually, black tops that appear when upper parts fade and uncover them) are deleted and other objects with tilefade 1 (fade) or 4 (neighbour) are reset to tilefade 0. It does not weld together meshes that have previously been sliced apart but the “Meshmerge by Bitmap” option may be helpful in such cases.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>Yes</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>No</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Undo</string>
+            </property>
+           </item>
+          </widget>
+          <widget class="QComboBox" name="repairAABBCombo">
+           <property name="geometry">
+            <rect>
+             <x>178</x>
+             <y>32</y>
+             <width>92</width>
+             <height>30</height>
+            </rect>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>92</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>92</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If enable it will attempt to adjust walkmesh vertices horizontally to remove tucks and folds and re-align overhanging faces to have positive slopes. It will typically succeed in about 90% of cases but sometimes the mesh may be too badly twisted for it to know what to do and you will get a warning that the walkmesh still has mis- oriented faces. If you use this option, you are advised to check the walkmesh visually afterwards in case it has been distorted inappropriately.&lt;/p&gt;&lt;p&gt;When repairing overhangs, the program straightens any zigzag lines of vertices down tile edges first, before adjusting interior vertices. It will straighten identical zigzigs in identical ways on all tiles so that if the walkmesh was continuous across certain tile boundaries before the repairs, it will still be continuous afterwards. This continuity may be lost, however, if not all tiles in the tileset are processed or if the meshing of the tile edges was already inconsistent. In such cases, the &amp;quot;Interior only&amp;quot; option should be used. This will ensure that tile-edge vertices are not moved at all. This may mean that fewer face overhangs can be repaired by the program and more work will have to be done by hand-crafting, but it does avoid the risk of causing disjunctions in the walkmesh between tiles that had not been present before.&lt;/p&gt;&lt;p&gt;When reporting inverted aabb faces that it could not fix, the program lists their face numbers. Note that faces in NWN are numbered from zero. If you look for those faces in Gmax or 3dsMax, you have to add 1 mentally because those programs number faces from 1. Inverted faces are sometimes very small or hidden behind other faces and hard to see, so this may help to track them down.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>Yes</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>No</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Interior only</string>
+            </property>
+           </item>
+          </widget>
+          <widget class="QLabel" name="repairAABBLabel">
+           <property name="geometry">
+            <rect>
+             <x>12</x>
+             <y>32</y>
+             <width>148</width>
+             <height>30</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If enable it will attempt to adjust walkmesh vertices horizontally to remove tucks and folds and re-align overhanging faces to have positive slopes. It will typically succeed in about 90% of cases but sometimes the mesh may be too badly twisted for it to know what to do and you will get a warning that the walkmesh still has mis- oriented faces. If you use this option, you are advised to check the walkmesh visually afterwards in case it has been distorted inappropriately.&lt;/p&gt;&lt;p&gt;When repairing overhangs, the program straightens any zigzag lines of vertices down tile edges first, before adjusting interior vertices. It will straighten identical zigzigs in identical ways on all tiles so that if the walkmesh was continuous across certain tile boundaries before the repairs, it will still be continuous afterwards. This continuity may be lost, however, if not all tiles in the tileset are processed or if the meshing of the tile edges was already inconsistent. In such cases, the &amp;quot;Interior only&amp;quot; option should be used. This will ensure that tile-edge vertices are not moved at all. This may mean that fewer face overhangs can be repaired by the program and more work will have to be done by hand-crafting, but it does avoid the risk of causing disjunctions in the walkmesh between tiles that had not been present before.&lt;/p&gt;&lt;p&gt;When reporting inverted aabb faces that it could not fix, the program lists their face numbers. Note that faces in NWN are numbered from zero. If you look for those faces in Gmax or 3dsMax, you have to add 1 mentally because those programs number faces from 1. Inverted faces are sometimes very small or hidden behind other faces and hard to see, so this may help to track them down.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="text">
+            <string>Repair aabb overhangs</string>
+           </property>
+          </widget>
+          <widget class="QComboBox" name="raiseLowerCombo">
+           <property name="geometry">
+            <rect>
+             <x>139</x>
+             <y>69</y>
+             <width>72</width>
+             <height>30</height>
+            </rect>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>72</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>72</width>
+             <height>30</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This may be useful when importing tiles from another tileset where the ground height is different, or to raise an entire tileset to overcome the problem of shadows cutting off at Z=0. CM3 does the shifting after all other fixes have been made to the tile, using these rules:&lt;ul&gt;&lt;/li&gt;&lt;li&gt;The tile dummy (Aurora Base) and 'a' node are not moved&lt;/li&gt;&lt;li&gt;The walkmesh position is not changed but its vertices are adjusted individually up or down&lt;/li&gt;&lt;li&gt;All other objects parented directly to the tile dummy have their positions adjusted up or down&lt;/li&gt;&lt;li&gt;animmesh objects (which will be parented to the 'a' node) are not moved but have their vertices and animverts adjusted&lt;/li&gt;&lt;li&gt;All other objects parented directly to the 'a' node have their positions and positionkeys adjusted&lt;/li&gt;&lt;/ul&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>No</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Raise</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Lower</string>
+            </property>
+           </item>
+          </widget>
+          <widget class="QFrame" name="changeWokMatGroupBox">
+           <property name="geometry">
+            <rect>
+             <x>12</x>
+             <y>244</y>
+             <width>259</width>
+             <height>38</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>38</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>38</height>
+            </size>
+           </property>
+           <property name="frameShape">
+            <enum>QFrame::WinPanel</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Sunken</enum>
+           </property>
+           <widget class="QLabel" name="changeWokMatFromLabel">
+            <property name="geometry">
+             <rect>
+              <x>20</x>
+              <y>8</y>
+              <width>35</width>
+              <height>20</height>
+             </rect>
+            </property>
+            <property name="text">
+             <string>From</string>
+            </property>
+           </widget>
+           <widget class="QSpinBox" name="changeWokMatFromSpin">
+            <property name="geometry">
+             <rect>
+              <x>62</x>
+              <y>4</y>
+              <width>49</width>
+              <height>29</height>
+             </rect>
+            </property>
+            <property name="maximum">
+             <number>30</number>
+            </property>
+           </widget>
+           <widget class="QLabel" name="changeWokMatToLabel">
+            <property name="geometry">
+             <rect>
+              <x>117</x>
+              <y>8</y>
+              <width>16</width>
+              <height>20</height>
+             </rect>
+            </property>
+            <property name="text">
+             <string>to</string>
+            </property>
+           </widget>
+           <widget class="QSpinBox" name="changeWokMatToSpin">
+            <property name="geometry">
+             <rect>
+              <x>140</x>
+              <y>4</y>
+              <width>49</width>
+              <height>29</height>
+             </rect>
+            </property>
+            <property name="maximum">
+             <number>30</number>
+            </property>
+           </widget>
+          </widget>
+          <widget class="QDoubleSpinBox" name="raiseLowerAmountSpin">
+           <property name="geometry">
+            <rect>
+             <x>217</x>
+             <y>68</y>
+             <width>54</width>
+             <height>32</height>
+            </rect>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>54</width>
+             <height>32</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>54</width>
+             <height>32</height>
+            </size>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This may be useful when importing tiles from another tileset where the ground height is different, or to raise an entire tileset to overcome the problem of shadows cutting off at Z=0. CM3 does the shifting after all other fixes have been made to the tile, using these rules:&lt;ul&gt;&lt;/li&gt;&lt;li&gt;The tile dummy (Aurora Base) and 'a' node are not moved&lt;/li&gt;&lt;li&gt;The walkmesh position is not changed but its vertices are adjusted individually up or down&lt;/li&gt;&lt;li&gt;All other objects parented directly to the tile dummy have their positions adjusted up or down&lt;/li&gt;&lt;li&gt;animmesh objects (which will be parented to the 'a' node) are not moved but have their vertices and animverts adjusted&lt;/li&gt;&lt;li&gt;All other objects parented directly to the 'a' node have their positions and positionkeys adjusted&lt;/li&gt;&lt;/ul&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="minimum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>1.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QFrame" name="sliceHeightFrame">
+           <property name="geometry">
+            <rect>
+             <x>12</x>
+             <y>142</y>
+             <width>259</width>
+             <height>60</height>
+            </rect>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>60</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>60</height>
+            </size>
+           </property>
+           <property name="frameShape">
+            <enum>QFrame::WinPanel</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Sunken</enum>
+           </property>
+           <widget class="QDoubleSpinBox" name="sliceHeightSpin">
+            <property name="geometry">
+             <rect>
+              <x>180</x>
+              <y>14</y>
+              <width>70</width>
+              <height>29</height>
+             </rect>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>70</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>70</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="minimum">
+             <double>20.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>100.000000000000000</double>
+            </property>
+           </widget>
+           <widget class="QLabel" name="sliceHeightLabel">
+            <property name="geometry">
+             <rect>
+              <x>11</x>
+              <y>9</y>
+              <width>127</width>
+              <height>39</height>
+             </rect>
+            </property>
+            <property name="text">
+             <string>Slice Height above Walkmesh (x10cm)</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </widget>
+         </widget>
+         <widget class="QCheckBox" name="waterFixupsCheck">
+          <property name="geometry">
+           <rect>
+            <x>301</x>
+            <y>6</y>
+            <width>171</width>
+            <height>30</height>
+           </rect>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>30</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>30</height>
+           </size>
+          </property>
+          <property name="whatsThis">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The program recognises water surfaces by their bitmap names. It has some Bioware texture names built-in but it will also look for a special substring (the &amp;quot;key&amp;quot;) in every bitmap name. By default the key is &amp;quot;water&amp;quot; and this works for most tilesets but you can change this in the GUI if your tileset uses some other convention. You can enter more than one key if you separate them by spaces.&lt;/p&gt;&lt;p&gt;When water connects across tile boundaries, it tends to look better if the bitmap keeps the same compass orientation regardless of rotations of the tiles. You can achieve this by setting rotatetexture to 1 on all the water surface meshes. The program can do this for you automatically if you wish. Otherwise, you can set it to 0 (not recommended) or leave it alone. There is also an option to redo the UV mapping of water planes to a whole number of repeat units across the tile width. The choice of 1x1, 2x2 or 3x3 is offered. These mappings anchor the bottom left corner of the bitmap (U=V=0) to the bottom left corner of the tile (X= Y= -5) and compute the U,V for each vertex from its X,Y coordinate. When applied across a tileset in conjunction with the rotatetexture flag, this will also help to prevent visible seams in the water at tile boundaries. For best results, you need to use a water bitmap that is seamless across its edges.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="text">
+           <string>Apply Water Fixups</string>
+          </property>
+         </widget>
+         <widget class="QLineEdit" name="splotchBitmapKeys">
+          <property name="geometry">
+           <rect>
+            <x>301</x>
+            <y>289</y>
+            <width>261</width>
+            <height>28</height>
+           </rect>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>28</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Separate multiple keys by spaces</string>
+          </property>
+          <property name="whatsThis">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bitmap keys for &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Splotches&lt;/span&gt;&amp;quot;, that is partially-transparent overlays, can be specified in a similar way to foliage keys. You have the option to &amp;quot;Animate&amp;quot;, that is force them to descend from the 'a' node, or not. Because splotches are usually placed a very small distance above their underlying surfaces (to avoid texture flickering) and it may be important to maintain that clearance, the vertices of splotches will never be snapped.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+         </widget>
+         <widget class="QLabel" name="splotchBitmapKeysLabel">
+          <property name="geometry">
+           <rect>
+            <x>301</x>
+            <y>266</y>
+            <width>146</width>
+            <height>20</height>
+           </rect>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="whatsThis">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bitmap keys for &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Splotches&lt;/span&gt;&amp;quot;, that is partially-transparent overlays, can be specified in a similar way to foliage keys. You have the option to &amp;quot;Animate&amp;quot;, that is force them to descend from the 'a' node, or not. Because splotches are usually placed a very small distance above their underlying surfaces (to avoid texture flickering) and it may be important to maintain that clearance, the vertices of splotches will never be snapped.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="text">
+           <string>Splotch Bitmap Key(s)</string>
+          </property>
+         </widget>
+         <widget class="QWidget" name="layoutWidget7">
+          <property name="geometry">
+           <rect>
+            <x>572</x>
+            <y>34</y>
+            <width>245</width>
+            <height>91</height>
+           </rect>
+          </property>
+          <layout class="QGridLayout" name="treeFixesLayout">
+           <item row="0" column="1">
+            <widget class="QComboBox" name="foliageCombo">
+             <property name="maximumSize">
+              <size>
+               <width>97</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="whatsThis">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Foliage objects are recognized by their bitmap names. By default, names containing &amp;quot;leaf&amp;quot;, &amp;quot;leaves&amp;quot;, &amp;quot;trefol&amp;quot; and &amp;quot;treefol&amp;quot; are caught but you can enter an alternate Foliage Bitmap Keys if your tileset uses something different. Separate multiple keys by spaces. For foliage, there are five options:&lt;ul&gt;&lt;li&gt; Set all foliage to tilefade. This is particularly useful in forest and jungle tilesets. Note that this option has no effect unless &amp;quot;Slice for Tilefading&amp;quot; is also set to &amp;quot;yes&amp;quot;. Note also that tilefading implies de-animating.&lt;/li&gt;&lt;li&gt;The &amp;quot;Animate&amp;quot; option moves the foliage objects, if necessary, onto the tile's 'a' node. This gives better results on some graphics cards that otherwise render bitmaps with transparency (i.e. the holes between the leaves) with unwanted white margins.&lt;/li&gt;&lt;li&gt;&amp;quot;De-Animate&amp;quot; moves all foliage objects off the 'a' node and makes them static.&lt;/li&gt;&lt;li&gt;The &amp;quot;No change&amp;quot; option recognises foliage objects but neither adds any to the 'a' node nor removes any from it. It just keeps them the same as it finds them.&lt;/li&gt;&lt;li&gt;The &amp;quot;Ignore&amp;quot; option doesn't even look for the special bitmap names and just treats pieces of foliage as ordinary objects.&lt;/li&gt;&lt;/ul&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>No change</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Tilefade</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Animate</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>De-animate</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Ignore</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="foliageLabel">
+             <property name="minimumSize">
+              <size>
+               <width>140</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="whatsThis">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Foliage objects are recognized by their bitmap names. By default, names containing &amp;quot;leaf&amp;quot;, &amp;quot;leaves&amp;quot;, &amp;quot;trefol&amp;quot; and &amp;quot;treefol&amp;quot; are caught but you can enter an alternate Foliage Bitmap Keys if your tileset uses something different. Separate multiple keys by spaces. For foliage, there are five options:&lt;ul&gt;&lt;li&gt; Set all foliage to tilefade. This is particularly useful in forest and jungle tilesets. Note that this option has no effect unless &amp;quot;Slice for Tilefading&amp;quot; is also set to &amp;quot;yes&amp;quot;. Note also that tilefading implies de-animating.&lt;/li&gt;&lt;li&gt;The &amp;quot;Animate&amp;quot; option moves the foliage objects, if necessary, onto the tile's 'a' node. This gives better results on some graphics cards that otherwise render bitmaps with transparency (i.e. the holes between the leaves) with unwanted white margins.&lt;/li&gt;&lt;li&gt;&amp;quot;De-Animate&amp;quot; moves all foliage objects off the 'a' node and makes them static.&lt;/li&gt;&lt;li&gt;The &amp;quot;No change&amp;quot; option recognises foliage objects but neither adds any to the 'a' node nor removes any from it. It just keeps them the same as it finds them.&lt;/li&gt;&lt;li&gt;The &amp;quot;Ignore&amp;quot; option doesn't even look for the special bitmap names and just treats pieces of foliage as ordinary objects.&lt;/li&gt;&lt;/ul&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Tree Foliage</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0" colspan="2">
+            <widget class="QLabel" name="foliageBitmapKeysLabel">
+             <property name="text">
+              <string>Foliage Bitmap Key(s)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QLineEdit" name="foliageBitmapKeys">
+             <property name="toolTip">
+              <string>Separate multiple keys by spaces</string>
+             </property>
+             <property name="clearButtonEnabled">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QCheckBox" name="animateSplotchesCheck">
+          <property name="geometry">
+           <rect>
+            <x>301</x>
+            <y>243</y>
+            <width>259</width>
+            <height>20</height>
+           </rect>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="whatsThis">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bitmap keys for &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;Splotches&lt;/span&gt;&amp;quot;, that is partially-transparent overlays, can be specified in a similar way to foliage keys. You have the option to &amp;quot;Animate&amp;quot;, that is force them to descend from the 'a' node, or not. Because splotches are usually placed a very small distance above their underlying surfaces (to avoid texture flickering) and it may be important to maintain that clearance, the vertices of splotches will never be snapped.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="text">
+           <string>Animate Splotches</string>
+          </property>
+         </widget>
+         <widget class="QWidget" name="layoutWidget">
+          <property name="geometry">
+           <rect>
+            <x>572</x>
+            <y>159</y>
+            <width>245</width>
+            <height>158</height>
+           </rect>
+          </property>
+          <layout class="QGridLayout" name="groundFixesLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="groundRotateTextureLabel">
+             <property name="whatsThis">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;ground&lt;/span&gt;&amp;quot; bitmap key allows one or more substrings to be specified separated by spaces, in the same way as the other key fields. The options to set rotatetexture to 0 or 1 or to leave it unchanged function in the same way as the ones for water.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Ground rotatetexture</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="groundRotateTextureCombo">
+             <property name="minimumSize">
+              <size>
+               <width>97</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>97</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="whatsThis">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The &amp;quot;&lt;span style=&quot; font-weight:600;&quot;&gt;ground&lt;/span&gt;&amp;quot; bitmap key allows one or more substrings to be specified separated by spaces, in the same way as the other key fields. The options to set rotatetexture to 0 or 1 or to leave it unchanged function in the same way as the ones for water.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>No change</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>1</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>0</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="tileEdgeChamfersLabel">
+             <property name="whatsThis">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The ground key is also used as a filter for the option to add or remove &lt;span style=&quot; font-weight:600;&quot;&gt;Tile Edge Chamfers&lt;/span&gt;. This is a technique[1] for avoiding 'sparklies' (white pixels) between adjacent tiles. Chamfers or bevelled edges 3cm out and 3cm down are added to the ground planes at tile edges and although they will normally be hidden by the adjacent tiles, they ensure that there are no broken edges that might allow daylight to leak through. They are assigned to a special smoothing group (CM3 uses 21) so that the smoothing of the visible ground plane is not disrupted. Note that transparent surfaces (ones with alpha or alphakeys &amp;lt; 1) and ones that slope up or down more than 30 degrees at the tile edge are not chamfered, to avoid the possibility of the chamfer being accidentally visible above or through the ground of the adjacent tile.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;1. Rosenkrantz, L., private communication with OldMansBeard, 2008&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Tile Edge Chamfers</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QComboBox" name="tileEdgeChamfersCombo">
+             <property name="minimumSize">
+              <size>
+               <width>97</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>97</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="whatsThis">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The ground key is also used as a filter for the option to add or remove &lt;span style=&quot; font-weight:600;&quot;&gt;Tile Edge Chamfers&lt;/span&gt;. This is a technique[1] for avoiding 'sparklies' (white pixels) between adjacent tiles. Chamfers or bevelled edges 3cm out and 3cm down are added to the ground planes at tile edges and although they will normally be hidden by the adjacent tiles, they ensure that there are no broken edges that might allow daylight to leak through. They are assigned to a special smoothing group (CM3 uses 21) so that the smoothing of the visible ground plane is not disrupted. Note that transparent surfaces (ones with alpha or alphakeys &amp;lt; 1) and ones that slope up or down more than 30 degrees at the tile edge are not chamfered, to avoid the possibility of the chamfer being accidentally visible above or through the ground of the adjacent tile.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;1. Rosenkrantz, L., private communication with OldMansBeard, 2008&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>No change</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Add</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Delete</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="retileGroundPlanesLabel">
+             <property name="whatsThis">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Redo the UV mapping of ground planes to repeat in whole units across tile widths.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Re-tile ground planes</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QComboBox" name="retileGroundPlanesCombo">
+             <property name="minimumSize">
+              <size>
+               <width>97</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>97</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="whatsThis">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Redo the UV mapping of ground planes to repeat in whole units across tile widths.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>No change</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>1x1</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>2x2</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>3x3</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QLabel" name="groundBitmapKeysLabel">
+             <property name="text">
+              <string>Ground Bitmap Key(s)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="2">
+            <widget class="QLineEdit" name="groundBitmapKeys">
+             <property name="toolTip">
+              <string>Separate multiple keys by spaces</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSplitter" name="splitter">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>150</height>
+         </size>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="handleWidth">
+         <number>8</number>
+        </property>
+        <property name="childrenCollapsible">
+         <bool>false</bool>
+        </property>
+        <widget class="QTableWidget" name="filesTable">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>800</width>
+           <height>46</height>
+          </size>
+         </property>
+         <property name="frameShape">
+          <enum>QFrame::StyledPanel</enum>
+         </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="showDropIndicator" stdset="0">
+          <bool>false</bool>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::SingleSelection</enum>
+         </property>
+         <property name="selectionBehavior">
+          <enum>QAbstractItemView::SelectRows</enum>
+         </property>
+         <property name="gridStyle">
+          <enum>Qt::DotLine</enum>
+         </property>
+         <property name="sortingEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="columnCount">
+          <number>5</number>
+         </property>
+         <attribute name="horizontalHeaderVisible">
+          <bool>false</bool>
+         </attribute>
+         <attribute name="horizontalHeaderStretchLastSection">
+          <bool>false</bool>
+         </attribute>
+         <attribute name="verticalHeaderVisible">
+          <bool>false</bool>
+         </attribute>
+         <column/>
+         <column/>
+         <column/>
+         <column/>
+         <column/>
+        </widget>
+        <widget class="QPushButton" name="cleanButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>858</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Clean</string>
+         </property>
+         <property name="icon">
+          <iconset theme="edit-clear-all">
+           <normaloff>.</normaloff>.</iconset>
+         </property>
+        </widget>
+        <widget class="QTextBrowser" name="debugTextBrowser">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>800</width>
+           <height>48</height>
+          </size>
+         </property>
+         <property name="horizontalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
+         </property>
+         <property name="autoFormatting">
+          <set>QTextEdit::AutoAll</set>
+         </property>
+         <property name="documentTitle">
+          <string/>
+         </property>
+         <property name="placeholderText">
+          <string/>
+         </property>
+        </widget>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="1" column="0">
+     <widget class="QCheckBox" name="decompileCheck">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>138</width>
+        <height>26</height>
+       </size>
+      </property>
+      <property name="whatsThis">
+       <string>Only decompile binary models, don't do fixes.</string>
+      </property>
+      <property name="text">
+       <string>Decompile Only</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusBar"/>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <property name="movable">
+    <bool>false</bool>
+   </property>
+   <property name="floatable">
+    <bool>false</bool>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="actionLoadPreset"/>
+   <addaction name="actionSavePreset"/>
+   <addaction name="separator"/>
+   <addaction name="actionHelp"/>
+  </widget>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>880</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionLoadPreset"/>
+    <addaction name="actionSavePreset"/>
+    <addaction name="separator"/>
+    <addaction name="actionQuit"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAbout"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <action name="actionHelp">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/whats-this</normaloff>:/icons/whats-this</iconset>
+   </property>
+   <property name="text">
+    <string>Help</string>
+   </property>
+   <property name="iconText">
+    <string>Help</string>
+   </property>
+   <property name="toolTip">
+    <string>Context sensitive help</string>
+   </property>
+   <property name="whatsThis">
+    <string>Context sensitive help</string>
+   </property>
+  </action>
+  <action name="actionSavePreset">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/save-preset</normaloff>:/icons/save-preset</iconset>
+   </property>
+   <property name="text">
+    <string>Save Preset</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionLoadPreset">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icons/load-preset</normaloff>:/icons/load-preset</iconset>
+   </property>
+   <property name="text">
+    <string>Load Preset</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="actionQuit">
+   <property name="text">
+    <string>Quit</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
+   </property>
+  </action>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <resources>
+  <include location="icons.qrc"/>
+ </resources>
+ <connections/>
+ <slots>
+  <signal>onButtonReleased()</signal>
+ </slots>
+</ui>

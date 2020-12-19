@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="last_dirs.pl">prolog/last_dirs.pl</file>
+    </qresource>
+</RCC>
