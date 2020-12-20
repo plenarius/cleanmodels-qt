@@ -139,7 +139,7 @@ jobs:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         automatic_release_tag: "build0.8.0-HEAD"
         prerelease: true
-        draft: true
+        draft: false
         title: "build0.8.0-HEAD"
         files: |
           ./zips/cleanmodels-qt.windows-static.amd64.zip
@@ -153,7 +153,7 @@ jobs:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         automatic_release_tag: "latest"
         prerelease: true
-        draft: true
+        draft: false
         title: "build0.8.0-HEAD"
         files: |
           ./zips/cleanmodels-qt.windows-static.amd64.zip
