@@ -1,0 +1,161 @@
+name: Build Clean Models QT
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-16.04, macos-latest]
+        include:
+          - os: ubuntu-latest
+            arch: windows-static
+            zip_name: cleanmodels-qt.windows-static.amd64
+            executable: cleanmodels-qt.exe
+          - os: ubuntu-16.04
+            arch: linux-static
+            zip_name: cleanmodels-qt.linux-static.amd64
+            executable: cleanmodels-qt
+          - os: macos-latest
+            arch: macosx-static
+            zip_name: cleanmodels-qt.macosx-static.amd64
+            executable: cleanmodels-qt
+
+    name: Building ${{ matrix.zip_name }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Cache QT
+      id: cache-qt
+      if: matrix.arch == 'linux-static' || matrix.arch == 'macosx-static'
+      uses: actions/cache@v2
+      with:
+        path: ${{ github.workspace }}/Qt5_Static
+        key: ${{ matrix.os }}-static-qt5-15-2
+
+    - name: Get QT Build Deps
+      if: matrix.arch == 'linux-static'
+      run: sudo apt-get install libxkbcommon-dev libxkbcommon-x11-dev '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
+
+    - name: Checkout QT
+      if: (matrix.arch == 'linux-static' || matrix.arch == 'macosx-static') && steps.cache-qt.outputs.cache-hit != 'true'
+      uses: actions/checkout@v2
+      with:
+        repository: qt/qt5
+        path: qt5
+        ref: 5.15.2
+
+    - name: Get qtbase
+      if: (matrix.arch == 'linux-static' || matrix.arch == 'macosx-static') && steps.cache-qt.outputs.cache-hit != 'true'
+      working-directory: ./qt5
+      run: git submodule update --init --depth 1 -- qtbase
+
+    - name: Build QT Static
+      if: (matrix.arch == 'linux-static' || matrix.arch == 'macosx-static') && steps.cache-qt.outputs.cache-hit != 'true'
+      run: |
+        mkdir qt_build
+        cd qt_build
+        ../qt5/configure -v -prefix "${{ github.workspace }}/Qt5_Static" -static -release -optimize-size -ltcg -make libs -no-pch -no-zlib -qt-harfbuzz -qt-pcre -qt-libpng -no-libjpeg -no-libmd4c -nomake tools -nomake examples -nomake tests -no-feature-accessibility -no-feature-accessibility-atspi-bridge -no-feature-android-style-assets -no-feature-animation -no-feature-appstore-compliant -no-feature-avx2 -no-feature-bearermanagement -no-feature-calendarwidget -no-feature-clock-gettime -no-feature-colordialog -no-feature-commandlinkbutton -no-feature-concatenatetablesproxymodel -no-feature-cross_compile -no-feature-cups -no-feature-datetimeedit -no-feature-datetimeparser -no-feature-desktopservices -no-feature-dial -no-feature-direct2d -no-feature-direct2d1_1 -no-feature-directfb -no-feature-drm_atomic -no-feature-dtls -no-feature-easingcurve -no-feature-effects -no-feature-fontcombobox -no-feature-fontdialog -no-feature-ftp -no-feature-future -no-feature-gestures -no-feature-gif -no-feature-gssapi -no-feature-gtk3 -no-feature-hijricalendar -no-feature-ico -no-feature-identityproxymodel -no-feature-im -no-feature-imageformatplugin -no-feature-image_heuristic_mask -no-feature-image_text -no-feature-islamiccivilcalendar -no-feature-itemmodeltester -no-feature-jalalicalendar -no-feature-jpeg -no-feature-keysequenceedit -no-feature-kms -no-feature-lcdnumber -no-feature-linkat -no-feature-lttng -no-feature-mdiarea -no-feature-mimetype-database -no-feature-movie -no-feature-network -no-feature-ocsp -no-feature-opengl -no-feature-opengles2 -no-feature-opengles3 -no-feature-opengles31 -no-feature-opengles32 -no-feature-openssl -no-feature-pdf -no-feature-picture -no-feature-printdialog -no-feature-printer -no-feature-printpreviewdialog -no-feature-printpreviewwidget -no-feature-raster-64bit -no-feature-release_tools -no-feature-relocatable -no-feature-sha3-fast -no-feature-sql -no-feature-sqlmodel -no-feature-sql-mysql -no-feature-sql-odbc -no-feature-sql-psql -no-feature-sql-sqlite -no-feature-sql-sqlite2 -no-feature-sql-tds -no-feature-statemachine -no-feature-style-android -no-feature-style-mac -no-feature-style-windowsvista -no-feature-syntaxhighlighter -no-feature-systemtrayicon -no-feature-system-textmarkdownreader -no-feature-tabletevent -no-feature-testlib -no-feature-textmarkdownreader -no-feature-textmarkdownwriter -no-feature-textodfwriter -no-feature-timezone -no-feature-treewidget -no-feature-tuiotouch -no-feature-valgrind -no-feature-vnc -no-feature-wizard -no-feature-xmlstreamwriter -no-feature-zstd -opensource -confirm-license -skip qt3d -skip qtactiveqt -skip qtandroidextras -skip qtcharts -skip qtdatavis3d -skip qtdeclarative -skip qtgamepad -skip qtlocation -skip qtlottie -skip qtmultimedia -skip qtpim -skip qtpurchasing -skip qtqa -skip qtquickcontrols -skip qtquickcontrols2 -skip qtrepotools -skip qtscript -skip qtscxml -skip qtsensors -skip qtserialport -skip qtspeech -skip qtsvg -skip qttools -skip qttranslations -skip qtwebchannel -skip qtwebengine -skip qtxmlpatterns -skip serialbus -skip wayland
+        make module-qtbase -j4
+        sudo make install -j4
+
+    - name: MXE Repository
+      if: matrix.arch == 'windows-static'
+      run: |
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 86B72ED9
+        sudo add-apt-repository 'deb [arch=amd64] http://mirror.mxe.cc/repos/apt bionic main'
+
+    - name: Install Windows Build Dependencies
+      if: matrix.arch == 'windows-static'
+      run: |
+        sudo apt-get install mxe-x86-64-w64-mingw32.static-qtbase
+        echo "/usr/lib/mxe/usr/bin" >> $GITHUB_PATH
+
+    - name: Build Windows Static Binary
+      if: matrix.arch == 'windows-static'
+      run: |
+        x86_64-w64-mingw32.static-qmake-qt5
+        make -j4
+
+    - name: Get latest CMake and ninja
+      if: matrix.arch == 'linux-static' || matrix.arch == 'macosx-static'
+      uses: lukka/get-cmake@latest
+
+    - name: Build Linux and MacOS Static Binary
+      env:
+        QT_STATIC_PATH: ${{ github.workspace }}/Qt5_Static
+      if: matrix.arch == 'linux-static' || matrix.arch == 'macosx-static'
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        make -j4
+        mkdir ../release
+        strip cleanmodels-qt
+        mv cleanmodels-qt ../release
+
+    - name: Compress
+      working-directory: ./release
+      run: |
+        mkdir ../zips
+        zip ${{ github.workspace }}/zips/${{ matrix.zip_name }}.zip ${{ matrix.executable }}
+
+    - name: Upload Binaries
+      uses: actions/upload-artifact@v2
+      if: github.event_name == 'push'
+      with:
+       path: ${{ github.workspace }}/zips
+       name: ${{ matrix.zip_name }}.zip
+
+  release:
+    name: Uploading Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Download Artifacts
+      uses: actions/download-artifact@v2
+      with:
+        path: ${{ github.workspace }}/zips
+
+    - name: Tag With Version and Release
+      uses: "marvinpinto/action-automatic-releases@latest"
+      if: github.event_name == 'push'
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "build0.8.0-HEAD"
+        prerelease: true
+        draft: true
+        title: "build0.8.0-HEAD"
+        files: |
+          ./zips/cleanmodels-qt.windows-static.amd64.zip
+          ./zips/cleanmodels-qt.linux-static.amd64.zip
+          ./zips/cleanmodels-qt.macosx-static.amd64.zip
+
+    - name: Tag With Latest and Release
+      uses: "marvinpinto/action-automatic-releases@latest"
+      if: github.event_name == 'push'
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "latest"
+        prerelease: true
+        draft: true
+        title: "build0.8.0-HEAD"
+        files: |
+          ./zips/cleanmodels-qt.windows-static.amd64.zip
+          ./zips/cleanmodels-qt.linux-static.amd64.zip
+          ./zips/cleanmodels-qt.macosx-static.amd64.zip
