@@ -103,7 +103,7 @@ jobs:
         echo "/usr/lib/mxe/usr/bin" >> $GITHUB_PATH
 
     - name: Install macOS Shared Build Dependencies
-      if: matrix.target == 'macos-shared'
+      if: matrix.target == 'macosx-shared'
       run: |
         brew install qt5
 
