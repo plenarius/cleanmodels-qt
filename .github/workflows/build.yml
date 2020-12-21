@@ -50,13 +50,21 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Cache QT
+    - name: Cache QT for Linux/MacOS Static Builds
       id: cache-qt
       if: matrix.target == 'linux-static' || matrix.target == 'macosx-static'
       uses: actions/cache@v2
       with:
         path: ${{ matrix.static_qt_path }}
         key: ${{ matrix.os }}-static-qt5-15-2
+
+    - name: Cache QT for MacOS Shared Builds
+      id: cache-qt
+      if: matrix.target == 'macosx-shared'
+      uses: actions/cache@v2
+      with:
+        path: ../Qt
+        key: ${{ matrix.target }}-QtCache
 
     - name: Get QT Build Deps
       if: matrix.target == 'linux-static'
@@ -104,10 +112,11 @@ jobs:
         sudo apt-get install mxe-x86-64-w64-mingw32.shared-qtbase
         echo "/usr/lib/mxe/usr/bin" >> $GITHUB_PATH
 
-    - name: Install macOS Shared Build Dependencies
+    - name: Install Qt for MacOS Shared Builds
+      uses: jurplel/install-qt-action@v2
       if: matrix.target == 'macosx-shared'
-      run: |
-        brew install qt5
+      with:
+        cached: ${{ steps.cache-qt.outputs.cache-hit }}
 
     - name: Install Linux Shared Build Dependencies
       if: matrix.target == 'linux-shared'
