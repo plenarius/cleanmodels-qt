@@ -30,7 +30,7 @@ jobs:
             target: linux-static
             zip_name: cleanmodels-qt.linux-static.amd64
             executable: cleanmodels-qt
-            static_qt_path: ${{ github.workspace }}/Qt5_Static
+            static_qt_path: ~/Qt5_Static
           - os: ubuntu-latest
             target: linux-shared
             zip_name: cleanmodels-qt.linux-shared.amd64
@@ -39,7 +39,7 @@ jobs:
             target: macosx-static
             zip_name: cleanmodels-qt.macosx-static.amd64
             executable: cleanmodels-qt
-            static_qt_path: ${{ github.workspace }}/Qt5_Static
+            static_qt_path: ~/Qt5_Static
           - os: macos-latest
             target: macosx-shared
             zip_name: cleanmodels-qt.macosx-shared.amd64
@@ -63,7 +63,7 @@ jobs:
       if: matrix.target == 'macosx-shared'
       uses: actions/cache@v2
       with:
-        path: ../Qt
+        path: ${{ github.workspace }}/Qt
         key: ${{ matrix.target }}-QtCache
 
     - name: Get QT Build Deps
