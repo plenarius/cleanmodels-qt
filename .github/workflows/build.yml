@@ -125,7 +125,7 @@ jobs:
         make -j4
 
     - name: Get latest CMake and ninja
-      if: matrix.target != 'windows-static' && matrix.target !== 'windows-shared'
+      if: matrix.target != 'windows-static' && matrix.target != 'windows-shared'
       uses: lukka/get-cmake@latest
 
     - name: Build Linux and MacOS Binaries
