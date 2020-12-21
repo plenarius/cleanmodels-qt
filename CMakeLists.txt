@@ -22,7 +22,7 @@ add_executable(${PROJECT_NAME} main.cpp mainwindow.cpp mainwindow_clean.cpp fsmo
 include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} Qt5::Core Qt5::Widgets Qt5::Gui)
 
-if(DEFINED ENV{QT_STATIC_PATH})
+if(DEFINED ENV{QT_STATIC_PATH} AND NOT $ENV{QT_STATIC_PATH} STREQUAL "")
     qt5_import_plugins(${PROJECT_NAME}
             EXCLUDE_BY_TYPE imageformats
             )
