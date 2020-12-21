@@ -85,7 +85,7 @@ jobs:
         sudo make install -j4
 
     - name: MXE Repository
-      if: matrix.target == 'windows-static' || matrix.build == 'windows-shared'
+      if: matrix.target == 'windows-static' || matrix.target == 'windows-shared'
       run: |
         sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 86B72ED9
         sudo add-apt-repository 'deb [target=amd64] http://mirror.mxe.cc/repos/apt bionic main'
