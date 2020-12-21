@@ -60,7 +60,9 @@ jobs:
 
     - name: Get QT Build Deps
       if: matrix.target == 'linux-static'
-      run: sudo apt-get install libxkbcommon-dev libxkbcommon-x11-dev '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install libxkbcommon-dev libxkbcommon-x11-dev '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
 
     - name: Checkout QT
       if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static') && steps.cache-qt.outputs.cache-hit != 'true'
@@ -110,6 +112,7 @@ jobs:
     - name: Install Linux Shared Build Dependencies
       if: matrix.target == 'linux-shared'
       run: |
+        sudo apt-get update
         sudo apt-get install qtbase5-dev
 
     - name: Build Windows Static Binary
