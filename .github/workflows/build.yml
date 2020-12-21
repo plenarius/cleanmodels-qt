@@ -59,7 +59,7 @@ jobs:
         key: ${{ matrix.os }}-static-qt5-15-2
 
     - name: Cache QT for MacOS Shared Builds
-      id: cache-qt
+      id: cache-qt-shared
       if: matrix.target == 'macosx-shared'
       uses: actions/cache@v2
       with:
@@ -116,7 +116,7 @@ jobs:
       uses: jurplel/install-qt-action@v2
       if: matrix.target == 'macosx-shared'
       with:
-        cached: ${{ steps.cache-qt.outputs.cache-hit }}
+        cached: ${{ steps.cache-qt-shared.outputs.cache-hit }}
 
     - name: Install Linux Shared Build Dependencies
       if: matrix.target == 'linux-shared'
