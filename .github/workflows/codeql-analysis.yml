@@ -48,7 +48,9 @@ jobs:
         # queries: ./path/to/local/query, your-org/your-repo/queries@main
 
     - name: Qt Dependencies
-      run: sudo apt-get install qtbase5-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install qtbase5-dev
 
     # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
