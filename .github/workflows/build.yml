@@ -22,6 +22,7 @@ jobs:
             target: windows-static
             zip_name: cleanmodels-qt.windows-static.amd64
             executable: cleanmodels-qt.exe
+            static_build: true
           - os: ubuntu-latest
             target: windows-shared
             zip_name: cleanmodels-qt.windows-shared.amd64
@@ -30,7 +31,7 @@ jobs:
             target: linux-static
             zip_name: cleanmodels-qt.linux-static.amd64
             executable: cleanmodels-qt
-            static_qt_path: ~/Qt5_Static
+            static_build: true
           - os: ubuntu-latest
             target: linux-shared
             zip_name: cleanmodels-qt.linux-shared.amd64
@@ -39,7 +40,7 @@ jobs:
             target: macosx-static
             zip_name: cleanmodels-qt.macosx-static.amd64
             executable: cleanmodels-qt
-            static_qt_path: ~/Qt5_Static
+            static_build: true
           - os: macos-latest
             target: macosx-shared
             zip_name: cleanmodels-qt.macosx-shared.amd64
@@ -55,8 +56,8 @@ jobs:
       if: matrix.target == 'linux-static' || matrix.target == 'macosx-static'
       uses: actions/cache@v2
       with:
-        path: ${{ matrix.static_qt_path }}
-        key: ${{ matrix.os }}-static-qt5-15-2
+        path: $${{ github.workspace }}/Qt
+        key: ${{ matrix.target }}-static-qt5
 
     - name: Cache QT for MacOS Shared Builds
       id: cache-qt-shared
@@ -90,7 +91,7 @@ jobs:
       run: |
         mkdir qt_build
         cd qt_build
-        ../qt5/configure -v -prefix "${{ matrix.static_qt_path }}" -static -release -optimize-size -ltcg -make libs -no-pch -no-zlib -qt-harfbuzz -qt-pcre -qt-libpng -no-libjpeg -no-libmd4c -nomake tools -nomake examples -nomake tests -no-feature-accessibility -no-feature-accessibility-atspi-bridge -no-feature-android-style-assets -no-feature-animation -no-feature-appstore-compliant -no-feature-avx2 -no-feature-bearermanagement -no-feature-calendarwidget -no-feature-clock-gettime -no-feature-colordialog -no-feature-commandlinkbutton -no-feature-concatenatetablesproxymodel -no-feature-cross_compile -no-feature-cups -no-feature-datetimeedit -no-feature-datetimeparser -no-feature-desktopservices -no-feature-dial -no-feature-direct2d -no-feature-direct2d1_1 -no-feature-directfb -no-feature-drm_atomic -no-feature-dtls -no-feature-easingcurve -no-feature-effects -no-feature-fontcombobox -no-feature-fontdialog -no-feature-ftp -no-feature-future -no-feature-gestures -no-feature-gif -no-feature-gssapi -no-feature-gtk3 -no-feature-hijricalendar -no-feature-ico -no-feature-identityproxymodel -no-feature-im -no-feature-imageformatplugin -no-feature-image_heuristic_mask -no-feature-image_text -no-feature-islamiccivilcalendar -no-feature-itemmodeltester -no-feature-jalalicalendar -no-feature-jpeg -no-feature-keysequenceedit -no-feature-kms -no-feature-lcdnumber -no-feature-linkat -no-feature-lttng -no-feature-mdiarea -no-feature-mimetype-database -no-feature-movie -no-feature-network -no-feature-ocsp -no-feature-opengl -no-feature-opengles2 -no-feature-opengles3 -no-feature-opengles31 -no-feature-opengles32 -no-feature-openssl -no-feature-pdf -no-feature-picture -no-feature-printdialog -no-feature-printer -no-feature-printpreviewdialog -no-feature-printpreviewwidget -no-feature-raster-64bit -no-feature-release_tools -no-feature-relocatable -no-feature-sha3-fast -no-feature-sql -no-feature-sqlmodel -no-feature-sql-mysql -no-feature-sql-odbc -no-feature-sql-psql -no-feature-sql-sqlite -no-feature-sql-sqlite2 -no-feature-sql-tds -no-feature-statemachine -no-feature-style-android -no-feature-style-mac -no-feature-style-windowsvista -no-feature-syntaxhighlighter -no-feature-systemtrayicon -no-feature-system-textmarkdownreader -no-feature-tabletevent -no-feature-testlib -no-feature-textmarkdownreader -no-feature-textmarkdownwriter -no-feature-textodfwriter -no-feature-timezone -no-feature-treewidget -no-feature-tuiotouch -no-feature-valgrind -no-feature-vnc -no-feature-wizard -no-feature-xmlstreamwriter -no-feature-zstd -opensource -confirm-license -skip qt3d -skip qtactiveqt -skip qtandroidextras -skip qtcharts -skip qtdatavis3d -skip qtdeclarative -skip qtgamepad -skip qtlocation -skip qtlottie -skip qtmultimedia -skip qtpim -skip qtpurchasing -skip qtqa -skip qtquickcontrols -skip qtquickcontrols2 -skip qtrepotools -skip qtscript -skip qtscxml -skip qtsensors -skip qtserialport -skip qtspeech -skip qtsvg -skip qttools -skip qttranslations -skip qtwebchannel -skip qtwebengine -skip qtxmlpatterns -skip serialbus -skip wayland
+        ../qt5/configure -v -prefix "${{ github.workspace }}/Qt" -static -release -optimize-size -ltcg -make libs -no-pch -no-zlib -qt-harfbuzz -qt-pcre -qt-libpng -no-libjpeg -no-libmd4c -nomake tools -nomake examples -nomake tests -no-feature-accessibility -no-feature-accessibility-atspi-bridge -no-feature-android-style-assets -no-feature-animation -no-feature-appstore-compliant -no-feature-avx2 -no-feature-bearermanagement -no-feature-calendarwidget -no-feature-clock-gettime -no-feature-colordialog -no-feature-commandlinkbutton -no-feature-concatenatetablesproxymodel -no-feature-cross_compile -no-feature-cups -no-feature-datetimeedit -no-feature-datetimeparser -no-feature-desktopservices -no-feature-dial -no-feature-direct2d -no-feature-direct2d1_1 -no-feature-directfb -no-feature-drm_atomic -no-feature-dtls -no-feature-easingcurve -no-feature-effects -no-feature-fontcombobox -no-feature-fontdialog -no-feature-ftp -no-feature-future -no-feature-gestures -no-feature-gif -no-feature-gssapi -no-feature-gtk3 -no-feature-hijricalendar -no-feature-ico -no-feature-identityproxymodel -no-feature-im -no-feature-imageformatplugin -no-feature-image_heuristic_mask -no-feature-image_text -no-feature-islamiccivilcalendar -no-feature-itemmodeltester -no-feature-jalalicalendar -no-feature-jpeg -no-feature-keysequenceedit -no-feature-kms -no-feature-lcdnumber -no-feature-linkat -no-feature-lttng -no-feature-mdiarea -no-feature-mimetype-database -no-feature-movie -no-feature-network -no-feature-ocsp -no-feature-opengl -no-feature-opengles2 -no-feature-opengles3 -no-feature-opengles31 -no-feature-opengles32 -no-feature-openssl -no-feature-pdf -no-feature-picture -no-feature-printdialog -no-feature-printer -no-feature-printpreviewdialog -no-feature-printpreviewwidget -no-feature-raster-64bit -no-feature-release_tools -no-feature-relocatable -no-feature-sha3-fast -no-feature-sql -no-feature-sqlmodel -no-feature-sql-mysql -no-feature-sql-odbc -no-feature-sql-psql -no-feature-sql-sqlite -no-feature-sql-sqlite2 -no-feature-sql-tds -no-feature-statemachine -no-feature-style-android -no-feature-style-mac -no-feature-style-windowsvista -no-feature-syntaxhighlighter -no-feature-systemtrayicon -no-feature-system-textmarkdownreader -no-feature-tabletevent -no-feature-testlib -no-feature-textmarkdownreader -no-feature-textmarkdownwriter -no-feature-textodfwriter -no-feature-timezone -no-feature-treewidget -no-feature-tuiotouch -no-feature-valgrind -no-feature-vnc -no-feature-wizard -no-feature-xmlstreamwriter -no-feature-zstd -opensource -confirm-license -skip qt3d -skip qtactiveqt -skip qtandroidextras -skip qtcharts -skip qtdatavis3d -skip qtdeclarative -skip qtgamepad -skip qtlocation -skip qtlottie -skip qtmultimedia -skip qtpim -skip qtpurchasing -skip qtqa -skip qtquickcontrols -skip qtquickcontrols2 -skip qtrepotools -skip qtscript -skip qtscxml -skip qtsensors -skip qtserialport -skip qtspeech -skip qtsvg -skip qttools -skip qttranslations -skip qtwebchannel -skip qtwebengine -skip qtxmlpatterns -skip serialbus -skip wayland
         make module-qtbase -j4
         sudo make install -j4
 
@@ -142,7 +143,8 @@ jobs:
 
     - name: Build Linux and MacOS Binaries
       env:
-        QT_STATIC_PATH: ${{ matrix.static_qt_path }}
+        STATIC_BUILD: ${{ matrix.static_build }}
+        QT_STATIC_PATH: ${{ github.workspace }}/Qt
       if: matrix.target != 'windows-static' && matrix.target != 'windows-shared'
       run: |
         mkdir build
