@@ -65,7 +65,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ github.workspace }}/Qt
-        key: ${{ matrix.target }}-QtCache
+        key: ${{ matrix.target }}-Qt5Cache
 
     - name: Get QT Build Deps
       if: matrix.target == 'linux-static'
