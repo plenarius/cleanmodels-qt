@@ -1,5 +1,5 @@
 # cleanmodels-qt
-QT front end for cleanmodels-cli, a tool to fix and clean NWN:EE mdl files.
+QT front end for the [cleanmodels-cli](https://github.com/plenarius/cleanmodels), a tool to fix and clean NWN:EE mdl files.
 
 # Download
 
