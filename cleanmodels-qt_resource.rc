@@ -3,8 +3,8 @@
 IDI_ICON1	ICON	DISCARDABLE	"cmicon.ico"
 
 VS_VERSION_INFO VERSIONINFO
-	FILEVERSION 0,8,0,0
-	PRODUCTVERSION 0,8,0,0
+	FILEVERSION 0,8,0,1
+	PRODUCTVERSION 0,8,0,1
 	FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
 	FILEFLAGS VS_FF_DEBUG
@@ -21,11 +21,11 @@ VS_VERSION_INFO VERSIONINFO
 			BEGIN
 				VALUE "CompanyName", "Clean Models Community\0"
 				VALUE "FileDescription", "A QT-based front end to cleanmodels-cli.\0"
-				VALUE "FileVersion", "0.8.0.0\0"
+				VALUE "FileVersion", "0.8.0.1\0"
 				VALUE "LegalCopyright", "James Greenhalgh\0"
 				VALUE "OriginalFilename", "cleanmodels-qt.exe\0"
 				VALUE "ProductName", "cleanmodels-qt\0"
-				VALUE "ProductVersion", "0.8.0.0\0"
+				VALUE "ProductVersion", "0.8.0.1\0"
 			END
 		END
 		BLOCK "VarFileInfo"

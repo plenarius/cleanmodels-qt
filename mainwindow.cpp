@@ -808,6 +808,8 @@ void MainWindow::on_outdirButton_released()
     {
         outDirectory = dialog.selectedFiles();
         ui->outDirectory->setText(outDirectory.at(0));
+        m_sOutDir = ui->outDirectory->text();
+        replaceUserOption("g_outdir", m_sOutDir, true);
     }
 }
 
