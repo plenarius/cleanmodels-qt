@@ -51,22 +51,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Cache QT for Linux/MacOS Static Builds
-      id: cache-qt
-      if: matrix.target == 'linux-static' || matrix.target == 'macosx-static'
-      uses: actions/cache@v2
-      with:
-        path: $${{ github.workspace }}/Qt
-        key: ${{ matrix.target }}-static-qt5
-
-    - name: Cache QT for MacOS Shared Builds
-      id: cache-qt-shared
-      if: matrix.target == 'macosx-shared'
-      uses: actions/cache@v2
-      with:
-        path: ${{ github.workspace }}/Qt
-        key: ${{ matrix.target }}-Qt5Cache
-
     - name: Get QT Build Deps
       if: matrix.target == 'linux-static'
       run: |
@@ -74,7 +58,7 @@ jobs:
         sudo apt-get install libxkbcommon-dev libxkbcommon-x11-dev '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
 
     - name: Checkout QT
-      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static') && steps.cache-qt.outputs.cache-hit != 'true'
+      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static')
       uses: actions/checkout@v2
       with:
         repository: qt/qt5
@@ -82,12 +66,12 @@ jobs:
         ref: 5.15.2
 
     - name: Get qtbase
-      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static') && steps.cache-qt.outputs.cache-hit != 'true'
+      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static')
       working-directory: ./qt5
       run: git submodule update --init --depth 1 -- qtbase
 
     - name: Build QT Static
-      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static') && steps.cache-qt.outputs.cache-hit != 'true'
+      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static')
       run: |
         mkdir qt_build
         cd qt_build
@@ -116,8 +100,6 @@ jobs:
     - name: Install Qt for MacOS Shared Builds
       uses: jurplel/install-qt-action@v2
       if: matrix.target == 'macosx-shared'
-      with:
-        cached: ${{ steps.cache-qt-shared.outputs.cache-hit }}
 
     - name: Install Linux Shared Build Dependencies
       if: matrix.target == 'linux-shared'
