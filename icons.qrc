@@ -3,6 +3,7 @@
 	<qresource prefix="icons">
 		<file alias="reading-mdl">icons/reading-mdl.png</file>
 		<file alias="cleaning-mdl">icons/cleaning-mdl.png</file>
+		<file alias="decompiling-mdl">icons/decompile-button.png</file>
 		<file alias="clean-success">icons/clean-success.png</file>
 		<file alias="clean-error">icons/clean-error.png</file>
 		<file alias="clean-button">icons/clean-button.png</file>

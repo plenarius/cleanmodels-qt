@@ -106,6 +106,7 @@ private:
     QString m_sOutDir;
     QString m_sLastDirsPath;
     QIcon m_iconReadingMDL;
+    QIcon m_iconDecompilingMDL;
     QIcon m_iconCleaningMDL;
     QIcon m_iconCleanError;
     QIcon m_iconCleanSuccess;

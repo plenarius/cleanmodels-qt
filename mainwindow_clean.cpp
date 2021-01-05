@@ -12,6 +12,15 @@ void MainWindow::onCaptureCleanModelsOutput()
 {
     if (m_pCleanProcess)
     {
+        QString actionVerbPast = tr("Cleaned");
+        QString actionVerbPresent = tr("Cleaning");
+        QIcon actionIcon = m_iconCleaningMDL;
+        if (ui->decompileCheck->isChecked())
+        {
+            actionVerbPast = "Decompiled";
+            actionVerbPresent = "Decompiling";
+            actionIcon = m_iconDecompilingMDL;
+        }
         auto outPut = QString::fromStdString(m_pCleanProcess->readAllStandardOutput().toStdString());
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 2))
         QStringList lines = outPut.split( "\n", Qt::SkipEmptyParts );
@@ -53,7 +62,7 @@ void MainWindow::onCaptureCleanModelsOutput()
             pos = rx_mdl.indexIn(line);
             if (pos > -1)
             {
-                sStatus = tr("Cleaning ") % m_sCurrentModel;
+                sStatus = tr(actionVerbPresent.toStdString().c_str()) % m_sCurrentModel;
                 m_pCleanStatus->setText(sStatus);
                 m_pStatusProgress->setVisible(true);
                 outputHtml = "<p><span style=\"color:blue;\"><b>" % line % "</b></span></p><br>";
@@ -61,9 +70,9 @@ void MainWindow::onCaptureCleanModelsOutput()
                 auto sb = ui->debugTextBrowser->verticalScrollBar();
                 sb->setValue(sb->maximum());
                 auto *twiCleaningMDL = new QTableWidgetItem();
-                twiCleaningMDL->setText(tr("Cleaning"));
-                twiCleaningMDL->setIcon(m_iconCleaningMDL);
-                twiCleaningMDL->setToolTip(tr("Cleaning"));
+                twiCleaningMDL->setText(tr(actionVerbPresent.toStdString().c_str()));
+                twiCleaningMDL->setIcon(actionIcon);
+                twiCleaningMDL->setToolTip(tr(actionVerbPresent.toStdString().c_str()));
                 ui->filesTable->setItem(findModelRow(m_sCurrentModel), 2, twiCleaningMDL);
                 continue;
             }
@@ -88,15 +97,15 @@ void MainWindow::onCaptureCleanModelsOutput()
             if (pos > -1)
             {
                 m_nMdlsCleaned++;
-                ui->mdlsCleanedLabel->setText("Files Cleaned: " % QString::number(m_nMdlsCleaned));
+                ui->mdlsCleanedLabel->setText("Files " % actionVerbPast % ": " % QString::number(m_nMdlsCleaned));
                 outputHtml = "<p><span style=\"color:green;\"><b>" % line % "</b></span></p><br>";
                 ui->debugTextBrowser->insertHtml(outputHtml);
                 auto sb = ui->debugTextBrowser->verticalScrollBar();
                 sb->setValue(sb->maximum());
                 auto *twiCleanSuccess = new QTableWidgetItem();
-                twiCleanSuccess->setText(tr("Cleaned"));
+                twiCleanSuccess->setText(tr(actionVerbPast.toStdString().c_str()));
                 twiCleanSuccess->setIcon(m_iconCleanSuccess);
-                twiCleanSuccess->setToolTip(tr("Cleaned"));
+                twiCleanSuccess->setToolTip(tr(actionVerbPast.toStdString().c_str()));
                 auto *twiCleanTimer = new QTableWidgetItem();
                 twiCleanTimer->setText(QTime(0,0).addMSecs(m_cleanTimer.elapsed()).toString("mm:ss.zzz"));
                 twiCleanTimer->setTextAlignment(Qt::AlignCenter);
@@ -138,6 +147,12 @@ void MainWindow::doClean()
     {
         m_pCleanProcess->kill();
         ui->debugTextBrowser->append(tr("Aborted"));
+        ui->decompileCheck->setEnabled(true);
+        auto *twiCleanAborted = new QTableWidgetItem();
+        twiCleanAborted->setText(tr("Aborted"));
+        twiCleanAborted->setIcon(m_iconAbortButton);
+        twiCleanAborted->setToolTip(tr("Aborted"));
+        ui->filesTable->setItem(findModelRow(m_sCurrentModel), 2, twiCleanAborted);
         return;
     }
     connect(m_pCleanProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(onCaptureCleanModelsOutput()));
@@ -155,6 +170,7 @@ void MainWindow::doClean()
     ui->cleanButton->setDisabled(true);
     if (m_pCleanProcess->waitForStarted())
     {
+        ui->decompileCheck->setEnabled(false);
         m_nMdlsCleaned = 0;
         m_nMdlsFailed = 0;
         ui->mdlsCleanedLabel->setText("Files Cleaned: 0");
@@ -179,7 +195,10 @@ void MainWindow::onCleanFinished(int, QProcess::ExitStatus)
 {
     ui->debugTextBrowser->append(m_pCleanProcess->readAllStandardError());
     m_bCleanRunning = false;
-    ui->cleanButton->setText(tr("Clean"));
+    if (!ui->decompileCheck->isChecked())
+        ui->cleanButton->setText(tr("Clean"));
+    else
+        ui->cleanButton->setText(tr("Decompile"));
     ui->cleanButton->setIcon(m_iconCleanButton);
     m_pCleanStatus->setText(tr("Idle"));
     m_pStatusProgress->setVisible(false);

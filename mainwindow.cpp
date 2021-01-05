@@ -97,7 +97,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->filesTable->setColumnCount(5);
     ui->filesTable->setColumnWidth(1, 100);
-    ui->filesTable->setColumnWidth(2, 100);
+    ui->filesTable->setColumnWidth(2, 140);
     ui->filesTable->setColumnWidth(3, 70);
     ui->filesTable->setColumnWidth(4, 100);
     ui->filesTable->setHorizontalHeaderLabels({"File", "Size", "Status", "Fixes", "Time"});
@@ -111,6 +111,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->filesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 
     m_iconReadingMDL = QIcon(":icons/reading-mdl");
+    m_iconDecompilingMDL = QIcon(":icons/decompiling-mdl");
     m_iconCleaningMDL = QIcon(":icons/cleaning-mdl");
     m_iconCleanSuccess = QIcon(":icons/clean-success");
     m_iconCleanError = QIcon(":icons/clean-error");
@@ -672,20 +673,23 @@ void MainWindow::on_decompileCheck_stateChanged(int arg1)
     {
         ui->cleanButton->setText(tr("Clean"));
         ui->cleanButton->setIcon(m_iconCleanButton);
+        ui->mdlsCleanedLabel->setText(tr("Files Cleaned: 0"));
         ui->classSnapBox->setDisabled(false);
         ui->tilesTab->setDisabled(false);
         ui->coreFixesBox->setDisabled(false);
         ui->pivotFrame->setDisabled(false);
+        ui->rescaleFrame->setDisabled(false);
     }
     else
     {
         ui->cleanButton->setText(tr("Decompile"));
         ui->cleanButton->setIcon(m_iconDecompileButton);
+        ui->mdlsCleanedLabel->setText(tr("Files Decompiled: 0"));
         ui->classSnapBox->setDisabled(true);
         ui->tilesTab->setDisabled(true);
         ui->coreFixesBox->setDisabled(true);
         ui->pivotFrame->setDisabled(true);
-    }
+        ui->rescaleFrame->setDisabled(true);    }
 }
 
 void MainWindow::updateFileListing()
@@ -697,7 +701,10 @@ void MainWindow::updateFileListing()
     dir.setFilter(QDir::Files | QDir::NoDotAndDotDot | QDir::Readable);
     QStringList totalfiles = dir.entryList();
     ui->mdlsDetectedLabel->setText(tr("Files detected: ") % QString::number(totalfiles.count()));
-    ui->mdlsCleanedLabel->setText("Files Cleaned: 0");
+    if (!ui->decompileCheck->isChecked())
+        ui->mdlsCleanedLabel->setText(tr("Files Cleaned: 0"));
+    else
+        ui->mdlsCleanedLabel->setText(tr("Files Decompiled: 0"));
     ui->mdlsFailedLabel->setText(tr("Failures: 0"));
 
     for (const QString &filePath : totalfiles)
