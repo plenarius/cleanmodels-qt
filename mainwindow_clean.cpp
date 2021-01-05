@@ -143,7 +143,6 @@ void MainWindow::doClean()
     connect(m_pCleanProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(onCaptureCleanModelsOutput()));
     ui->debugTextBrowser->clear();
     ui->debugTextBrowser->insertHtml(tr("Running cleanmodels<br>"));
-    QString command;
     QStringList args;
     m_pCleanProcess->setCurrentWriteChannel(QProcess::StandardOutput);
     m_pCleanProcess->setWorkingDirectory(QDir::currentPath());

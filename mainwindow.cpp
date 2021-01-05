@@ -698,7 +698,7 @@ void MainWindow::updateFileListing()
     QStringList totalfiles = dir.entryList();
     ui->mdlsDetectedLabel->setText(tr("Files detected: ") % QString::number(totalfiles.count()));
     ui->mdlsCleanedLabel->setText("Files Cleaned: 0");
-    ui->mdlsFailedLabel->setText("Failures: 0");
+    ui->mdlsFailedLabel->setText(tr("Failures: 0"));
 
     for (const QString &filePath : totalfiles)
     {
@@ -712,7 +712,7 @@ void MainWindow::updateFileListing()
         auto isASCII = std::all_of(line.begin(), line.end(), ::isprint);
         auto *fileNameItem = new QTableWidgetItem(filePath);
         fileNameItem->setIcon(isASCII ? m_iconASCIIMdl : m_iconBinaryMdl);
-        fileNameItem->setToolTip(isASCII ? "ASCII MDL" : "Binary MDL");
+        fileNameItem->setToolTip(isASCII ? tr("ASCII MDL") : tr("Binary MDL"));
         auto *fileSizeItem = new QTableWidgetItem();
         fileSizeItem->setText(QString::number(inputFile.size()));
         auto *fixesItem = new QTableWidgetItem("0");
@@ -765,7 +765,7 @@ void MainWindow::on_inDirectory_textChanged(const QString &arg1)
     {
         if (QFile(s).exists())
         {
-            ui->inDirectory->setStatusTip("Input folder resolved as " % f);
+            ui->inDirectory->setStatusTip(tr("Input folder resolved as ") %f);
             ui->inDirectory->setStyleSheet("color: #000000");
         }
         else
@@ -773,7 +773,7 @@ void MainWindow::on_inDirectory_textChanged(const QString &arg1)
     }
     else
     {
-        ui->inDirectory->setStatusTip("Input folder resolved as " % f);
+        ui->inDirectory->setStatusTip(tr("Input folder resolved as ") %f);
         ui->inDirectory->setStyleSheet("color: #000000");
     }
 }
@@ -817,7 +817,7 @@ void MainWindow::on_outDirectory_textChanged(const QString &arg1)
 {
     const QFileInfo outputDir(arg1);
     QDir dir(QDir::currentPath());
-    ui->outDirectory->setStatusTip("Output folder resolved as " % dir.absoluteFilePath(arg1));
+    ui->outDirectory->setStatusTip(tr("Output folder resolved as ") % dir.absoluteFilePath(arg1));
 }
 
 void MainWindow::on_outDirectory_editingFinished()
@@ -827,7 +827,7 @@ void MainWindow::on_outDirectory_editingFinished()
     QDir dir(QDir::currentPath());
     QString f = dir.absoluteFilePath(m_sOutDir);
     replaceUserOption("g_outdir", m_sOutDir, true);
-    ui->outDirectory->setStatusTip("Output folder resolved as " % f);
+    ui->outDirectory->setStatusTip(tr("Output folder resolved as ") % f);
 }
 
 void MainWindow::on_filePattern_textChanged(const QString &pattern)
@@ -1025,7 +1025,6 @@ void MainWindow::on_moveBadPivotsCombo_currentIndexChanged(int index)
 void MainWindow::on_forceWhiteCheck_toggled(bool checked)
 {
     replaceUserOption("force_white", checked ? "yes" : "no");
-
 }
 
 void MainWindow::on_repairAABBCombo_currentIndexChanged(int index)
@@ -1360,7 +1359,7 @@ void MainWindow::on_filesTable_customContextMenuRequested(const QPoint &pos)
 
     // Create menu and insert some actions
     QMenu myMenu;
-    myMenu.addAction("Copy path to clipboard", this, SLOT(copyToClipboard()));
+    myMenu.addAction(tr("Copy path to clipboard"), this, SLOT(copyToClipboard()));
     myMenu.exec(globalPos);
 }
 
