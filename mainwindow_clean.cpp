@@ -175,11 +175,11 @@ void MainWindow::doClean()
         m_nMdlsFailed = 0;
         ui->mdlsCleanedLabel->setText("Files Cleaned: 0");
         ui->mdlsFailedLabel->setText("Failures: 0");
-        updateFileListing();
         m_bCleanRunning = true;
         ui->cleanButton->setDisabled(false);
         ui->cleanButton->setText(tr("Abort"));
         ui->cleanButton->setIcon(m_iconAbortButton);
+        m_pCleanProcess->moveToThread(QCoreApplication::instance()->thread());
     }
     else
     {
@@ -202,6 +202,11 @@ void MainWindow::onCleanFinished(int, QProcess::ExitStatus)
     ui->cleanButton->setIcon(m_iconCleanButton);
     m_pCleanStatus->setText(tr("Idle"));
     m_pStatusProgress->setVisible(false);
+    if(m_bUpdateFilesAfterClean)
+    {
+        MainWindow::updateFileListing();
+        m_bUpdateFilesAfterClean = false;
+    }
 }
 
 int MainWindow::findModelRow(const QString& mdlFile)

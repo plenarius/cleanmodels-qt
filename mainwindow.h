@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QProgressBar>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QMainWindow>
 
 class FileSystemModel;
@@ -37,6 +38,8 @@ private slots:
     void onLoadConfigTriggered();
     void onQuitTriggered();
     void onAboutTriggered();
+    void handleDirWatcherTimer();
+    void onDirectoryContentsChanged();
     void updateFileListing();
     void on_cullInvisibleCheck_toggled(bool checked);
     void on_meshMergeCheck_toggled(bool checked);
@@ -119,6 +122,9 @@ private:
     QIcon m_iconUnlockRescaleBtn;
     QElapsedTimer m_cleanTimer;
     QFileSystemWatcher m_fsWatcher;
+    QTimer *m_dirWatcherTimer;
+    bool m_bFilesHaveChanged;
+    bool m_bUpdateFilesAfterClean;
     bool m_bCleanRunning;
     int m_nMdlsCleaned = 0;
     int m_nMdlsFailed = 0;

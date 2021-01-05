@@ -129,6 +129,11 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->outdirButton->setIcon(QIcon(":icons/outdir"));
     ui->cleanButton->setIcon(m_iconCleanButton);
 
+    m_dirWatcherTimer = new QTimer(this);
+    m_dirWatcherTimer->setInterval(500);
+    connect(m_dirWatcherTimer, &QTimer::timeout, this, QOverload<>::of(&MainWindow::handleDirWatcherTimer));
+    m_bUpdateFilesAfterClean = false;
+
     readInLastDirs(m_sLastDirsPath);
     QObject::connect(m_pCleanProcess, static_cast<void(QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished), this, &MainWindow::onCleanFinished);
     QObject::connect(ui->actionHelp, SIGNAL(triggered()), this, SLOT(onHelpTriggered()));
@@ -136,7 +141,7 @@ MainWindow::MainWindow(QWidget *parent) :
     QObject::connect(ui->actionSavePreset, SIGNAL(triggered()), this, SLOT(onSaveConfigTriggered()));
     QObject::connect(ui->actionLoadPreset, SIGNAL(triggered()), this, SLOT(onLoadConfigTriggered()));
     QObject::connect(ui->actionQuit, SIGNAL(triggered()), this, SLOT(onQuitTriggered()));
-    QObject::connect(&m_fsWatcher, SIGNAL(directoryChanged(QString)), this, SLOT(updateFileListing()));
+    QObject::connect(&m_fsWatcher, SIGNAL(directoryChanged(QString)), this, SLOT(onDirectoryContentsChanged()));
     readSettings();
 }
 
@@ -689,7 +694,29 @@ void MainWindow::on_decompileCheck_stateChanged(int arg1)
         ui->tilesTab->setDisabled(true);
         ui->coreFixesBox->setDisabled(true);
         ui->pivotFrame->setDisabled(true);
-        ui->rescaleFrame->setDisabled(true);    }
+        ui->rescaleFrame->setDisabled(true);
+    }
+}
+
+void MainWindow::onDirectoryContentsChanged()
+{
+    m_dirWatcherTimer->stop();
+    m_bFilesHaveChanged = true;
+    m_dirWatcherTimer->start();
+}
+
+void MainWindow::handleDirWatcherTimer()
+{
+    if (m_bFilesHaveChanged)
+    {
+        m_bFilesHaveChanged = false;
+        if (m_bCleanRunning)
+        {
+            m_bUpdateFilesAfterClean = true;
+        }
+        else
+            updateFileListing();
+    }
 }
 
 void MainWindow::updateFileListing()
@@ -737,13 +764,16 @@ void MainWindow::updateFileListing()
 
 void MainWindow::onUpdateInDir(const QString& newInDir)
 {
+    m_dirWatcherTimer->stop();
     if (!m_sInDir.isEmpty())
         m_fsWatcher.removePath(m_sInDir);
+    m_bFilesHaveChanged = false;
     m_fsWatcher.addPath(newInDir);
     ui->inDirectory->setText(newInDir);
     replaceUserOption("g_indir", newInDir, true);
     m_sInDir = newInDir;
     updateFileListing();
+    m_dirWatcherTimer->start();
 }
 
 void MainWindow::on_indirButton_released()
@@ -839,8 +869,11 @@ void MainWindow::on_outDirectory_editingFinished()
 
 void MainWindow::on_filePattern_textChanged(const QString &pattern)
 {
+    m_dirWatcherTimer->stop();
+    m_bFilesHaveChanged = false;
     replaceUserOption("g_pattern", pattern, true);
     updateFileListing();
+    m_dirWatcherTimer->start();
 }
 
 void MainWindow::on_modelClassCombo_currentIndexChanged(int index)
