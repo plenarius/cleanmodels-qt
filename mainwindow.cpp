@@ -803,7 +803,7 @@ void MainWindow::on_inDirectory_textChanged(const QString &arg1)
         if (QFile(s).exists())
         {
             ui->inDirectory->setStatusTip(tr("Input folder resolved as ") %f);
-            ui->inDirectory->setStyleSheet("color: #000000");
+            ui->inDirectory->setStyleSheet("");
         }
         else
             ui->inDirectory->setStyleSheet("color: #FF0000");
@@ -811,7 +811,7 @@ void MainWindow::on_inDirectory_textChanged(const QString &arg1)
     else
     {
         ui->inDirectory->setStatusTip(tr("Input folder resolved as ") %f);
-        ui->inDirectory->setStyleSheet("color: #000000");
+        ui->inDirectory->setStyleSheet("");
     }
 }
 
@@ -826,7 +826,7 @@ void MainWindow::on_inDirectory_editingFinished()
     }
     else
     {
-        ui->inDirectory->setStyleSheet("color: #000000");
+        ui->inDirectory->setStyleSheet("");
         ui->cleanButton->setEnabled(true);
         ui->cleanButton->setToolTip(tr("Perform action."));
         onUpdateInDir(ui->inDirectory->text());
