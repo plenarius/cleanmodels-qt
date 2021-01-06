@@ -1,8 +1,8 @@
 :-asserta(g_indir('/tmp/in')).
 :-asserta(g_outdir('/tmp/out')).
-:-asserta(g_logfile('test.log')).
-:-asserta(g_pattern('tes*')).
-:-asserta(g_small_log('test Summary.log')).
+:-asserta(g_logfile('cm-qt.log')).
+:-asserta(g_pattern('*.mdl')).
+:-asserta(g_small_log('cm-qt_summaru.log')).
 :-asserta(g_user_option(classification,character)).
 :-asserta(g_user_option(snap,none)).
 :-asserta(g_user_option(tvert_snap,no)).

@@ -169,7 +169,7 @@ jobs:
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         automatic_release_tag: "build0.8.0-HEAD"
-        prerelease: true
+        prerelease: false
         draft: false
         title: "build0.8.0-HEAD"
         files: |
@@ -186,7 +186,7 @@ jobs:
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         automatic_release_tag: "latest"
-        prerelease: true
+        prerelease: false
         draft: false
         title: "build0.8.0-HEAD"
         files: |
