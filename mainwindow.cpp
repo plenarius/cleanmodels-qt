@@ -725,7 +725,7 @@ void MainWindow::updateFileListing()
     auto pattern = ui->filePattern->text();
     QDir dir(ui->inDirectory->text());
     dir.setNameFilters((QStringList(pattern)));
-    dir.setFilter(QDir::Files | QDir::NoDotAndDotDot | QDir::Readable);
+    dir.setFilter(QDir::Files | QDir::NoDotAndDotDot | QDir::Readable | QDir::CaseSensitive);
     QStringList totalfiles = dir.entryList();
     ui->mdlsDetectedLabel->setText(tr("Files detected: ") % QString::number(totalfiles.count()));
     if (!ui->decompileCheck->isChecked())
