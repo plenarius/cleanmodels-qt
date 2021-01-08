@@ -199,6 +199,7 @@ void MainWindow::onCleanFinished(int, QProcess::ExitStatus)
         ui->cleanButton->setText(tr("Clean"));
     else
         ui->cleanButton->setText(tr("Decompile"));
+    ui->decompileCheck->setEnabled(true);
     ui->cleanButton->setIcon(m_iconCleanButton);
     m_pCleanStatus->setText(tr("Idle"));
     m_pStatusProgress->setVisible(false);
