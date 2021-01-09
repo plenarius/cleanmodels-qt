@@ -62,7 +62,7 @@ void MainWindow::onCaptureCleanModelsOutput()
             pos = rx_mdl.indexIn(line);
             if (pos > -1)
             {
-                sStatus = tr(actionVerbPresent.toStdString().c_str()) % m_sCurrentModel;
+                sStatus = tr(actionVerbPresent.toStdString().c_str()) % " " % m_sCurrentModel;
                 m_pCleanStatus->setText(sStatus);
                 m_pStatusProgress->setVisible(true);
                 outputHtml = "<p><span style=\"color:blue;\"><b>" % line % "</b></span></p><br>";
