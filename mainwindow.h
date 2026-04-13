@@ -12,6 +12,7 @@
 #include <QMainWindow>
 
 class FileSystemModel;
+class ModelViewport;
 
 namespace Ui {
 class MainWindow;
@@ -107,7 +108,7 @@ private:
     QString m_sCurrentModel;
     QString m_sInDir;
     QString m_sOutDir;
-    QString m_sLastDirsPath;
+    QString m_sSettingsPath;
     QIcon m_iconReadingMDL;
     QIcon m_iconDecompilingMDL;
     QIcon m_iconCleaningMDL;
@@ -123,6 +124,7 @@ private:
     QElapsedTimer m_cleanTimer;
     QFileSystemWatcher m_fsWatcher;
     QTimer *m_dirWatcherTimer;
+    QByteArray m_stdoutBuffer;
     bool m_bFilesHaveChanged;
     bool m_bUpdateFilesAfterClean;
     bool m_bCleanRunning;
@@ -131,13 +133,17 @@ private:
 
     void onUpdateInDir(const QString& newInDir);
     void setRescaleOption();
-    void replaceUserOption(const QString& str, const QString& rpl, bool coreValue = false);
-    void readInLastDirs(const QString& fileLoc);
     void readSettings();
     void writeSettings();
+    void saveSettings();
+    void loadSettings();
 
     void doClean();
+    QStringList buildCliArgs();
     int findModelRow(const QString& mdlFile);
+    void appendDebugHtml(const QString& html);
+
+    ModelViewport *m_viewport = nullptr;
 };
 
 #endif // MAINWINDOW_H

@@ -1,5 +1,6 @@
 ﻿#include "fsmodel.h"
 #include "mainwindow.h"
+#include "modelviewport.h"
 #include "ui_mainwindow.h"
 #include <QApplication>
 #include <QClipboard>
@@ -13,14 +14,14 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QSettings>
+#include <QSplitter>
 #include <QStandardPaths>
 #include <QStringBuilder>
+#include <QSurfaceFormat>
 #include <QTableWidgetItem>
 #include <QTextStream>
 #include <QWhatsThis>
 #include <QWindow>
-
-using namespace std;
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -30,9 +31,9 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->debugTextBrowser->insertHtml(tr("Welcome to Clean Models:EE QT!<br>"));
 
 #ifdef Q_OS_WIN
-    m_sBinaryName = "cleanmodels-cli.exe";
+    m_sBinaryName = "cleanmodels.exe";
 #else
-    m_sBinaryName = "cleanmodels-cli";
+    m_sBinaryName = "cleanmodels";
 #endif
 
     bool cliFound = true;
@@ -48,7 +49,7 @@ MainWindow::MainWindow(QWidget *parent) :
     if (cliFound)
     {
         m_sBinaryPath = cliInPath;
-        QString foundMsg = "Clean Models Command Line Interface found at " % m_sBinaryPath;
+        QString foundMsg = "Clean Models CLI found at " % m_sBinaryPath;
         ui->debugTextBrowser->insertHtml(tr(foundMsg.toStdString().c_str()));
         auto sb = ui->debugTextBrowser->verticalScrollBar();
         sb->setValue(sb->maximum());
@@ -56,7 +57,7 @@ MainWindow::MainWindow(QWidget *parent) :
     else
     {
         QString errorMsg = "Could not find the " % m_sBinaryName % " executable in the current directory or in your path!";
-        QMessageBox::critical(nullptr, "No cleanmodels-cli", tr(errorMsg.toStdString().c_str()));
+        QMessageBox::critical(nullptr, "No cleanmodels CLI", tr(errorMsg.toStdString().c_str()));
         ui->debugTextBrowser->insertHtml(tr(errorMsg.toStdString().c_str()));
         auto sb = ui->debugTextBrowser->verticalScrollBar();
         sb->setValue(sb->maximum());
@@ -64,15 +65,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     m_pCleanProcess = new QProcess(this);
     m_bCleanRunning = false;
-    m_sLastDirsPath = QCoreApplication::applicationDirPath() % "/last_dirs.pl";
-    bool fileExists = QFileInfo::exists(m_sLastDirsPath) && QFileInfo(m_sLastDirsPath).isFile();
-    if (!fileExists)
-    {
-        QFile fromResource(":/last_dirs.pl");
-        fromResource.copy(m_sLastDirsPath);
-        QFile out(m_sLastDirsPath);
-        out.setPermissions(QFileDevice::ReadOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther | QFileDevice::WriteOwner | QFileDevice::WriteGroup);
-    }
 
     auto* sStatusLabel = new QLabel( QString( tr("Status:") ) );
     m_pCleanStatus = new QLabel( QString( tr("Idle") ) );
@@ -134,14 +126,44 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_dirWatcherTimer, &QTimer::timeout, this, QOverload<>::of(&MainWindow::handleDirWatcherTimer));
     m_bUpdateFilesAfterClean = false;
 
-    readInLastDirs(m_sLastDirsPath);
-    QObject::connect(m_pCleanProcess, static_cast<void(QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished), this, &MainWindow::onCleanFinished);
-    QObject::connect(ui->actionHelp, SIGNAL(triggered()), this, SLOT(onHelpTriggered()));
-    QObject::connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(onAboutTriggered()));
-    QObject::connect(ui->actionSavePreset, SIGNAL(triggered()), this, SLOT(onSaveConfigTriggered()));
-    QObject::connect(ui->actionLoadPreset, SIGNAL(triggered()), this, SLOT(onLoadConfigTriggered()));
-    QObject::connect(ui->actionQuit, SIGNAL(triggered()), this, SLOT(onQuitTriggered()));
-    QObject::connect(&m_fsWatcher, SIGNAL(directoryChanged(QString)), this, SLOT(onDirectoryContentsChanged()));
+    // 3D viewport: replace the debugTextBrowser in the splitter with
+    // a horizontal splitter containing [debugTextBrowser | viewport]
+    m_viewport = new ModelViewport(this);
+    m_viewport->setCliBinaryPath(m_sBinaryPath);
+    m_viewport->setMinimumSize(200, 150);
+
+    auto *hSplitter = new QSplitter(Qt::Horizontal, this);
+    QWidget *debugParent = ui->debugTextBrowser->parentWidget();
+    QSplitter *parentSplitter = qobject_cast<QSplitter *>(debugParent);
+    if (parentSplitter)
+    {
+        int idx = parentSplitter->indexOf(ui->debugTextBrowser);
+        hSplitter->addWidget(ui->debugTextBrowser);
+        hSplitter->addWidget(m_viewport);
+        hSplitter->setSizes({400, 400});
+        parentSplitter->insertWidget(idx, hSplitter);
+    }
+    else
+    {
+        hSplitter->addWidget(ui->debugTextBrowser);
+        hSplitter->addWidget(m_viewport);
+        hSplitter->setSizes({400, 400});
+    }
+
+    connect(m_viewport, &ModelViewport::previewError, this, [this](const QString &msg) {
+        appendDebugHtml("<p><span style=\"color:orange;\">Preview: " + msg.toHtmlEscaped() + "</span></p><br>");
+    });
+
+    loadSettings();
+
+    connect(m_pCleanProcess, &QProcess::finished, this, &MainWindow::onCleanFinished);
+    connect(ui->actionHelp, &QAction::triggered, this, &MainWindow::onHelpTriggered);
+    connect(ui->actionAbout, &QAction::triggered, this, &MainWindow::onAboutTriggered);
+    connect(ui->actionSavePreset, &QAction::triggered, this, &MainWindow::onSaveConfigTriggered);
+    connect(ui->actionLoadPreset, &QAction::triggered, this, &MainWindow::onLoadConfigTriggered);
+    connect(ui->actionQuit, &QAction::triggered, this, &MainWindow::onQuitTriggered);
+    connect(&m_fsWatcher, &QFileSystemWatcher::directoryChanged, this, &MainWindow::onDirectoryContentsChanged);
+
     readSettings();
 }
 
@@ -152,7 +174,6 @@ MainWindow::~MainWindow()
     delete m_pCleanProcess;
 }
 
-// Window Position/Geometry
 void MainWindow::readSettings()
 {
     QScreen *screen = QGuiApplication::primaryScreen();
@@ -182,461 +203,176 @@ void MainWindow::writeSettings()
     settings.setValue("geometry", saveGeometry());
 }
 
+void MainWindow::loadSettings()
+{
+    QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    s.beginGroup("options");
+
+    QString inDir = s.value("indir").toString();
+    if (!inDir.isEmpty())
+    {
+        onUpdateInDir(inDir);
+        QDir absDir;
+        m_pFileSystemModel->setRootPath(absDir.absoluteFilePath(inDir));
+    }
+
+    QString outDir = s.value("outdir").toString();
+    if (!outDir.isEmpty())
+    {
+        m_sOutDir = outDir;
+        ui->outDirectory->setText(m_sOutDir);
+        QDir absDir;
+        m_pFileSystemModel->setRootPath(absDir.absoluteFilePath(m_sOutDir));
+    }
+
+    ui->filePattern->setText(s.value("pattern", "*.mdl").toString());
+    ui->logFileName->setText(s.value("logfile").toString());
+    ui->summaryLogFileName->setText(s.value("summary_log").toString());
+    ui->modelClassCombo->setCurrentIndex(s.value("classification", 0).toInt());
+    ui->snapCombo->setCurrentIndex(s.value("snap", 0).toInt());
+    ui->snapTVertsCombo->setCurrentIndex(s.value("tvert_snap", 0).toInt());
+    ui->smoothingGroupsCombo->setCurrentIndex(s.value("smoothing_groups", 0).toInt());
+    ui->repairAABBCombo->setCurrentIndex(s.value("fix_overhangs", 0).toInt());
+    ui->dynamicWaterCombo->setCurrentIndex(s.value("dynamic_water", 0).toInt());
+    ui->waterRotateTextureCombo->setCurrentIndex(s.value("rotate_water", 0).toInt());
+    ui->retileWaterCombo->setCurrentIndex(s.value("tile_water", 0).toInt());
+    ui->raiseLowerCombo->setCurrentIndex(s.value("tile_raise", 0).toInt());
+    ui->raiseLowerAmountSpin->setValue(s.value("tile_raise_amount", 0.0).toDouble());
+    ui->sliceForTileFadeCombo->setCurrentIndex(s.value("slice", 0).toInt());
+    ui->renderTrimeshCombo->setCurrentIndex(s.value("render", 0).toInt());
+    ui->renderShadowsCombo->setCurrentIndex(s.value("shadow", 0).toInt());
+    ui->repivotCombo->setCurrentIndex(s.value("repivot", 0).toInt());
+    ui->pivotsBelowZeroZCombo->setCurrentIndex(s.value("pivots_below_z0", 0).toInt());
+    ui->moveBadPivotsCombo->setCurrentIndex(s.value("move_bad_pivots", 0).toInt());
+    ui->foliageCombo->setCurrentIndex(s.value("foliage", 0).toInt());
+    ui->groundRotateTextureCombo->setCurrentIndex(s.value("rotate_ground", 0).toInt());
+    ui->tileEdgeChamfersCombo->setCurrentIndex(s.value("chamfer", 0).toInt());
+    ui->retileGroundPlanesCombo->setCurrentIndex(s.value("tile_ground", 0).toInt());
+    ui->cullInvisibleCheck->setChecked(s.value("invisible_mesh_cull", false).toBool());
+    ui->changeWokMatCheck->setChecked(s.value("map_aabb_material", false).toBool());
+    ui->changeWokMatGroupBox->setEnabled(s.value("map_aabb_material", false).toBool());
+    ui->allowSplittingCheck->setChecked(s.value("allow_split", false).toBool());
+    ui->waterFixupsCheck->setChecked(s.value("do_water", false).toBool());
+    ui->waterFrame->setEnabled(s.value("do_water", false).toBool());
+    ui->waterBitmapKeys->setText(s.value("water_key").toString());
+    ui->groundBitmapKeys->setText(s.value("ground_key").toString());
+    ui->splotchBitmapKeys->setText(s.value("splotch_key").toString());
+    ui->foliageBitmapKeys->setText(s.value("foliage_key").toString());
+    ui->subObjectSpin->setValue(s.value("min_size", 0).toInt());
+    ui->meshMergeCheck->setChecked(s.value("merge_by_bitmap", false).toBool());
+    ui->placeableWithTransparencyCheck->setChecked(s.value("placeable_with_transparency", false).toBool());
+    ui->animateSplotchesCheck->setChecked(s.value("animate_splotches", false).toBool());
+    ui->forceWhiteCheck->setChecked(s.value("force_white", false).toBool());
+    ui->transparentBitmapKeys->setText(s.value("transparency_key").toString());
+    ui->waveHeightSpin->setValue(s.value("wave_height", 0.0).toDouble());
+    ui->changeWokMatFromSpin->setValue(s.value("map_aabb_from", 0).toInt());
+    ui->changeWokMatToSpin->setValue(s.value("map_aabb_to", 0).toInt());
+    ui->rescaleXSpin->setValue(s.value("rescale_x", 1.0).toDouble());
+    ui->rescaleYSpin->setValue(s.value("rescale_y", 1.0).toDouble());
+    ui->rescaleZSpin->setValue(s.value("rescale_z", 1.0).toDouble());
+
+    s.endGroup();
+}
+
+void MainWindow::saveSettings()
+{
+    QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    s.beginGroup("options");
+
+    s.setValue("indir", m_sInDir);
+    s.setValue("outdir", m_sOutDir);
+    s.setValue("pattern", ui->filePattern->text());
+    s.setValue("logfile", ui->logFileName->text());
+    s.setValue("summary_log", ui->summaryLogFileName->text());
+    s.setValue("classification", ui->modelClassCombo->currentIndex());
+    s.setValue("snap", ui->snapCombo->currentIndex());
+    s.setValue("tvert_snap", ui->snapTVertsCombo->currentIndex());
+    s.setValue("smoothing_groups", ui->smoothingGroupsCombo->currentIndex());
+    s.setValue("fix_overhangs", ui->repairAABBCombo->currentIndex());
+    s.setValue("dynamic_water", ui->dynamicWaterCombo->currentIndex());
+    s.setValue("rotate_water", ui->waterRotateTextureCombo->currentIndex());
+    s.setValue("tile_water", ui->retileWaterCombo->currentIndex());
+    s.setValue("tile_raise", ui->raiseLowerCombo->currentIndex());
+    s.setValue("tile_raise_amount", ui->raiseLowerAmountSpin->value());
+    s.setValue("slice", ui->sliceForTileFadeCombo->currentIndex());
+    s.setValue("render", ui->renderTrimeshCombo->currentIndex());
+    s.setValue("shadow", ui->renderShadowsCombo->currentIndex());
+    s.setValue("repivot", ui->repivotCombo->currentIndex());
+    s.setValue("pivots_below_z0", ui->pivotsBelowZeroZCombo->currentIndex());
+    s.setValue("move_bad_pivots", ui->moveBadPivotsCombo->currentIndex());
+    s.setValue("foliage", ui->foliageCombo->currentIndex());
+    s.setValue("rotate_ground", ui->groundRotateTextureCombo->currentIndex());
+    s.setValue("chamfer", ui->tileEdgeChamfersCombo->currentIndex());
+    s.setValue("tile_ground", ui->retileGroundPlanesCombo->currentIndex());
+    s.setValue("invisible_mesh_cull", ui->cullInvisibleCheck->isChecked());
+    s.setValue("map_aabb_material", ui->changeWokMatCheck->isChecked());
+    s.setValue("allow_split", ui->allowSplittingCheck->isChecked());
+    s.setValue("do_water", ui->waterFixupsCheck->isChecked());
+    s.setValue("water_key", ui->waterBitmapKeys->text());
+    s.setValue("ground_key", ui->groundBitmapKeys->text());
+    s.setValue("splotch_key", ui->splotchBitmapKeys->text());
+    s.setValue("foliage_key", ui->foliageBitmapKeys->text());
+    s.setValue("min_size", ui->subObjectSpin->value());
+    s.setValue("merge_by_bitmap", ui->meshMergeCheck->isChecked());
+    s.setValue("placeable_with_transparency", ui->placeableWithTransparencyCheck->isChecked());
+    s.setValue("animate_splotches", ui->animateSplotchesCheck->isChecked());
+    s.setValue("force_white", ui->forceWhiteCheck->isChecked());
+    s.setValue("transparency_key", ui->transparentBitmapKeys->text());
+    s.setValue("wave_height", ui->waveHeightSpin->value());
+    s.setValue("map_aabb_from", ui->changeWokMatFromSpin->value());
+    s.setValue("map_aabb_to", ui->changeWokMatToSpin->value());
+    s.setValue("rescale_x", ui->rescaleXSpin->value());
+    s.setValue("rescale_y", ui->rescaleYSpin->value());
+    s.setValue("rescale_z", ui->rescaleZSpin->value());
+
+    s.endGroup();
+}
+
 void MainWindow::closeEvent(QCloseEvent*)
 {
     writeSettings();
+    saveSettings();
 }
 
-// Main last_dirs parsing and writing functions
-void MainWindow::readInLastDirs(const QString& fileLoc)
-{
-    QFile inputFile(fileLoc);
-    if (inputFile.open(QIODevice::ReadOnly))
-    {
-       QTextStream in(&inputFile);
-       while (!in.atEnd())
-       {
-          QString line = in.readLine();
-          QString str = R"(^:-asserta\((.*)\((.*)[,]?(\w+|\[.*\])?\)\)\.$)";
-
-          QRegularExpression re(str, QRegularExpression::InvertedGreedinessOption | QRegularExpression::MultilineOption);
-          QRegularExpressionMatchIterator i = re.globalMatch(line);
-          while (i.hasNext())
-          {
-              QRegularExpressionMatch match = i.next();
-              QString captured = match.captured(1);
-              QString capturedTwo = match.captured(2).isEmpty() ? match.captured(3) : match.captured(2);
-              if (captured.isEmpty() || capturedTwo.isEmpty())
-                  break;
-              if (capturedTwo.startsWith("'"))
-                  capturedTwo.remove(0,1);
-              if (capturedTwo.endsWith("'"))
-                  capturedTwo.chop(1);
-              if (captured == "g_indir")
-              {
-                  onUpdateInDir(capturedTwo);
-                  QDir absDir;
-                  m_pFileSystemModel->setRootPath(absDir.absoluteFilePath(capturedTwo));
-              }
-              else if (captured == "g_outdir")
-              {
-                  m_sOutDir = capturedTwo;
-                  ui->outDirectory->setText(m_sOutDir);
-                  QDir absDir;
-                  m_pFileSystemModel->setRootPath(absDir.absoluteFilePath(m_sOutDir));
-              }
-              else if (captured == "g_pattern")
-              {
-                  ui->filePattern->setText(capturedTwo);
-              }
-              else if (captured == "g_logfile")
-              {
-                  ui->logFileName->setText(capturedTwo);
-              }
-              else if (captured == "g_small_log")
-              {
-                  ui->summaryLogFileName->setText(capturedTwo);
-              }
-              else if (captured == "g_user_option")
-              {
-                  QString value = match.captured(3);
-                  if (capturedTwo == "classification")
-                  {
-                      if (value == "character")
-                          ui->modelClassCombo->setCurrentIndex(1);
-                      else if (value == "door")
-                          ui->modelClassCombo->setCurrentIndex(2);
-                      else if (value == "effect")
-                          ui->modelClassCombo->setCurrentIndex(3);
-                      else if (value == "item")
-                          ui->modelClassCombo->setCurrentIndex(4);
-                      else if (value == "tile")
-                          ui->modelClassCombo->setCurrentIndex(5);
-                      else
-                          ui->modelClassCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "snap")
-                  {
-                      if (value == "binary")
-                          ui->snapCombo->setCurrentIndex(1);
-                      else if (value == "decimal")
-                          ui->snapCombo->setCurrentIndex(2);
-                      else if (value == "fine")
-                          ui->snapCombo->setCurrentIndex(3);
-                      else
-                          ui->snapCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "tvert_snap")
-                  {
-                      if (value == "256")
-                          ui->snapTVertsCombo->setCurrentIndex(1);
-                      else if (value == "512")
-                          ui->snapTVertsCombo->setCurrentIndex(2);
-                      else if (value == "1024")
-                          ui->snapTVertsCombo->setCurrentIndex(3);
-                      else
-                          ui->snapTVertsCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "use_Smoothed")
-                  {
-                      if (value == "ignore")
-                          ui->smoothingGroupsCombo->setCurrentIndex(1);
-                      else if (value == "protect")
-                          ui->smoothingGroupsCombo->setCurrentIndex(2);
-                      else
-                          ui->smoothingGroupsCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "fix_overhangs")
-                  {
-                      if (value == "yes")
-                          ui->repairAABBCombo->setCurrentIndex(1);
-                      else if (value == "interior_only")
-                          ui->repairAABBCombo->setCurrentIndex(2);
-                      else
-                          ui->repairAABBCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "dynamic_water")
-                  {
-                      if (value == "no")
-                          ui->dynamicWaterCombo->setCurrentIndex(1);
-                      else if (value == "wavy")
-                          ui->dynamicWaterCombo->setCurrentIndex(2);
-                      else
-                          ui->dynamicWaterCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "rotate_water")
-                  {
-                      if (value == "1")
-                          ui->waterRotateTextureCombo->setCurrentIndex(1);
-                      else if (value == "0")
-                          ui->waterRotateTextureCombo->setCurrentIndex(2);
-                      else
-                          ui->waterRotateTextureCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "tile_water")
-                  {
-                      if (value == "1")
-                          ui->retileWaterCombo->setCurrentIndex(1);
-                      else if (value == "2")
-                          ui->retileWaterCombo->setCurrentIndex(2);
-                      else if (value == "3")
-                          ui->retileWaterCombo->setCurrentIndex(3);
-                      else
-                          ui->retileWaterCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "tile_raise")
-                  {
-                      if (value == "raise")
-                          ui->raiseLowerCombo->setCurrentIndex(1);
-                      else if (value == "lower")
-                          ui->raiseLowerCombo->setCurrentIndex(2);
-                      else
-                          ui->raiseLowerCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "slice")
-                  {
-                      if (value == "no")
-                          ui->sliceForTileFadeCombo->setCurrentIndex(1);
-                      else if (value == "undo")
-                          ui->sliceForTileFadeCombo->setCurrentIndex(2);
-                      else
-                          ui->sliceForTileFadeCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "tile_raise_amount")
-                  {
-                      ui->raiseLowerAmountSpin->setValue(value.toDouble());
-                  }
-                  else if (capturedTwo == "render")
-                  {
-                      if (value == "all")
-                          ui->renderTrimeshCombo->setCurrentIndex(1);
-                      else if (value == "none")
-                          ui->renderTrimeshCombo->setCurrentIndex(2);
-                      else
-                          ui->renderTrimeshCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "shadow")
-                  {
-                      if (value == "all")
-                          ui->renderShadowsCombo->setCurrentIndex(1);
-                      else if (value == "none")
-                          ui->renderShadowsCombo->setCurrentIndex(2);
-                      else
-                          ui->renderShadowsCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "repivot")
-                  {
-                      if (value == "all")
-                          ui->repivotCombo->setCurrentIndex(1);
-                      else if (value == "none")
-                          ui->repivotCombo->setCurrentIndex(2);
-                      else
-                          ui->repivotCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "pivots_below_z=0")
-                  {
-                      if (value == "allow")
-                          ui->pivotsBelowZeroZCombo->setCurrentIndex(1);
-                      else if (value == "slice")
-                          ui->pivotsBelowZeroZCombo->setCurrentIndex(2);
-                      else
-                          ui->pivotsBelowZeroZCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "move_bad_pivots")
-                  {
-                      if (value == "top")
-                          ui->moveBadPivotsCombo->setCurrentIndex(1);
-                      else if (value == "middle")
-                          ui->moveBadPivotsCombo->setCurrentIndex(2);
-                      else if (value == "bottom")
-                          ui->moveBadPivotsCombo->setCurrentIndex(3);
-                      else
-                          ui->moveBadPivotsCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "foliage")
-                  {
-                      if (value == "tilefade")
-                          ui->foliageCombo->setCurrentIndex(1);
-                      else if (value == "animate")
-                          ui->foliageCombo->setCurrentIndex(2);
-                      else if (value == "de-animate")
-                          ui->foliageCombo->setCurrentIndex(3);
-                      else if (value == "ignore")
-                          ui->foliageCombo->setCurrentIndex(4);
-                      else
-                          ui->foliageCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "rotate_ground")
-                  {
-                      if (value == "1")
-                          ui->groundRotateTextureCombo->setCurrentIndex(1);
-                      else if (value == "0")
-                          ui->groundRotateTextureCombo->setCurrentIndex(2);
-                      else
-                          ui->groundRotateTextureCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "chamfer")
-                  {
-                      if (value == "add")
-                          ui->tileEdgeChamfersCombo->setCurrentIndex(1);
-                      else if (value == "delete")
-                          ui->tileEdgeChamfersCombo->setCurrentIndex(2);
-                      else
-                          ui->tileEdgeChamfersCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "tile_ground")
-                  {
-                      if (value == "1")
-                          ui->retileGroundPlanesCombo->setCurrentIndex(1);
-                      else if (value == "2")
-                          ui->retileGroundPlanesCombo->setCurrentIndex(2);
-                      else if (value == "3")
-                          ui->retileGroundPlanesCombo->setCurrentIndex(3);
-                      else
-                          ui->retileGroundPlanesCombo->setCurrentIndex(0);
-                  }
-                  else if (capturedTwo == "invisible_mesh_cull")
-                  {
-                      ui->cullInvisibleCheck->setChecked(value == "yes");
-                  }
-                  else if (capturedTwo == "map_aabb_material")
-                  {
-                      ui->changeWokMatCheck->setChecked(value == "yes");
-                      ui->changeWokMatGroupBox->setEnabled(value == "yes");
-                  }
-                  else if (capturedTwo == "allow_split")
-                  {
-                      ui->allowSplittingCheck->setChecked(value == "yes");
-                  }
-                  else if (capturedTwo == "do_water")
-                  {
-                      ui->waterFixupsCheck->setChecked(value == "yes");
-                      ui->waterFrame->setEnabled(value == "yes");
-                  }
-                  else if (capturedTwo == "water_key")
-                  {
-                      ui->waterBitmapKeys->setText(value);
-                  }
-                  else if (capturedTwo == "ground_key")
-                  {
-                      ui->groundBitmapKeys->setText(value);
-                  }
-                  else if (capturedTwo == "splotch_key")
-                  {
-                      ui->splotchBitmapKeys->setText(value);
-                  }
-                  else if (capturedTwo == "foliage_key")
-                  {
-                      ui->foliageBitmapKeys->setText(value);
-                  }
-                  else if (capturedTwo == "min_Size")
-                  {
-                     ui->subObjectSpin->setValue(value.toInt());
-                  }
-                  else if (capturedTwo == "merge_by_bitmap")
-                  {
-                      ui->meshMergeCheck->setChecked(value == "yes");
-                  }
-                  else if (capturedTwo == "placeable_with_transparency")
-                  {
-                      ui->placeableWithTransparencyCheck->setChecked(value == "yes");
-                      ui->transBitmapKeyFrame->setEnabled(value == "yes");
-                  }
-                  else if (capturedTwo == "splotch")
-                  {
-                      ui->animateSplotchesCheck->setChecked(value == "animate");
-                      ui->splotchBitmapKeysLabel->setEnabled(value == "animate");
-                      ui->splotchBitmapKeys->setEnabled(value == "animate");
-                  }
-                  else if (capturedTwo == "force_white")
-                  {
-                      ui->forceWhiteCheck->setChecked(value == "yes");
-                  }
-                  else if (capturedTwo == "split_Priority")
-                  {
-                      ui->forceWhiteCheck->setChecked(value == "concave");
-                  }
-                  else if (capturedTwo == "transparency_key")
-                  {
-                      ui->transparentBitmapKeys->setText(value);
-                  }
-                  else if (capturedTwo == "wave_height")
-                  {
-                      ui->waveHeightSpin->setValue(value.toDouble());
-                  }
-                  else if (capturedTwo == "map_aabb_from")
-                  {
-                      ui->changeWokMatFromSpin->setValue(value.toInt());
-                  }
-                  else if (capturedTwo == "map_aabb_to")
-                  {
-                      ui->changeWokMatToSpin->setValue(value.toInt());
-                  }
-                  else if (capturedTwo == "rescaleXYZ")
-                  {
-                      double X = 1.0;
-                      double Y = 1.0;
-                      double Z = 1.0;
-                      if (value != "no")
-                      {
-                          auto scales = value.mid(1,value.length() - 2).split(",");
-                          X = scales[0].toDouble(nullptr);
-                          Y = scales[1].toDouble(nullptr);
-                          Z = scales[2].toDouble(nullptr);
-                      }
-                      ui->rescaleXSpin->setValue(X);
-                      ui->rescaleYSpin->setValue(Y);
-                      ui->rescaleZSpin->setValue(Z);
-                  }
-              }
-          }
-       }
-       inputFile.close();
-    }
-}
-
-void MainWindow::replaceUserOption(const QString& key, const QString& value, bool coreVal)
-{
-    QString str, rpl;
-    if (!coreVal)
-    {
-        str = "^:-asserta\\(g_user_option\\(" % key % R"(,(.*)\)\)\.$)";
-        rpl = ":-asserta(g_user_option(" % key % "," % value % ")).";
-    }
-    else
-    {
-        str = "^:-asserta\\(" % key % R"((.*)\)\)\.$)";
-        rpl = ":-asserta(" % key % "('" % value % "')).";
-    }
-    QFile file(m_sLastDirsPath);
-    if(!file.open(QIODevice::Text | QIODevice::ReadWrite))
-    {
-        QMessageBox::critical(nullptr, "exception", tr("Could not open last_dirs for saving!"));
-        return;
-    }
-    QString dataText = file.readAll();
-    file.close();
-
-    QRegularExpression re(str, QRegularExpression::InvertedGreedinessOption | QRegularExpression::MultilineOption);
-    dataText.replace(re, rpl);
-
-    if(file.open(QFile::WriteOnly | QFile::Truncate))
-    {
-        QTextStream out(&file);
-        out << dataText;
-    }
-    file.close();
-}
-
-// SLOTS/SIGNALS
 void MainWindow::onLoadConfigTriggered()
 {
     QFileDialog fileDialog;
     fileDialog.setAcceptMode(QFileDialog::AcceptMode::AcceptOpen);
     QStringList nameFilters;
-    nameFilters.append("Clean Models Config (*.cm)");
+    nameFilters.append("Clean Models Config (*.ini)");
+    nameFilters.append("Legacy Config (*.cm *.pl)");
     fileDialog.setNameFilters(nameFilters);
     fileDialog.setDirectory(QDir::currentPath());
     if (fileDialog.exec())
     {
         QString fileName = fileDialog.selectedFiles()[0];
-        QFile file(fileName);
-        if (!file.open(QIODevice::ReadOnly))
-        {
-            QMessageBox::information(this, tr("Unable to open file"), file.errorString());
-            return;
-        }
-        else
-            file.close();
-        if (QFile::exists(m_sLastDirsPath))
-        {
-            QFile::remove(m_sLastDirsPath);
-        }
-        if (!file.copy(m_sLastDirsPath))
-        {
-            QMessageBox::information(this, tr("Unable to load file"), file.errorString());
-            return;
-        }
-        else
-            readInLastDirs(m_sLastDirsPath);
+        QSettings imported(fileName, QSettings::IniFormat);
+        QSettings current(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+        for (const auto &key : imported.allKeys())
+            current.setValue(key, imported.value(key));
+        loadSettings();
     }
 }
 
 void MainWindow::onSaveConfigTriggered()
 {
+    saveSettings();
+
     QFileDialog fileDialog;
     fileDialog.setAcceptMode(QFileDialog::AcceptMode::AcceptSave);
     fileDialog.setFileMode(QFileDialog::AnyFile);
-    fileDialog.setDefaultSuffix("cm");
+    fileDialog.setDefaultSuffix("ini");
     QStringList nameFilters;
-    nameFilters.append("Clean Models Config (*.cm)");
+    nameFilters.append("Clean Models Config (*.ini)");
     fileDialog.setNameFilters(nameFilters);
     fileDialog.setDirectory(QDir::currentPath());
     if (fileDialog.exec())
     {
         QString fileName = fileDialog.selectedFiles()[0];
-        QFile file(fileName);
-        if (!file.open(QIODevice::WriteOnly))
-        {
-            QMessageBox::information(this, tr("Unable to open file"), file.errorString());
-            return;
-        }
-        if (QFile::exists(fileName))
-        {
-            QFile::remove(fileName);
-        }
-        QFile fromResource(m_sLastDirsPath);
-        if (fromResource.copy(fileName))
-        {
-            QFile out(fileName);
-            out.setPermissions(QFileDevice::ReadOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther | QFileDevice::WriteOwner | QFileDevice::WriteGroup);
-            file.close();
-        }
-        else
-        {
-            QMessageBox::information(this, tr("Unable to save file"),fromResource.errorString());
-            return;
-        }
+        QSettings current(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+        QSettings exported(fileName, QSettings::IniFormat);
+        for (const auto &key : current.allKeys())
+            exported.setValue(key, current.value(key));
     }
 }
 
@@ -644,7 +380,8 @@ void MainWindow::onAboutTriggered()
 {
     QMessageBox::about(this, tr("About Clean Models:EE QT"),
                        tr("A front end to Clean Models, a utility to tidy up 3d models\n"
-                          "for usage in Neverwinter Nights: Enhanced Edition."));
+                          "for usage in Neverwinter Nights: Enhanced Edition.\n\n"
+                          "Powered by cleanmodels (Go CLI)."));
 }
 
 void MainWindow::onHelpTriggered()
@@ -738,7 +475,8 @@ void MainWindow::updateFileListing()
     {
         QFile inputFile(ui->inDirectory->text() % "/" % filePath);
         QTextStream stream(&inputFile);
-        inputFile.open(QIODevice::ReadOnly);
+        if (!inputFile.open(QIODevice::ReadOnly))
+            continue;
         if (!inputFile.isOpen())
             continue;
         auto line = stream.readLine().trimmed().toStdString();
@@ -770,7 +508,6 @@ void MainWindow::onUpdateInDir(const QString& newInDir)
     m_bFilesHaveChanged = false;
     m_fsWatcher.addPath(newInDir);
     ui->inDirectory->setText(newInDir);
-    replaceUserOption("g_indir", newInDir, true);
     m_sInDir = newInDir;
     updateFileListing();
     m_dirWatcherTimer->start();
@@ -846,7 +583,6 @@ void MainWindow::on_outdirButton_released()
         outDirectory = dialog.selectedFiles();
         ui->outDirectory->setText(outDirectory.at(0));
         m_sOutDir = ui->outDirectory->text();
-        replaceUserOption("g_outdir", m_sOutDir, true);
     }
 }
 
@@ -863,43 +599,19 @@ void MainWindow::on_outDirectory_editingFinished()
     const QFileInfo outputDir(m_sOutDir);
     QDir dir(QDir::currentPath());
     QString f = dir.absoluteFilePath(m_sOutDir);
-    replaceUserOption("g_outdir", m_sOutDir, true);
     ui->outDirectory->setStatusTip(tr("Output folder resolved as ") % f);
 }
 
-void MainWindow::on_filePattern_textChanged(const QString &pattern)
+void MainWindow::on_filePattern_textChanged(const QString &)
 {
     m_dirWatcherTimer->stop();
     m_bFilesHaveChanged = false;
-    replaceUserOption("g_pattern", pattern, true);
     updateFileListing();
     m_dirWatcherTimer->start();
 }
 
 void MainWindow::on_modelClassCombo_currentIndexChanged(int index)
 {
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("classification","character");
-        break;
-    case 2:
-        replaceUserOption("classification","door");
-        break;
-    case 3:
-        replaceUserOption("classification","effect");
-        break;
-    case 4:
-        replaceUserOption("classification","item");
-        break;
-    case 5:
-        replaceUserOption("classification","tile");
-        break;
-    case 0:
-    default:
-        replaceUserOption("classification","automatic");
-        break;
-    }
     if (!index || index == 5)
     {
         if (ui->mainTabs->count() == 1)
@@ -916,264 +628,55 @@ void MainWindow::on_modelClassCombo_currentIndexChanged(int index)
         ui->transparentBitmapKeys->setEnabled(true);
 }
 
-void MainWindow::on_snapCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("snap","binary");
-        break;
-    case 2:
-        replaceUserOption("snap","decimal");
-        break;
-    case 3:
-        replaceUserOption("snap","fine");
-        break;
-    case 0:
-    default:
-        replaceUserOption("snap","none");
-        break;
-    }
-}
-
-void MainWindow::on_snapTVertsCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("tvert_snap","256");
-        break;
-    case 2:
-        replaceUserOption("tvert_snap","512");
-        break;
-    case 3:
-        replaceUserOption("tvert_snap","1024");
-        break;
-    case 0:
-    default:
-        replaceUserOption("tvert_snap","no");
-        break;
-    }
-}
-
-void MainWindow::on_renderShadowsCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("shadow","all");
-        break;
-    case 2:
-        replaceUserOption("shadow","none");
-        break;
-    case 0:
-    default:
-        replaceUserOption("shadow","default");
-        break;
-    }
-}
+void MainWindow::on_snapCombo_currentIndexChanged(int) {}
+void MainWindow::on_snapTVertsCombo_currentIndexChanged(int) {}
+void MainWindow::on_renderShadowsCombo_currentIndexChanged(int) {}
 
 void MainWindow::on_repivotCombo_currentIndexChanged(int index)
 {
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("repivot","all");
-        break;
-    case 2:
-        replaceUserOption("repivot","none");
-        break;
-    case 0:
-    default:
-        replaceUserOption("repivot","if_needed");
-        break;
-    }
     ui->repivotBox->setEnabled(index <= 1);
 }
 
 void MainWindow::on_allowSplittingCheck_toggled(bool checked)
 {
-    replaceUserOption("allow_split", checked ? "yes" : "no");
     ui->allowSplittingFrame->setEnabled(checked);
 }
 
-void MainWindow::on_subObjectSpin_editingFinished()
-{
-    auto val = ui->subObjectSpin->cleanText();
-    replaceUserOption("min_Size", val);
-}
+void MainWindow::on_subObjectSpin_editingFinished() {}
+void MainWindow::on_smoothingGroupsCombo_currentIndexChanged(int) {}
+void MainWindow::on_splitFirstCombo_currentIndexChanged(int) {}
 
-void MainWindow::on_smoothingGroupsCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("use_Smoothed","ignore");
-        break;
-    case 2:
-        replaceUserOption("use_Smoothed","protect");
-        break;
-    case 0:
-    default:
-        replaceUserOption("use_Smoothed","use");
-        break;
-    }
-}
+void MainWindow::on_pivotsBelowZeroZCombo_currentIndexChanged(int) {}
+void MainWindow::on_moveBadPivotsCombo_currentIndexChanged(int) {}
+void MainWindow::on_forceWhiteCheck_toggled(bool) {}
 
-void MainWindow::on_splitFirstCombo_currentIndexChanged(int index)
-{
-    replaceUserOption("split_Priority", index ? "concave" : "convex");
-}
-
-void MainWindow::on_pivotsBelowZeroZCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("'pivots_below_z=0'","allow");
-        break;
-    case 2:
-        replaceUserOption("'pivots_below_z=0'","slice");
-        break;
-    case 0:
-    default:
-        replaceUserOption("'pivots_below_z=0'","disallow");
-        break;
-    }
-}
-
-void MainWindow::on_moveBadPivotsCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("move_bad_pivots","top");
-        break;
-    case 2:
-        replaceUserOption("move_bad_pivots","middle");
-        break;
-    case 3:
-        replaceUserOption("move_bad_pivots","bottom");
-        break;
-    case 0:
-    default:
-        replaceUserOption("move_bad_pivots","no");
-        break;
-    }
-}
-
-void MainWindow::on_forceWhiteCheck_toggled(bool checked)
-{
-    replaceUserOption("force_white", checked ? "yes" : "no");
-}
-
-void MainWindow::on_repairAABBCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("fix_overhangs","no");
-        break;
-    case 2:
-        replaceUserOption("fix_overhangs","interior_only");
-        break;
-    case 0:
-    default:
-        replaceUserOption("fix_overhangs","yes");
-        break;
-    }
-}
+void MainWindow::on_repairAABBCombo_currentIndexChanged(int) {}
 
 void MainWindow::on_changeWokMatCheck_toggled(bool checked)
 {
-    replaceUserOption("map_aabb_material", checked ? "yes" : "no");
     ui->changeWokMatGroupBox->setEnabled(checked);
 }
 
 void MainWindow::on_raiseLowerCombo_currentIndexChanged(int index)
 {
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("tile_raise","raise");
-        break;
-    case 2:
-        replaceUserOption("tile_raise","lower");
-        break;
-    case 0:
-    default:
-        replaceUserOption("tile_raise","no");
-        break;
-    }
     ui->raiseLowerAmountSpin->setEnabled(index >= 1);
 }
 
-void MainWindow::on_raiseLowerAmountSpin_editingFinished()
-{
-    auto val = ui->raiseLowerAmountSpin->cleanText();
-    replaceUserOption("tile_raise_amount", val);
-}
+void MainWindow::on_raiseLowerAmountSpin_editingFinished() {}
 
 void MainWindow::on_sliceForTileFadeCombo_currentIndexChanged(int index)
 {
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("slice","no");
-        break;
-    case 2:
-        replaceUserOption("slice","undo");
-        break;
-    case 0:
-    default:
-        replaceUserOption("slice","yes");
-        break;
-    }
     ui->sliceHeightFrame->setEnabled(index == 0);
-
 }
 
 void MainWindow::on_foliageCombo_currentIndexChanged(int index)
 {
-    switch(index)
-    {
-        case 1:
-            replaceUserOption("foliage","tilefade");
-            break;
-        case 2:
-            replaceUserOption("foliage","animate");
-            break;
-        case 3:
-            replaceUserOption("foliage","de-animate");
-            break;
-        case 4:
-            replaceUserOption("foliage","ignore");
-            break;
-        case 0:
-        default:
-            replaceUserOption("foliage","no_change");
-            break;
-    }
     ui->foliageBitmapKeys->setEnabled(index != 4);
     ui->foliageBitmapKeysLabel->setEnabled(index != 4);
-
 }
 
-void MainWindow::on_groundRotateTextureCombo_currentIndexChanged(int index)
+void MainWindow::on_groundRotateTextureCombo_currentIndexChanged(int)
 {
-    switch(index)
-    {
-        case 1:
-            replaceUserOption("rotate_ground","1");
-            break;
-        case 2:
-            replaceUserOption("rotate_ground","0");
-            break;
-        case 0:
-        default:
-            replaceUserOption("rotate_ground","no_change");
-            break;
-    }
     bool showGroundTextEdit = ui->groundRotateTextureCombo->currentIndex() ||
                               ui->retileGroundPlanesCombo->currentIndex() ||
                               ui->tileEdgeChamfersCombo->currentIndex();
@@ -1181,21 +684,8 @@ void MainWindow::on_groundRotateTextureCombo_currentIndexChanged(int index)
     ui->groundBitmapKeysLabel->setEnabled(showGroundTextEdit);
 }
 
-void MainWindow::on_tileEdgeChamfersCombo_currentIndexChanged(int index)
+void MainWindow::on_tileEdgeChamfersCombo_currentIndexChanged(int)
 {
-    switch(index)
-    {
-        case 1:
-            replaceUserOption("chamfer","add");
-            break;
-        case 2:
-            replaceUserOption("chamfer","delete");
-            break;
-        case 0:
-        default:
-            replaceUserOption("chamfer","no_change");
-            break;
-    }
     bool showGroundTextEdit = ui->groundRotateTextureCombo->currentIndex() ||
                               ui->retileGroundPlanesCombo->currentIndex() ||
                               ui->tileEdgeChamfersCombo->currentIndex();
@@ -1203,24 +693,8 @@ void MainWindow::on_tileEdgeChamfersCombo_currentIndexChanged(int index)
     ui->groundBitmapKeysLabel->setEnabled(showGroundTextEdit);
 }
 
-void MainWindow::on_retileGroundPlanesCombo_currentIndexChanged(int index)
+void MainWindow::on_retileGroundPlanesCombo_currentIndexChanged(int)
 {
-    switch(index)
-    {
-        case 1:
-            replaceUserOption("tile_ground","1");
-            break;
-        case 2:
-            replaceUserOption("tile_ground","2");
-            break;
-        case 3:
-            replaceUserOption("tile_ground","3");
-            break;
-        case 0:
-        default:
-            replaceUserOption("tile_ground","no_change");
-            break;
-    }
     bool showGroundTextEdit = ui->groundRotateTextureCombo->currentIndex() ||
                               ui->retileGroundPlanesCombo->currentIndex() ||
                               ui->tileEdgeChamfersCombo->currentIndex();
@@ -1228,176 +702,52 @@ void MainWindow::on_retileGroundPlanesCombo_currentIndexChanged(int index)
     ui->groundBitmapKeysLabel->setEnabled(showGroundTextEdit);
 }
 
-void MainWindow::on_meshMergeCheck_toggled(bool checked)
-{
-    replaceUserOption("merge_by_bitmap", checked ? "yes" : "no");
-}
+void MainWindow::on_meshMergeCheck_toggled(bool) {}
 
 void MainWindow::on_placeableWithTransparencyCheck_toggled(bool checked)
 {
-    if (checked)
-    {
-        replaceUserOption("placeable_with_transparency","yes");
-        if (ui->modelClassCombo->currentIndex() <= 1)
-            ui->transBitmapKeyFrame->setEnabled(true);
-    }
+    if (checked && ui->modelClassCombo->currentIndex() <= 1)
+        ui->transBitmapKeyFrame->setEnabled(true);
     else
-    {
-        replaceUserOption("placeable_with_transparency","no");
         ui->transBitmapKeyFrame->setEnabled(false);
-    }
 }
 
 void MainWindow::on_animateSplotchesCheck_toggled(bool checked)
 {
-    if (checked)
-    {
-        replaceUserOption("splotch","animate");
-        ui->splotchBitmapKeysLabel->setEnabled(true);
-        ui->splotchBitmapKeys->setEnabled(true);
-    }
-    else
-    {
-        replaceUserOption("splotch","ignore");
-        ui->splotchBitmapKeysLabel->setEnabled(false);
-        ui->splotchBitmapKeys->setEnabled(false);
-    }
+    ui->splotchBitmapKeysLabel->setEnabled(checked);
+    ui->splotchBitmapKeys->setEnabled(checked);
 }
 
-void MainWindow::on_transparentBitmapKeys_editingFinished()
-{
-    replaceUserOption("transparency_key",ui->transparentBitmapKeys->text().toStdString().c_str());
-}
-
-void MainWindow::on_cullInvisibleCheck_toggled(bool checked)
-{
-    replaceUserOption("invisible_mesh_cull", checked ? "yes" : "no");
-}
-
-void MainWindow::on_renderTrimeshCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("render","all");
-        break;
-    case 2:
-        replaceUserOption("render","none");
-        break;
-    case 0:
-    default:
-        replaceUserOption("render","default");
-        break;
-    }
-}
-
-void MainWindow::on_changeWokMatFromSpin_editingFinished()
-{
-    auto val = ui->changeWokMatFromSpin->cleanText();
-    replaceUserOption("map_aabb_from", val);
-}
-
-void MainWindow::on_changeWokMatToSpin_editingFinished()
-{
-    auto val = ui->changeWokMatToSpin->cleanText();
-    replaceUserOption("map_aabb_to", val);
-}
+void MainWindow::on_transparentBitmapKeys_editingFinished() {}
+void MainWindow::on_cullInvisibleCheck_toggled(bool) {}
+void MainWindow::on_renderTrimeshCombo_currentIndexChanged(int) {}
+void MainWindow::on_changeWokMatFromSpin_editingFinished() {}
+void MainWindow::on_changeWokMatToSpin_editingFinished() {}
 
 void MainWindow::on_waterFixupsCheck_toggled(bool checked)
 {
     ui->waterFrame->setEnabled(checked);
 }
 
-void MainWindow::on_waterBitmapKeys_editingFinished()
-{
-    replaceUserOption("water_key", ui->waterBitmapKeys->text());
-}
-
-void MainWindow::on_foliageBitmapKeys_editingFinished()
-{
-    replaceUserOption("foliage_key", ui->foliageBitmapKeys->text());
-}
-
-void MainWindow::on_splotchBitmapKeys_editingFinished()
-{
-    replaceUserOption("splotch_key", ui->splotchBitmapKeys->text());
-}
-
-void MainWindow::on_groundBitmapKeys_editingFinished()
-{
-    replaceUserOption("ground_key", ui->groundBitmapKeys->text());
-}
+void MainWindow::on_waterBitmapKeys_editingFinished() {}
+void MainWindow::on_foliageBitmapKeys_editingFinished() {}
+void MainWindow::on_splotchBitmapKeys_editingFinished() {}
+void MainWindow::on_groundBitmapKeys_editingFinished() {}
 
 void MainWindow::on_dynamicWaterCombo_currentIndexChanged(int index)
 {
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("dynamic_water","no");
-        break;
-    case 2:
-        replaceUserOption("dynamic_water","wavy");
-        break;
-    case 0:
-    default:
-        replaceUserOption("dynamic_water","yes");
-        break;
-    }
     ui->waveHeightFrame->setEnabled(index == 2);
     ui->retileWaterCombo->setEnabled(index != 2);
     ui->retileWaterLabel->setEnabled(index != 2);
 }
 
-void MainWindow::on_waveHeightSpin_editingFinished()
-{
-    auto val = ui->waveHeightSpin->cleanText();
-    replaceUserOption("wave_height", val);
-
-}
-
-void MainWindow::on_waterRotateTextureCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("rotate_water","1");
-        break;
-    case 2:
-        replaceUserOption("rotate_water","0");
-        break;
-    case 0:
-    default:
-        replaceUserOption("rotate_water","no_change");
-        break;
-    }
-}
-
-void MainWindow::on_retileWaterCombo_currentIndexChanged(int index)
-{
-    switch(index)
-    {
-    case 1:
-        replaceUserOption("tile_water","1");
-        break;
-    case 2:
-        replaceUserOption("tile_water","2");
-        break;
-    case 3:
-        replaceUserOption("tile_water","3");
-        break;
-    case 0:
-    default:
-        replaceUserOption("tile_water","no_change");
-        break;
-    }
-}
+void MainWindow::on_waveHeightSpin_editingFinished() {}
+void MainWindow::on_waterRotateTextureCombo_currentIndexChanged(int) {}
+void MainWindow::on_retileWaterCombo_currentIndexChanged(int) {}
 
 void MainWindow::on_filesTable_customContextMenuRequested(const QPoint &pos)
 {
-    // Handle global position
     QPoint globalPos = ui->filesTable->mapToGlobal(pos);
-
-    // Create menu and insert some actions
     QMenu myMenu;
     myMenu.addAction(tr("Copy path to clipboard"), this, SLOT(copyToClipboard()));
     myMenu.exec(globalPos);
@@ -1405,24 +755,21 @@ void MainWindow::on_filesTable_customContextMenuRequested(const QPoint &pos)
 
 void MainWindow::on_filesTable_doubleClicked(const QModelIndex &index)
 {
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 11, 0))
     QString cellText = index.siblingAtColumn(0).data().toString();
     ui->debugTextBrowser->moveCursor(QTextCursor::Start);
     if (!ui->debugTextBrowser->find(cellText))
         ui->debugTextBrowser->moveCursor(QTextCursor::End);
-#endif
+
+    if (m_viewport && !cellText.isEmpty() && !m_sInDir.isEmpty())
+    {
+        QString fullPath = m_sInDir + "/" + cellText;
+        m_viewport->previewFile(fullPath);
+    }
 }
 
 void MainWindow::setRescaleOption()
 {
-    QString rescaleXYZ = "no";
-    if (ui->rescaleXSpin->value() != 1 || ui->rescaleYSpin->value() != 1 || ui->rescaleZSpin->value() != 1)
-    {
-        rescaleXYZ = "[" % QString::number(ui->rescaleXSpin->value(),'g',4) % "," %
-                     QString::number(ui->rescaleYSpin->value(),'g',4) % "," %
-                     QString::number(ui->rescaleZSpin->value(),'g',4) % "]";
-    }
-    replaceUserOption("rescaleXYZ",rescaleXYZ);
+    // Settings are saved at close via saveSettings()
 }
 
 void MainWindow::on_rescaleLockBtn_clicked(bool checked)

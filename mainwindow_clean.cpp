@@ -1,144 +1,179 @@
 ﻿#include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QDirIterator>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QStringBuilder>
 #include <QScrollBar>
 #include <QTime>
 
-using namespace std;
-
-
 void MainWindow::onCaptureCleanModelsOutput()
 {
-    if (m_pCleanProcess)
+    if (!m_pCleanProcess)
+        return;
+
+    m_stdoutBuffer.append(m_pCleanProcess->readAllStandardOutput());
+
+    while (true)
     {
-        QString actionVerbPast = tr("Cleaned");
-        QString actionVerbPresent = tr("Cleaning");
-        QIcon actionIcon = m_iconCleaningMDL;
-        if (ui->decompileCheck->isChecked())
+        int nlPos = m_stdoutBuffer.indexOf('\n');
+        if (nlPos < 0)
+            break;
+
+        QByteArray line = m_stdoutBuffer.left(nlPos).trimmed();
+        m_stdoutBuffer.remove(0, nlPos + 1);
+
+        if (line.isEmpty())
+            continue;
+
+        QJsonParseError jsonErr;
+        QJsonDocument doc = QJsonDocument::fromJson(line, &jsonErr);
+        if (jsonErr.error != QJsonParseError::NoError || !doc.isObject())
         {
-            actionVerbPast = "Decompiled";
-            actionVerbPresent = "Decompiling";
-            actionIcon = m_iconDecompilingMDL;
+            appendDebugHtml("<span>" % QString::fromUtf8(line) % "</span><br>");
+            continue;
         }
-        auto outPut = QString::fromStdString(m_pCleanProcess->readAllStandardOutput().toStdString());
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 2))
-        QStringList lines = outPut.split( "\n", Qt::SkipEmptyParts );
-#else
-        QStringList lines = outPut.split( "\n", QString::SkipEmptyParts );
-#endif
-        foreach( QString line, lines )
+
+        QJsonObject evt = doc.object();
+        QString type = evt["type"].toString();
+        QString file = evt["file"].toString();
+
+        QString actionVerbPast = ui->decompileCheck->isChecked() ? "Decompiled" : "Cleaned";
+        QString actionVerbPresent = ui->decompileCheck->isChecked() ? "Decompiling" : "Cleaning";
+        QIcon actionIcon = ui->decompileCheck->isChecked() ? m_iconDecompilingMDL : m_iconCleaningMDL;
+
+        if (type == "start")
         {
-            if (line == ".")
-                continue;
-            QRegExp rx_dot(R"(^((.)\2+)+$)");
-            auto pos = rx_dot.indexIn(line);
-            if (pos > -1)
-                continue;
-            QString sStatus;
-            QString outputHtml;
-            QRegExp rx_reading("Attempting to read (.*)");
-            pos = rx_reading.indexIn(line);
-            if (pos > -1)
+            m_cleanTimer.start();
+            m_sCurrentModel = file;
+            m_pCleanStatus->setText(tr("Processing ") % file);
+            m_pStatusProgress->setVisible(true);
+
+            int idx = evt["index"].toInt();
+            int total = evt["total"].toInt();
+            if (total > 0)
             {
-                m_cleanTimer.start();
-                m_sCurrentModel = rx_reading.cap(1).trimmed();
-                sStatus = tr("Reading ") % m_sCurrentModel;
-                m_pCleanStatus->setText(sStatus);
-                m_pStatusProgress->setVisible(true);
-                outputHtml = "<p><span style=\"color:blue;\"><b>" % line % "</b></span></p><br>";
-                ui->debugTextBrowser->insertHtml(outputHtml);
-                auto sb = ui->debugTextBrowser->verticalScrollBar();
-                sb->setValue(sb->maximum());
-                auto *twiReadingMDL = new QTableWidgetItem();
-                twiReadingMDL->setIcon(m_iconReadingMDL);
-                twiReadingMDL->setToolTip("Reading");
-                twiReadingMDL->setText(tr("Reading"));
-                ui->filesTable->setItem(findModelRow(m_sCurrentModel), 2, twiReadingMDL);
-                ui->filesTable->scrollToItem(twiReadingMDL);
-                continue;
+                m_pStatusProgress->setRange(0, total);
+                m_pStatusProgress->setValue(idx);
             }
-            QRegExp rx_mdl("MDL\\s(.*)\\sloaded.");
-            pos = rx_mdl.indexIn(line);
-            if (pos > -1)
+
+            appendDebugHtml("<p><span style=\"color:blue;\"><b>Processing " % file % "</b></span></p><br>");
+
+            int row = findModelRow(file);
+            if (row >= 0)
             {
-                sStatus = tr(actionVerbPresent.toStdString().c_str()) % " " % m_sCurrentModel;
-                m_pCleanStatus->setText(sStatus);
-                m_pStatusProgress->setVisible(true);
-                outputHtml = "<p><span style=\"color:blue;\"><b>" % line % "</b></span></p><br>";
-                ui->debugTextBrowser->insertHtml(outputHtml);
-                auto sb = ui->debugTextBrowser->verticalScrollBar();
-                sb->setValue(sb->maximum());
-                auto *twiCleaningMDL = new QTableWidgetItem();
-                twiCleaningMDL->setText(tr(actionVerbPresent.toStdString().c_str()));
-                twiCleaningMDL->setIcon(actionIcon);
-                twiCleaningMDL->setToolTip(tr(actionVerbPresent.toStdString().c_str()));
-                ui->filesTable->setItem(findModelRow(m_sCurrentModel), 2, twiCleaningMDL);
-                continue;
+                auto *item = new QTableWidgetItem();
+                item->setIcon(m_iconReadingMDL);
+                item->setToolTip(actionVerbPresent);
+                item->setText(actionVerbPresent);
+                ui->filesTable->setItem(row, 2, item);
+                ui->filesTable->scrollToItem(item);
             }
-            QRegExp rx_bin("Binary file (.*) detected, attempting import.");
-            pos = rx_bin.indexIn(line);
-            if (pos > -1)
+        }
+        else if (type == "done")
+        {
+            m_nMdlsCleaned++;
+            ui->mdlsCleanedLabel->setText("Files " % actionVerbPast % ": " % QString::number(m_nMdlsCleaned));
+
+            int fixes = evt["fixes"].toInt();
+            QString elapsedStr = QTime(0,0).addMSecs(m_cleanTimer.elapsed()).toString("mm:ss.zzz");
+
+            appendDebugHtml("<p><span style=\"color:green;\"><b>" % file % " " % actionVerbPast.toLower() % " (" % QString::number(fixes) % " fixes)</b></span></p><br>");
+
+            int row = findModelRow(file);
+            if (row >= 0)
             {
-                sStatus = tr("Decompiling ") % rx_bin.cap(1);
-                m_pStatusProgress->setVisible(true);
-                m_pCleanStatus->setText(sStatus);
-            }
-            QRegExp rx_fixes(R"(Fixes made = (\d+))");
-            pos = rx_fixes.indexIn(line);
-            if (pos > -1)
-            {
-                auto *fixesItem = new QTableWidgetItem(rx_fixes.cap(1));
+                auto *statusItem = new QTableWidgetItem();
+                statusItem->setText(actionVerbPast);
+                statusItem->setIcon(m_iconCleanSuccess);
+                statusItem->setToolTip(actionVerbPast);
+                ui->filesTable->setItem(row, 2, statusItem);
+
+                auto *fixesItem = new QTableWidgetItem(QString::number(fixes));
                 fixesItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-                ui->filesTable->setItem(findModelRow(m_sCurrentModel), 3, fixesItem);
+                ui->filesTable->setItem(row, 3, fixesItem);
+
+                auto *timerItem = new QTableWidgetItem(elapsedStr);
+                timerItem->setTextAlignment(Qt::AlignCenter);
+                ui->filesTable->setItem(row, 4, timerItem);
             }
-            QRegExp rx_written(R"((.*) written.)");
-            pos = rx_written.indexIn(line);
-            if (pos > -1)
+        }
+        else if (type == "error")
+        {
+            m_nMdlsFailed++;
+            ui->mdlsFailedLabel->setText("Failures: " % QString::number(m_nMdlsFailed));
+
+            QString msg = evt["message"].toString();
+            QString elapsedStr = QTime(0,0).addMSecs(m_cleanTimer.elapsed()).toString("mm:ss.zzz");
+
+            appendDebugHtml("<p><span style=\"color:red;\"><b>" % file % ": " % msg.toHtmlEscaped() % "</b></span></p><br>");
+
+            int row = findModelRow(file);
+            if (row >= 0)
             {
-                m_nMdlsCleaned++;
-                ui->mdlsCleanedLabel->setText("Files " % actionVerbPast % ": " % QString::number(m_nMdlsCleaned));
-                outputHtml = "<p><span style=\"color:green;\"><b>" % line % "</b></span></p><br>";
-                ui->debugTextBrowser->insertHtml(outputHtml);
-                auto sb = ui->debugTextBrowser->verticalScrollBar();
-                sb->setValue(sb->maximum());
-                auto *twiCleanSuccess = new QTableWidgetItem();
-                twiCleanSuccess->setText(tr(actionVerbPast.toStdString().c_str()));
-                twiCleanSuccess->setIcon(m_iconCleanSuccess);
-                twiCleanSuccess->setToolTip(tr(actionVerbPast.toStdString().c_str()));
-                auto *twiCleanTimer = new QTableWidgetItem();
-                twiCleanTimer->setText(QTime(0,0).addMSecs(m_cleanTimer.elapsed()).toString("mm:ss.zzz"));
-                twiCleanTimer->setTextAlignment(Qt::AlignCenter);
-                ui->filesTable->setItem(findModelRow(m_sCurrentModel), 2, twiCleanSuccess);
-                ui->filesTable->setItem(findModelRow(m_sCurrentModel), 4, twiCleanTimer);
-                continue;
+                auto *item = new QTableWidgetItem();
+                item->setText(tr("Failed"));
+                item->setIcon(m_iconCleanError);
+                item->setToolTip(msg);
+                ui->filesTable->setItem(row, 2, item);
+
+                auto *timerItem = new QTableWidgetItem(elapsedStr);
+                timerItem->setTextAlignment(Qt::AlignCenter);
+                ui->filesTable->setItem(row, 4, timerItem);
             }
-            QRegExp rx_error(R"(\*\*\* Cannot(.*)|\*\* Load failed(.*))");
-            pos = rx_error.indexIn(line);
-            if (pos > -1)
-            {
-                m_nMdlsFailed++;
-                ui->mdlsFailedLabel->setText("Failures: " % QString::number(m_nMdlsFailed));
-                outputHtml = "<p><span style=\"color:red;\"><b>" % line % "</b></span></p><br>";
-                auto *twiCleanError = new QTableWidgetItem();
-                twiCleanError->setText(tr("Failed"));
-                twiCleanError->setIcon(m_iconCleanError);
-                twiCleanError->setToolTip(tr("Failed"));
-                auto *twiCleanTimer = new QTableWidgetItem();
-                twiCleanTimer->setText(QTime(0,0).addMSecs(m_cleanTimer.elapsed()).toString("mm:ss.zzz"));
-                twiCleanTimer->setTextAlignment(Qt::AlignCenter);
-                ui->filesTable->setItem(findModelRow(m_sCurrentModel), 2, twiCleanError);
-                ui->filesTable->setItem(findModelRow(m_sCurrentModel), 4, twiCleanTimer);
-            }
-            else
-            {
-                outputHtml = "<span>" % line % "</span><br>";
-            }
-            ui->debugTextBrowser->insertHtml(outputHtml);
-            auto sb = ui->debugTextBrowser->verticalScrollBar();
-            sb->setValue(sb->maximum());
+        }
+        else if (type == "summary")
+        {
+            QString msg = evt["message"].toString();
+            appendDebugHtml("<p><b>" % msg.toHtmlEscaped() % "</b></p><br>");
         }
     }
+}
+
+QStringList MainWindow::buildCliArgs()
+{
+    QStringList args;
+    args << "--json-lines";
+
+    if (ui->decompileCheck->isChecked())
+    {
+        args << "--decompile-only";
+    }
+    else
+    {
+        args << "--check";
+
+        if (ui->rescaleXSpin->value() != 1 || ui->rescaleYSpin->value() != 1 || ui->rescaleZSpin->value() != 1)
+        {
+            double avg = (ui->rescaleXSpin->value() + ui->rescaleYSpin->value() + ui->rescaleZSpin->value()) / 3.0;
+            args << "--scale" << QString::number(avg, 'g', 6);
+        }
+
+        if (ui->repairAABBCombo->currentIndex() == 1 || ui->repairAABBCombo->currentIndex() == 2)
+            args << "--fix-aabb";
+
+        if (ui->repivotCombo->currentIndex() == 1)
+            args << "--fix-pivots";
+
+        if (ui->sliceForTileFadeCombo->currentIndex() == 0)
+        {
+            args << "--fix-tilefade";
+        }
+
+        args << "--strip-degenerate";
+        args << "--fix-animations";
+        args << "--reparent-children";
+        args << "--wrap-root";
+        args << "--split-multiedge";
+    }
+
+    args << m_sInDir;
+
+    if (!m_sOutDir.isEmpty() && m_sOutDir != m_sInDir)
+        args << m_sOutDir;
+
+    return args;
 }
 
 void MainWindow::doClean()
@@ -152,22 +187,27 @@ void MainWindow::doClean()
         twiCleanAborted->setText(tr("Aborted"));
         twiCleanAborted->setIcon(m_iconAbortButton);
         twiCleanAborted->setToolTip(tr("Aborted"));
-        ui->filesTable->setItem(findModelRow(m_sCurrentModel), 2, twiCleanAborted);
+        int row = findModelRow(m_sCurrentModel);
+        if (row >= 0)
+            ui->filesTable->setItem(row, 2, twiCleanAborted);
         return;
     }
-    connect(m_pCleanProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(onCaptureCleanModelsOutput()));
+
+    connect(m_pCleanProcess, &QProcess::readyReadStandardOutput,
+            this, &MainWindow::onCaptureCleanModelsOutput);
+
+    m_stdoutBuffer.clear();
     ui->debugTextBrowser->clear();
     ui->debugTextBrowser->insertHtml(tr("Running cleanmodels<br>"));
-    QStringList args;
-    m_pCleanProcess->setCurrentWriteChannel(QProcess::StandardOutput);
+
+    QStringList args = buildCliArgs();
+
+    appendDebugHtml("<span style=\"color:gray;\">$ " % m_sBinaryPath % " " % args.join(" ") % "</span><br>");
+
     m_pCleanProcess->setWorkingDirectory(QDir::currentPath());
-    QString filePattern = ui->filePattern->text();
-    if (ui->decompileCheck->isChecked())
-        args<<"-d";
-    else
-        args<<"last_dirs.pl";
-    m_pCleanProcess->start(m_sBinaryPath,args,QIODevice::ReadWrite);
+    m_pCleanProcess->start(m_sBinaryPath, args, QIODevice::ReadOnly);
     ui->cleanButton->setDisabled(true);
+
     if (m_pCleanProcess->waitForStarted())
     {
         ui->decompileCheck->setEnabled(false);
@@ -179,11 +219,13 @@ void MainWindow::doClean()
         ui->cleanButton->setDisabled(false);
         ui->cleanButton->setText(tr("Abort"));
         ui->cleanButton->setIcon(m_iconAbortButton);
-        m_pCleanProcess->moveToThread(QCoreApplication::instance()->thread());
+        m_pStatusProgress->setRange(0, 0);
+        m_pStatusProgress->setVisible(true);
     }
     else
     {
-        QString errorMsg = "<p><span style=\"color:red;\">Failed to run clean! Does the " % m_sBinaryName % " executable exist in the working directory or your PATH?</span></p><br>" % m_sBinaryPath;
+        QString errorMsg = "<p><span style=\"color:red;\">Failed to run cleanmodels! Does the " %
+            m_sBinaryName % " executable exist in the working directory or your PATH?</span></p><br>" % m_sBinaryPath;
         ui->debugTextBrowser->insertHtml(tr(errorMsg.toStdString().c_str()));
         auto sb = ui->debugTextBrowser->verticalScrollBar();
         sb->setValue(sb->maximum());
@@ -193,8 +235,11 @@ void MainWindow::doClean()
 
 void MainWindow::onCleanFinished(int, QProcess::ExitStatus)
 {
+    onCaptureCleanModelsOutput();
+
     ui->debugTextBrowser->append(m_pCleanProcess->readAllStandardError());
     m_bCleanRunning = false;
+
     if (!ui->decompileCheck->isChecked())
         ui->cleanButton->setText(tr("Clean"));
     else
@@ -203,7 +248,8 @@ void MainWindow::onCleanFinished(int, QProcess::ExitStatus)
     ui->cleanButton->setIcon(m_iconCleanButton);
     m_pCleanStatus->setText(tr("Idle"));
     m_pStatusProgress->setVisible(false);
-    if(m_bUpdateFilesAfterClean)
+
+    if (m_bUpdateFilesAfterClean)
     {
         MainWindow::updateFileListing();
         m_bUpdateFilesAfterClean = false;
@@ -213,14 +259,17 @@ void MainWindow::onCleanFinished(int, QProcess::ExitStatus)
 int MainWindow::findModelRow(const QString& mdlFile)
 {
     int rows = ui->filesTable->rowCount();
-    int foundRow = 0; // fall back to first row if we can't find it for some reason
     for (int i = 0; i < rows; ++i)
     {
         if (ui->filesTable->item(i, 0)->text() == mdlFile)
-        {
-            foundRow = i;
-            break;
-        }
+            return i;
     }
-    return foundRow;
+    return -1;
+}
+
+void MainWindow::appendDebugHtml(const QString& html)
+{
+    ui->debugTextBrowser->insertHtml(html);
+    auto sb = ui->debugTextBrowser->verticalScrollBar();
+    sb->setValue(sb->maximum());
 }
