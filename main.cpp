@@ -1,3 +1,4 @@
+#include "constants.h"
 #include "mainwindow.h"
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -5,10 +6,10 @@
 int main(int argc, char *argv[])
 {
     QSurfaceFormat fmt;
-    fmt.setVersion(3, 3);
+    fmt.setVersion(GLDefaults::MajorVersion, GLDefaults::MinorVersion);
     fmt.setProfile(QSurfaceFormat::CoreProfile);
-    fmt.setDepthBufferSize(24);
-    fmt.setSamples(4);
+    fmt.setDepthBufferSize(GLDefaults::DepthBits);
+    fmt.setSamples(GLDefaults::Samples);
     QSurfaceFormat::setDefaultFormat(fmt);
 
     QApplication a(argc, argv);

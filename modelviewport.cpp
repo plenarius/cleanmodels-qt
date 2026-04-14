@@ -1,3 +1,4 @@
+#include "constants.h"
 #include "modelviewport.h"
 #include <QDebug>
 #include <QFile>
@@ -7,10 +8,10 @@ ModelViewport::ModelViewport(QWidget *parent)
     : QOpenGLWidget(parent)
 {
     QSurfaceFormat fmt;
-    fmt.setVersion(3, 3);
+    fmt.setVersion(GLDefaults::MajorVersion, GLDefaults::MinorVersion);
     fmt.setProfile(QSurfaceFormat::CoreProfile);
-    fmt.setDepthBufferSize(24);
-    fmt.setSamples(4);
+    fmt.setDepthBufferSize(GLDefaults::DepthBits);
+    fmt.setSamples(GLDefaults::Samples);
     setFormat(fmt);
 
     setMouseTracking(true);
@@ -38,19 +39,11 @@ void ModelViewport::initializeGL()
         return;
     }
 
-    const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
-    const char *renderer = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
-    qDebug() << "VIEWPORT: OpenGL version:" << (version ? version : "null");
-    qDebug() << "VIEWPORT: OpenGL renderer:" << (renderer ? renderer : "null");
-
     m_renderer.initialize(this);
     m_initialized = true;
 
-    // resizeGL runs before initializeGL, so the viewport was never set
     glViewport(0, 0, width(), height());
     m_camera.setAspectRatio(static_cast<float>(width()) / static_cast<float>(std::max(height(), 1)));
-
-    qDebug() << "VIEWPORT: Initialized successfully, program:" << m_renderer.program();
 }
 
 void ModelViewport::resizeGL(int w, int h)
@@ -63,25 +56,9 @@ void ModelViewport::resizeGL(int w, int h)
 
 void ModelViewport::paintGL()
 {
-    if (!m_initialized) {
-        qDebug() << "VIEWPORT: paintGL called but not initialized";
+    if (!m_initialized)
         return;
-    }
     m_renderer.render(this, m_camera);
-
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR)
-        qDebug() << "VIEWPORT: GL error after render:" << Qt::hex << err;
-
-    if (m_hasModel) {
-        static int paintCount = 0;
-        if (paintCount < 3) {
-            qDebug() << "VIEWPORT: paintGL with model, nodes:" << m_renderer.renderNodeCount()
-                     << "fbo:" << defaultFramebufferObject()
-                     << "size:" << size();
-            paintCount++;
-        }
-    }
 }
 
 static bool fileIsBinary(const QString &path)
@@ -94,6 +71,41 @@ static bool fileIsBinary(const QString &path)
     return hdr.size() == 4 && hdr[0] == 0 && hdr[1] == 0 && hdr[2] == 0 && hdr[3] == 0;
 }
 
+QString ModelViewport::readMdlToAscii(const QString &mdlPath, QString *errorOut)
+{
+    if (fileIsBinary(mdlPath))
+    {
+        if (m_cliBinaryPath.isEmpty()) {
+            if (errorOut) *errorOut = "CLI binary path not set";
+            return {};
+        }
+
+        QProcess proc;
+        proc.setProgram(m_cliBinaryPath);
+        proc.setArguments({CliFlag::DecompileOnly, mdlPath});
+        proc.start(QIODevice::ReadOnly);
+
+        if (!proc.waitForFinished(CliDefaults::ProcessTimeoutMs)) {
+            if (errorOut) *errorOut = "CLI timed out decompiling " + mdlPath;
+            return {};
+        }
+
+        if (proc.exitCode() != 0) {
+            if (errorOut) *errorOut = "CLI error: " + proc.readAllStandardError();
+            return {};
+        }
+
+        return QString::fromUtf8(proc.readAllStandardOutput());
+    }
+
+    QFile f(mdlPath);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (errorOut) *errorOut = "Cannot open " + mdlPath;
+        return {};
+    }
+    return QString::fromUtf8(f.readAll());
+}
+
 void ModelViewport::previewFile(const QString &mdlPath)
 {
     if (!m_initialized) {
@@ -101,45 +113,10 @@ void ModelViewport::previewFile(const QString &mdlPath)
         return;
     }
 
-    QString ascii;
-
-    if (fileIsBinary(mdlPath))
-    {
-        if (m_cliBinaryPath.isEmpty()) {
-            emit previewError("CLI binary path not set");
-            return;
-        }
-
-        QProcess proc;
-        proc.setProgram(m_cliBinaryPath);
-        proc.setArguments({"--decompile-only", mdlPath});
-        proc.start(QIODevice::ReadOnly);
-
-        if (!proc.waitForFinished(10000)) {
-            emit previewError("CLI timed out decompiling " + mdlPath);
-            return;
-        }
-
-        if (proc.exitCode() != 0) {
-            emit previewError("CLI error: " + proc.readAllStandardError());
-            return;
-        }
-
-        ascii = QString::fromUtf8(proc.readAllStandardOutput());
-    }
-    else
-    {
-        QFile f(mdlPath);
-        if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            emit previewError("Cannot open " + mdlPath);
-            return;
-        }
-        ascii = QString::fromUtf8(f.readAll());
-        f.close();
-    }
-
+    QString error;
+    QString ascii = readMdlToAscii(mdlPath, &error);
     if (ascii.isEmpty()) {
-        emit previewError("Empty MDL content for " + mdlPath);
+        emit previewError(error.isEmpty() ? "Empty MDL content for " + mdlPath : error);
         return;
     }
 
@@ -157,21 +134,13 @@ void ModelViewport::loadModel(const QString &asciiMdl, const QString &textureDir
         return;
     }
 
-    qDebug() << "VIEWPORT: loadModel called, nodes:" << scene.nodes().size()
-             << "root:" << scene.rootIndex();
-
     makeCurrent();
     m_renderer.prepareScene(this, scene, textureDir);
     doneCurrent();
 
-    qDebug() << "VIEWPORT: prepareScene done, render nodes:" << m_renderer.renderNodeCount();
-
     QVector3D bmin, bmax;
     scene.computeBounds(bmin, bmax);
     m_camera.focusOnBounds(bmin, bmax);
-
-    qDebug() << "VIEWPORT: bounds min:" << bmin << "max:" << bmax
-             << "camera pos:" << m_camera.position();
 
     m_hasModel = true;
     update();
@@ -188,6 +157,49 @@ void ModelViewport::clearModel()
     m_hasModel = false;
     update();
 }
+
+void ModelViewport::setWireframe(bool on)
+{
+    m_renderer.setWireframe(on);
+    if (m_initialized) update();
+}
+
+bool ModelViewport::wireframe() const { return m_renderer.wireframe(); }
+
+void ModelViewport::setShowGrid(bool on)
+{
+    m_renderer.setShowGrid(on);
+    if (m_initialized) update();
+}
+
+bool ModelViewport::showGrid() const { return m_renderer.showGrid(); }
+
+void ModelViewport::loadReferenceFile(const QString &mdlPath)
+{
+    if (!m_initialized) return;
+
+    QString ascii = readMdlToAscii(mdlPath);
+    if (ascii.isEmpty()) return;
+
+    MdlScene scene;
+    if (!scene.loadFromString(ascii)) return;
+
+    makeCurrent();
+    m_renderer.prepareReferenceModel(this, scene, QFileInfo(mdlPath).absolutePath());
+    doneCurrent();
+    update();
+}
+
+void ModelViewport::clearReference()
+{
+    if (!m_initialized) return;
+    makeCurrent();
+    m_renderer.clearReferenceModel(this);
+    doneCurrent();
+    update();
+}
+
+bool ModelViewport::hasReference() const { return m_renderer.showReference(); }
 
 void ModelViewport::mousePressEvent(QMouseEvent *event)
 {

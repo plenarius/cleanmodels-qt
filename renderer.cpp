@@ -1,7 +1,9 @@
+#include "constants.h"
 #include "renderer.h"
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
+#include <cmath>
 
 static const char *kVertexShader = R"glsl(
 #version 330 core
@@ -40,14 +42,11 @@ void main() {
     vec3 normal = normalize(vNormal);
     if (!gl_FrontFacing) normal = -normal;
 
-    // Ambient
     vec3 ambient = uAmbient * uLightColor * 0.3;
 
-    // Diffuse (Lambert)
     float diff = max(dot(normal, -uLightDir), 0.0);
     vec3 diffuse = diff * uDiffuse * uLightColor;
 
-    // Specular (Blinn-Phong)
     vec3 viewDir = normalize(uViewPos - vWorldPos);
     vec3 halfDir = normalize(-uLightDir + viewDir);
     float spec = pow(max(dot(normal, halfDir), 0.0), max(uShininess, 1.0));
@@ -55,7 +54,6 @@ void main() {
 
     vec3 result = ambient + diffuse + specular;
 
-    // Texture as color map, multiplied onto lit result
     vec4 baseColor = texture(uTexture, vUV);
     FragColor = vec4(result * baseColor.rgb, baseColor.a);
 }
@@ -125,7 +123,6 @@ void Renderer::initialize(QOpenGLFunctions_3_3_Core *gl)
         m_locTexture = gl->glGetUniformLocation(m_program, "uTexture");
     }
 
-    // 1x1 white fallback so the sampler is always valid
     unsigned char white[] = {255, 255, 255, 255};
     gl->glGenTextures(1, &m_whiteTex);
     gl->glBindTexture(GL_TEXTURE_2D, m_whiteTex);
@@ -134,15 +131,28 @@ void Renderer::initialize(QOpenGLFunctions_3_3_Core *gl)
     gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     gl->glBindTexture(GL_TEXTURE_2D, 0);
+
+    buildGrid(gl);
+}
+
+void Renderer::destroyRenderNodes(QOpenGLFunctions_3_3_Core *gl, std::vector<RenderNode> &nodes)
+{
+    for (auto &rn : nodes) {
+        if (rn.mesh) rn.mesh->destroy(gl);
+        if (rn.texture) rn.texture->destroy(gl);
+    }
+    nodes.clear();
 }
 
 void Renderer::shutdown(QOpenGLFunctions_3_3_Core *gl)
 {
-    for (auto &rn : m_renderNodes) {
-        if (rn.mesh) rn.mesh->destroy(gl);
-        if (rn.texture) rn.texture->destroy(gl);
+    destroyRenderNodes(gl, m_renderNodes);
+    destroyRenderNodes(gl, m_referenceNodes);
+
+    if (m_gridMesh) {
+        m_gridMesh->destroy(gl);
+        m_gridMesh.reset();
     }
-    m_renderNodes.clear();
 
     if (m_whiteTex) {
         gl->glDeleteTextures(1, &m_whiteTex);
@@ -156,14 +166,40 @@ void Renderer::shutdown(QOpenGLFunctions_3_3_Core *gl)
     }
 }
 
+void Renderer::buildGrid(QOpenGLFunctions_3_3_Core *gl)
+{
+    // 10m x 10m ground grid at Z=0, 1m spacing (NWN uses 10 units = 1 tile = 10m)
+    QVector<Vertex> verts;
+    QVector<uint32_t> indices;
+    const float extent = 5.0f; // +/- 5m
+    const float step = 1.0f;
+
+    auto addLine = [&](float x0, float y0, float z0, float x1, float y1, float z1) {
+        uint32_t base = static_cast<uint32_t>(verts.size());
+        Vertex v0{}, v1{};
+        v0.pos[0] = x0; v0.pos[1] = y0; v0.pos[2] = z0;
+        v0.normal[0] = 0; v0.normal[1] = 0; v0.normal[2] = 1;
+        v1.pos[0] = x1; v1.pos[1] = y1; v1.pos[2] = z1;
+        v1.normal[0] = 0; v1.normal[1] = 0; v1.normal[2] = 1;
+        verts.append(v0);
+        verts.append(v1);
+        indices.append(base);
+        indices.append(base + 1);
+    };
+
+    for (float v = -extent; v <= extent + 0.01f; v += step) {
+        addLine(v, -extent, 0, v, extent, 0);
+        addLine(-extent, v, 0, extent, v, 0);
+    }
+
+    m_gridMesh = std::make_unique<GpuMesh>();
+    m_gridMesh->upload(gl, verts, indices);
+}
+
 void Renderer::prepareScene(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
                             const QString &textureDir)
 {
-    for (auto &rn : m_renderNodes) {
-        if (rn.mesh) rn.mesh->destroy(gl);
-        if (rn.texture) rn.texture->destroy(gl);
-    }
-    m_renderNodes.clear();
+    destroyRenderNodes(gl, m_renderNodes);
     m_textureDir = textureDir;
 
     int root = scene.rootIndex();
@@ -171,11 +207,36 @@ void Renderer::prepareScene(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene
         return;
 
     QMatrix4x4 identity;
-    buildRenderNodes(gl, scene, root, identity);
+    buildRenderNodes(gl, scene, root, identity, m_renderNodes);
+}
+
+void Renderer::prepareReferenceModel(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
+                                      const QString &textureDir)
+{
+    destroyRenderNodes(gl, m_referenceNodes);
+
+    QString savedTexDir = m_textureDir;
+    m_textureDir = textureDir;
+
+    int root = scene.rootIndex();
+    if (root >= 0) {
+        QMatrix4x4 identity;
+        buildRenderNodes(gl, scene, root, identity, m_referenceNodes);
+    }
+
+    m_textureDir = savedTexDir;
+    m_showReference = true;
+}
+
+void Renderer::clearReferenceModel(QOpenGLFunctions_3_3_Core *gl)
+{
+    destroyRenderNodes(gl, m_referenceNodes);
+    m_showReference = false;
 }
 
 void Renderer::buildRenderNodes(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
-                                int nodeIdx, const QMatrix4x4 &parentWorld)
+                                int nodeIdx, const QMatrix4x4 &parentWorld,
+                                std::vector<RenderNode> &target)
 {
     const MdlNode &node = scene.nodes()[nodeIdx];
 
@@ -188,21 +249,21 @@ void Renderer::buildRenderNodes(QOpenGLFunctions_3_3_Core *gl, const MdlScene &s
     QMatrix4x4 world = parentWorld * local;
 
     if (node.hasMesh() && node.render)
-        uploadNodeMesh(gl, node, world);
+        uploadNodeMesh(gl, node, world, target);
 
     for (int childIdx : scene.childrenOf(nodeIdx))
-        buildRenderNodes(gl, scene, childIdx, world);
+        buildRenderNodes(gl, scene, childIdx, world, target);
 }
 
 void Renderer::uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node,
-                              const QMatrix4x4 &worldTransform)
+                              const QMatrix4x4 &worldTransform,
+                              std::vector<RenderNode> &target)
 {
     QVector<Vertex> vertices;
     QVector<uint32_t> indices;
 
     bool hasNormals = (node.normals.size() == node.verts.size());
 
-    // Compute smooth vertex normals by averaging face normals per vertex
     QVector<QVector3D> smoothNormals;
     if (!hasNormals && !node.verts.isEmpty()) {
         smoothNormals.resize(node.verts.size(), QVector3D(0, 0, 0));
@@ -215,7 +276,6 @@ void Renderer::uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node
             QVector3D e1 = node.verts[face.verts[1]] - node.verts[face.verts[0]];
             QVector3D e2 = node.verts[face.verts[2]] - node.verts[face.verts[0]];
             QVector3D fn = QVector3D::crossProduct(e1, e2);
-            // Weight by face area (unnormalized cross product magnitude)
             smoothNormals[face.verts[0]] += fn;
             smoothNormals[face.verts[1]] += fn;
             smoothNormals[face.verts[2]] += fn;
@@ -286,7 +346,7 @@ void Renderer::uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node
         }
     }
 
-    m_renderNodes.push_back(std::move(rn));
+    target.push_back(std::move(rn));
 }
 
 QString Renderer::resolveTexturePath(const QString &bitmap) const
@@ -303,7 +363,6 @@ QString Renderer::resolveTexturePath(const QString &bitmap) const
             return candidate;
     }
 
-    // Also check case-insensitive by scanning directory
     QStringList entries = dir.entryList(QDir::Files);
     QString lowerBitmap = bitmap.toLower();
     for (const auto &entry : entries) {
@@ -318,20 +377,43 @@ QString Renderer::resolveTexturePath(const QString &bitmap) const
     return {};
 }
 
+void Renderer::renderNodes(QOpenGLFunctions_3_3_Core *gl,
+                           const std::vector<RenderNode> &nodes, bool wireframe)
+{
+    for (const auto &rn : nodes)
+    {
+        gl->glUniformMatrix4fv(m_locModel, 1, GL_FALSE, rn.worldTransform.constData());
+
+        QMatrix3x3 normalMat = rn.worldTransform.normalMatrix();
+        gl->glUniformMatrix3fv(m_locNormalMatrix, 1, GL_FALSE, normalMat.constData());
+
+        gl->glUniform3f(m_locDiffuse, rn.diffuse.x(), rn.diffuse.y(), rn.diffuse.z());
+        gl->glUniform3f(m_locAmbient, rn.ambient.x(), rn.ambient.y(), rn.ambient.z());
+        gl->glUniform3f(m_locSpecular, rn.specular.x(), rn.specular.y(), rn.specular.z());
+        gl->glUniform1f(m_locShininess, rn.shininess);
+
+        if (!wireframe && rn.texture && rn.texture->isValid())
+            rn.texture->bind(gl, 0);
+        else {
+            gl->glActiveTexture(GL_TEXTURE0);
+            gl->glBindTexture(GL_TEXTURE_2D, m_whiteTex);
+        }
+        gl->glUniform1i(m_locTexture, 0);
+
+        if (wireframe)
+            rn.mesh->drawWireframe(gl);
+        else
+            rn.mesh->draw(gl);
+    }
+}
+
 void Renderer::render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera)
 {
-    gl->glClearColor(0.18f, 0.20f, 0.25f, 1.0f);
+    gl->glClearColor(ViewportColor::BgR, ViewportColor::BgG, ViewportColor::BgB, 1.0f);
     gl->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (!m_program || m_renderNodes.empty()) {
-        static bool logged = false;
-        if (!logged) {
-            qDebug() << "RENDERER: render early return, program:" << m_program
-                     << "nodes:" << m_renderNodes.size();
-            logged = true;
-        }
+    if (!m_program)
         return;
-    }
 
     gl->glEnable(GL_DEPTH_TEST);
     gl->glDepthFunc(GL_LESS);
@@ -355,27 +437,66 @@ void Renderer::render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera)
     gl->glUniform3f(m_locLightDir, lightDir.x(), lightDir.y(), lightDir.z());
     gl->glUniform3f(m_locLightColor, 1.0f, 1.0f, 1.0f);
 
-    for (const auto &rn : m_renderNodes)
+    // Ground grid
+    if (m_showGrid && m_gridMesh && m_gridMesh->isValid())
     {
-        gl->glUniformMatrix4fv(m_locModel, 1, GL_FALSE, rn.worldTransform.constData());
-
-        QMatrix3x3 normalMat = rn.worldTransform.normalMatrix();
+        QMatrix4x4 identity;
+        gl->glUniformMatrix4fv(m_locModel, 1, GL_FALSE, identity.constData());
+        QMatrix3x3 normalMat = identity.normalMatrix();
         gl->glUniformMatrix3fv(m_locNormalMatrix, 1, GL_FALSE, normalMat.constData());
 
-        gl->glUniform3f(m_locDiffuse, rn.diffuse.x(), rn.diffuse.y(), rn.diffuse.z());
-        gl->glUniform3f(m_locAmbient, rn.ambient.x(), rn.ambient.y(), rn.ambient.z());
-        gl->glUniform3f(m_locSpecular, rn.specular.x(), rn.specular.y(), rn.specular.z());
-        gl->glUniform1f(m_locShininess, rn.shininess);
+        gl->glUniform3f(m_locDiffuse, ViewportColor::GridR, ViewportColor::GridG, ViewportColor::GridB);
+        gl->glUniform3f(m_locAmbient, ViewportColor::GridR, ViewportColor::GridG, ViewportColor::GridB);
+        gl->glUniform3f(m_locSpecular, 0.0f, 0.0f, 0.0f);
+        gl->glUniform1f(m_locShininess, 1.0f);
 
-        if (rn.texture && rn.texture->isValid())
-            rn.texture->bind(gl, 0);
-        else {
-            gl->glActiveTexture(GL_TEXTURE0);
-            gl->glBindTexture(GL_TEXTURE_2D, m_whiteTex);
-        }
+        gl->glActiveTexture(GL_TEXTURE0);
+        gl->glBindTexture(GL_TEXTURE_2D, m_whiteTex);
         gl->glUniform1i(m_locTexture, 0);
 
-        rn.mesh->draw(gl);
+        gl->glBindVertexArray(m_gridMesh->vao());
+        gl->glDrawElements(GL_LINES, m_gridMesh->indexCount(), GL_UNSIGNED_INT, nullptr);
+        gl->glBindVertexArray(0);
+    }
+
+    // Reference model (rendered as semi-transparent wireframe, offset to the side)
+    if (m_showReference && !m_referenceNodes.empty())
+    {
+        gl->glDisable(GL_CULL_FACE);
+        gl->glEnable(GL_BLEND);
+        gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        gl->glDepthMask(GL_FALSE);
+
+        for (const auto &rn : m_referenceNodes)
+        {
+            gl->glUniformMatrix4fv(m_locModel, 1, GL_FALSE, rn.worldTransform.constData());
+            QMatrix3x3 normalMat = rn.worldTransform.normalMatrix();
+            gl->glUniformMatrix3fv(m_locNormalMatrix, 1, GL_FALSE, normalMat.constData());
+
+            gl->glUniform3f(m_locDiffuse, ViewportColor::RefR, ViewportColor::RefG, ViewportColor::RefB);
+            gl->glUniform3f(m_locAmbient, ViewportColor::RefR, ViewportColor::RefG, ViewportColor::RefB);
+            gl->glUniform3f(m_locSpecular, 0.0f, 0.0f, 0.0f);
+            gl->glUniform1f(m_locShininess, 1.0f);
+
+            gl->glActiveTexture(GL_TEXTURE0);
+            gl->glBindTexture(GL_TEXTURE_2D, m_whiteTex);
+            gl->glUniform1i(m_locTexture, 0);
+
+            rn.mesh->drawWireframe(gl);
+        }
+
+        gl->glDepthMask(GL_TRUE);
+        gl->glEnable(GL_CULL_FACE);
+    }
+
+    // Main scene
+    if (!m_renderNodes.empty())
+    {
+        if (m_wireframe)
+            gl->glDisable(GL_CULL_FACE);
+        renderNodes(gl, m_renderNodes, m_wireframe);
+        if (m_wireframe)
+            gl->glEnable(GL_CULL_FACE);
     }
 
     gl->glUseProgram(0);

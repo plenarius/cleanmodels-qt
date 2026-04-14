@@ -1,40 +1,851 @@
-﻿#include "fsmodel.h"
+﻿#include "constants.h"
+#include "fsmodel.h"
 #include "mainwindow.h"
 #include "modelviewport.h"
 #include "ui_mainwindow.h"
 #include <QApplication>
 #include <QClipboard>
-#include <QCompleter>
 #include <QDebug>
+#include <QDir>
 #include <QFile>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFont>
+#include <QFontDatabase>
+#include <QFormLayout>
+#include <QFrame>
+#include <QMimeData>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QMenu>
+#include <QPalette>
 #include <QMessageBox>
-#include <QProgressBar>
 #include <QScreen>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QSettings>
-#include <QSplitter>
 #include <QStandardPaths>
 #include <QStringBuilder>
-#include <QSurfaceFormat>
-#include <QTableWidgetItem>
 #include <QTextStream>
+#include <QVBoxLayout>
 #include <QWhatsThis>
 #include <QWindow>
 
+// ---------------------------------------------------------------------------
+// Collapsible section: flat button with disclosure triangle + content widget
+// ---------------------------------------------------------------------------
+QWidget *MainWindow::createCollapsibleGroup(const QString &title, QWidget **contentOut, bool startCollapsed)
+{
+    auto *container = new QWidget;
+    auto *vbox = new QVBoxLayout(container);
+    vbox->setContentsMargins(0, 0, 0, 0);
+    vbox->setSpacing(0);
+
+    auto *header = new QPushButton(container);
+    header->setFlat(true);
+    header->setStyleSheet("QPushButton { text-align: left; padding: 4px 0; font-weight: bold; }"
+                          "QPushButton:flat { border: none; }");
+
+    auto *content = new QWidget(container);
+    content->setVisible(!startCollapsed);
+
+    auto updateArrow = [header, title](bool expanded) {
+        header->setText(QString(expanded ? "\u25BC " : "\u25B6 ") + title);
+    };
+    updateArrow(!startCollapsed);
+
+    connect(header, &QPushButton::clicked, content, [content, header, title, updateArrow] {
+        bool willExpand = !content->isVisible();
+        content->setVisible(willExpand);
+        updateArrow(willExpand);
+    });
+
+    vbox->addWidget(header);
+    vbox->addWidget(content);
+
+    *contentOut = content;
+    return container;
+}
+
+// ---------------------------------------------------------------------------
+// Build the entire UI programmatically
+// ---------------------------------------------------------------------------
+static void fillCombo(QComboBox *combo, const ComboOption *opts, int count)
+{
+    for (int i = 0; i < count; ++i)
+        combo->addItem(opts[i].label, QString(opts[i].cliValue));
+    combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+}
+
+template<size_t N>
+static void fillCombo(QComboBox *combo, const ComboOption (&opts)[N])
+{
+    fillCombo(combo, opts, static_cast<int>(N));
+}
+
+static QLabel *boldLabel(const QString &text)
+{
+    auto *lbl = new QLabel(text);
+    QFont f = lbl->font();
+    f.setBold(true);
+    lbl->setFont(f);
+    return lbl;
+}
+
+static QLabel *smallLabel(const QString &text)
+{
+    auto *lbl = new QLabel(text);
+    QPalette p = lbl->palette();
+    p.setColor(QPalette::WindowText, p.color(QPalette::WindowText).darker(130));
+    lbl->setPalette(p);
+    return lbl;
+}
+
+void MainWindow::buildUi()
+{
+    auto *central = ui->centralWidget;
+    auto *root = new QVBoxLayout(central);
+    root->setContentsMargins(Layout::RootMargin, Layout::RootMargin, Layout::RootMargin, Layout::RootMargin);
+    root->setSpacing(0);
+
+    // ====================================================================
+    //  LEFT SIDEBAR — options panel
+    // ====================================================================
+    m_sidebarWidget = new QWidget;
+    m_sidebarWidget->setMinimumWidth(Layout::SidebarMinWidth);
+    m_sidebarWidget->setMaximumWidth(Layout::SidebarMaxWidth);
+    auto *sidebarLayout = new QVBoxLayout(m_sidebarWidget);
+    sidebarLayout->setContentsMargins(Layout::RootMargin, Layout::SidebarTopPad, Layout::RootMargin, Layout::RootMargin);
+    sidebarLayout->setSpacing(0);
+
+    // ── I/O paths — all 4 rows in one QFormLayout for uniform spacing ─
+    auto *ioForm = new QFormLayout;
+    ioForm->setSpacing(Layout::DefaultSpacing);
+    ioForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    ioForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    ioForm->setLabelAlignment(Qt::AlignLeft);
+    ioForm->setContentsMargins(0, 0, 0, 0);
+
+    m_indirButton = new QPushButton(style()->standardIcon(QStyle::SP_DirOpenIcon), "");
+    m_outdirButton = new QPushButton(style()->standardIcon(QStyle::SP_DirOpenIcon), "");
+    m_inDirectory = new QLineEdit;
+    m_inDirectory->setToolTip("Directory containing MDL files to process");
+    m_outDirectory = new QLineEdit;
+    m_outDirectory->setToolTip("Output directory for processed files (leave empty to overwrite originals)");
+    m_filePattern = new QLineEdit("*.mdl");
+    m_filePattern->setToolTip("Glob pattern to filter files (e.g. *.mdl)");
+    m_classificationCombo = new QComboBox;
+    fillCombo(m_classificationCombo, Options::Classification);
+    m_classificationCombo->setToolTip("Override model classification (Automatic detects from file)");
+
+    m_inDirectory->setPlaceholderText("Input directory...");
+    m_outDirectory->setPlaceholderText("Output (optional)");
+
+    auto *inRow = new QHBoxLayout;
+    inRow->setSpacing(Layout::CompactSpacing);
+    inRow->addWidget(m_inDirectory, 1);
+    inRow->addWidget(m_indirButton);
+    ioForm->addRow(boldLabel("In:"), inRow);
+
+    auto *outRow = new QHBoxLayout;
+    outRow->setSpacing(Layout::CompactSpacing);
+    outRow->addWidget(m_outDirectory, 1);
+    outRow->addWidget(m_outdirButton);
+    ioForm->addRow(boldLabel("Out:"), outRow);
+
+    ioForm->addRow(boldLabel("Pattern:"), m_filePattern);
+    ioForm->addRow(boldLabel("Class:"), m_classificationCombo);
+
+    sidebarLayout->addLayout(ioForm);
+    sidebarLayout->addSpacing(Layout::SectionGap);
+
+    // ── Scroll area for options ───────────────────────────────────────
+    auto *scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto *optionsWidget = new QWidget;
+    auto *optionsLayout = new QVBoxLayout(optionsWidget);
+    // Right padding prevents content clipping when vertical scrollbar appears
+    optionsLayout->setContentsMargins(0, 0, Layout::SectionGap, 0);
+    optionsLayout->setSpacing(Layout::DefaultSpacing);
+    scroll->setWidget(optionsWidget);
+
+    // ── Mode ───────────────────────────────────────────────────────────
+    auto *modeRow = new QHBoxLayout;
+    m_radioClean = new QRadioButton("Clean");
+    m_radioClean->setToolTip("Parse, validate, repair, and recompile models");
+    m_radioDecompile = new QRadioButton("Decompile");
+    m_radioDecompile->setToolTip("Decompile binary MDL to ASCII without cleaning");
+    m_radioCompile = new QRadioButton("Compile");
+    m_radioCompile->setToolTip("Compile ASCII MDL to binary format");
+    m_radioClean->setChecked(true);
+    modeRow->addWidget(boldLabel("Mode:"));
+    modeRow->addWidget(m_radioClean);
+    modeRow->addWidget(m_radioDecompile);
+    modeRow->addWidget(m_radioCompile);
+    modeRow->addStretch();
+    optionsLayout->addLayout(modeRow);
+
+    // ── All Fixes master checkbox ──────────────────────────────────────
+    m_allFixesCheck = new QCheckBox("All Fixes (recommended)");
+    m_allFixesCheck->setToolTip("Enable all recommended fixes with default settings");
+    m_allFixesCheck->setChecked(true);
+    optionsLayout->addWidget(m_allFixesCheck);
+
+    m_fixesDetailWidget = new QWidget;
+    auto *fixesGrid = new QVBoxLayout(m_fixesDetailWidget);
+    fixesGrid->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    fixesGrid->setSpacing(Layout::DefaultSpacing);
+
+    m_checkValidate       = new QCheckBox("Validate && auto-fix checks");
+    m_checkValidate->setToolTip("Run validation checks and auto-fix common issues");
+    m_checkStripDegen     = new QCheckBox("Strip degenerate faces");
+    m_checkStripDegen->setToolTip("Remove triangles with zero area (collapsed vertices)");
+    m_checkFixAnims       = new QCheckBox("Fix animations");
+    m_checkFixAnims->setToolTip("Fix animation lengths and missing end-keys");
+    m_checkRepairPivots   = new QCheckBox("Repair pivots");
+    m_checkRepairPivots->setToolTip("Repair walkmesh pivot points for proper tile pathfinding");
+    m_checkFixTilefade    = new QCheckBox("Fix tilefade (TILE only)");
+    m_checkFixTilefade->setToolTip("Slice geometry at fade height for tile transparency");
+    m_checkTilefadeUndo   = new QCheckBox("Undo tilefade splits");
+    m_checkTilefadeUndo->setToolTip("Remove existing tilefade splits from tile geometry");
+    m_checkTilefadeUndo->setChecked(false);
+    m_checkRebuildAABB    = new QCheckBox("Rebuild AABB");
+    m_checkRebuildAABB->setToolTip("Rebuild axis-aligned bounding box tree for walkmesh");
+    m_checkReparentChildren = new QCheckBox("Reparent children");
+    m_checkReparentChildren->setToolTip("Move child nodes off restricted parent types (AABB, light)");
+    m_checkWrapRoot       = new QCheckBox("Wrap root in dummy");
+    m_checkWrapRoot->setToolTip("Wrap root node in a dummy if it has geometry");
+    m_checkSplitMultiEdge = new QCheckBox("Split multi-edge shadows");
+    m_checkSplitMultiEdge->setToolTip("Fix non-manifold edges that break shadow rendering");
+
+    for (auto *cb : {m_checkValidate, m_checkStripDegen, m_checkFixAnims,
+         m_checkRepairPivots, m_checkFixTilefade, m_checkRebuildAABB,
+         m_checkReparentChildren, m_checkWrapRoot, m_checkSplitMultiEdge})
+    {
+        cb->setChecked(true);
+        fixesGrid->addWidget(cb);
+    }
+    fixesGrid->addWidget(m_checkTilefadeUndo);
+
+    m_fixesDetailWidget->setVisible(false);
+    optionsLayout->addWidget(m_fixesDetailWidget);
+
+    connect(m_allFixesCheck, &QCheckBox::toggled, this, [this](bool allOn) {
+        m_fixesDetailWidget->setVisible(!allOn);
+        if (allOn)
+        {
+            for (auto *cb : {m_checkValidate, m_checkStripDegen, m_checkFixAnims,
+                 m_checkRepairPivots, m_checkFixTilefade, m_checkRebuildAABB,
+                 m_checkReparentChildren, m_checkWrapRoot, m_checkSplitMultiEdge})
+                cb->setChecked(true);
+        }
+    });
+
+    // ── Advanced Options (collapsible) ─────────────────────────────────
+    QWidget *advContent;
+    m_advancedGroup = createCollapsibleGroup("Advanced Options", &advContent, true);
+    auto *advLayout = new QVBoxLayout;
+    advLayout->setContentsMargins(Layout::GroupMarginH, Layout::GroupMarginTop, Layout::GroupMarginH, Layout::GroupMarginBottom);
+    advLayout->setSpacing(Layout::DefaultSpacing);
+
+    m_scaleXSpin = new QDoubleSpinBox; m_scaleXSpin->setRange(0.01, 100); m_scaleXSpin->setValue(1.0); m_scaleXSpin->setSingleStep(0.1); m_scaleXSpin->setDecimals(2);
+    m_scaleXSpin->setToolTip("X-axis scale factor");
+    m_scaleYSpin = new QDoubleSpinBox; m_scaleYSpin->setRange(0.01, 100); m_scaleYSpin->setValue(1.0); m_scaleYSpin->setSingleStep(0.1); m_scaleYSpin->setDecimals(2);
+    m_scaleYSpin->setToolTip("Y-axis scale factor");
+    m_scaleZSpin = new QDoubleSpinBox; m_scaleZSpin->setRange(0.01, 100); m_scaleZSpin->setValue(1.0); m_scaleZSpin->setSingleStep(0.1); m_scaleZSpin->setDecimals(2);
+    m_scaleZSpin->setToolTip("Z-axis scale factor");
+    m_scaleLockBtn = new QPushButton(QString::fromUtf8("🔒"));
+    m_scaleLockBtn->setCheckable(true);
+    m_scaleLockBtn->setChecked(true);
+    m_scaleLockBtn->setStyleSheet("QPushButton { background: transparent; border: none; }");
+    m_scaleLockBtn->setToolTip("Lock/unlock uniform scaling");
+    m_scaleYSpin->setEnabled(false);
+    m_scaleZSpin->setEnabled(false);
+
+    auto *scaleGrid = new QGridLayout;
+    scaleGrid->setSpacing(Layout::CompactSpacing);
+    scaleGrid->addWidget(new QLabel("Scale X:"), 0, 0);
+    scaleGrid->addWidget(m_scaleXSpin, 0, 1);
+    scaleGrid->addWidget(m_scaleLockBtn, 0, 2);
+    scaleGrid->addWidget(new QLabel("Y:"), 1, 0);
+    scaleGrid->addWidget(m_scaleYSpin, 1, 1);
+    scaleGrid->addWidget(new QLabel("Z:"), 2, 0);
+    scaleGrid->addWidget(m_scaleZSpin, 2, 1);
+    scaleGrid->setColumnStretch(1, 1);
+    advLayout->addLayout(scaleGrid);
+
+    auto *scaleSep = new QFrame;
+    scaleSep->setFrameShape(QFrame::HLine);
+    scaleSep->setFrameShadow(QFrame::Sunken);
+    advLayout->addWidget(scaleSep);
+
+    connect(m_scaleLockBtn, &QPushButton::toggled, this, [this](bool locked) {
+        m_scaleLockBtn->setText(locked ? QString::fromUtf8("🔒") : QString::fromUtf8("🔓"));
+        m_scaleYSpin->setEnabled(!locked);
+        m_scaleZSpin->setEnabled(!locked);
+        if (locked) { m_scaleYSpin->setValue(m_scaleXSpin->value()); m_scaleZSpin->setValue(m_scaleXSpin->value()); }
+    });
+    connect(m_scaleXSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double v) {
+        if (m_scaleLockBtn->isChecked()) {
+            QSignalBlocker b1(m_scaleYSpin), b2(m_scaleZSpin);
+            m_scaleYSpin->setValue(v); m_scaleZSpin->setValue(v);
+        }
+    });
+
+    auto *meshForm = new QFormLayout;
+    meshForm->setSpacing(Layout::CompactSpacing);
+    meshForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    meshForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    meshForm->setLabelAlignment(Qt::AlignLeft);
+    m_snapCombo = new QComboBox; fillCombo(m_snapCombo, Options::Snap);
+    m_snapCombo->setToolTip("Snap vertex positions to a grid (reduces file size)");
+    m_tvertSnapCombo = new QComboBox; fillCombo(m_tvertSnapCombo, Options::TvertSnap);
+    m_tvertSnapCombo->setToolTip("Snap texture coordinates to a grid resolution");
+    m_renderCombo = new QComboBox; fillCombo(m_renderCombo, Options::RenderOverride);
+    m_renderCombo->setToolTip("Override render flag on all mesh nodes");
+    m_shadowCombo = new QComboBox; fillCombo(m_shadowCombo, Options::ShadowOverride);
+    m_shadowCombo->setToolTip("Override shadow flag on all mesh nodes");
+    meshForm->addRow("Snap:", m_snapCombo);
+    meshForm->addRow("TVert Snap:", m_tvertSnapCombo);
+    meshForm->addRow("Render:", m_renderCombo);
+    meshForm->addRow("Shadow:", m_shadowCombo);
+    advLayout->addLayout(meshForm);
+
+    auto *meshOpsSep = new QFrame;
+    meshOpsSep->setFrameShape(QFrame::HLine);
+    meshOpsSep->setFrameShadow(QFrame::Sunken);
+    advLayout->addWidget(meshOpsSep);
+
+    m_forceWhiteCheck = new QCheckBox("Force white ambient/diffuse");
+    m_forceWhiteCheck->setToolTip("Set ambient and diffuse colors to white on all meshes");
+    m_mergeByBitmapCheck = new QCheckBox("Merge meshes by bitmap");
+    m_mergeByBitmapCheck->setToolTip("Merge mesh nodes that share the same texture");
+    m_cullInvisibleCheck = new QCheckBox("Cull invisible meshes");
+    m_cullInvisibleCheck->setToolTip("Remove mesh nodes with render=0 and no animations");
+    m_placeableTransCheck = new QCheckBox("Placeable with transparency");
+    m_placeableTransCheck->setToolTip("Set transparency hint on meshes matching the key");
+    m_transparencyKeyEdit = new QLineEdit("glass");
+    m_transparencyKeyEdit->setToolTip("Bitmap name substring to match for transparency");
+    m_transparencyKeyEdit->setPlaceholderText("bitmap key");
+
+    auto *meshOpsGroup = new QVBoxLayout;
+    meshOpsGroup->setSpacing(Layout::RootMargin);
+    meshOpsGroup->addWidget(m_forceWhiteCheck);
+    meshOpsGroup->addWidget(m_mergeByBitmapCheck);
+    meshOpsGroup->addWidget(m_cullInvisibleCheck);
+    meshOpsGroup->addWidget(m_placeableTransCheck);
+    auto *transKeyWidget = new QWidget;
+    auto *transKeyRow = new QHBoxLayout(transKeyWidget);
+    transKeyRow->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    transKeyRow->addWidget(new QLabel("Key:"));
+    transKeyRow->addWidget(m_transparencyKeyEdit);
+    transKeyWidget->setVisible(m_placeableTransCheck->isChecked());
+    connect(m_placeableTransCheck, &QCheckBox::toggled, transKeyWidget, &QWidget::setVisible);
+    meshOpsGroup->addWidget(transKeyWidget);
+    advLayout->addLayout(meshOpsGroup);
+
+    advContent->setLayout(advLayout);
+    optionsLayout->addWidget(m_advancedGroup);
+
+    // ── Tile Options (collapsible) ─────────────────────────────────────
+    QWidget *tileContent;
+    m_tileGroup = createCollapsibleGroup("Tile Options", &tileContent, true);
+    auto *tileLayout = new QVBoxLayout;
+    tileLayout->setContentsMargins(Layout::GroupMarginH, Layout::GroupMarginTop, Layout::GroupMarginH, Layout::GroupMarginBottom);
+    tileLayout->setSpacing(Layout::RootMargin);
+
+    auto *tileForm = new QFormLayout;
+    tileForm->setSpacing(Layout::CompactSpacing);
+    tileForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    tileForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    tileForm->setLabelAlignment(Qt::AlignLeft);
+
+    m_sliceHeightSpin = new QDoubleSpinBox; m_sliceHeightSpin->setRange(1, 100); m_sliceHeightSpin->setValue(20.0); m_sliceHeightSpin->setDecimals(1);
+    m_sliceHeightSpin->setToolTip("Height at which to slice geometry for tilefade (in 10cm units)");
+    tileForm->addRow("Slice height:", m_sliceHeightSpin);
+
+    m_foliageCombo = new QComboBox; fillCombo(m_foliageCombo, Options::Foliage);
+    m_foliageCombo->setToolTip("How to handle foliage meshes in tiles");
+    m_foliageKeyEdit = new QLineEdit("trefol");
+    m_foliageKeyEdit->setToolTip("Bitmap name substring identifying foliage meshes");
+    tileForm->addRow("Foliage:", m_foliageCombo);
+    tileForm->addRow("Foliage key:", m_foliageKeyEdit);
+
+    m_rotateGroundCombo = new QComboBox; fillCombo(m_rotateGroundCombo, Options::RotateToggle);
+    m_rotateGroundCombo->setToolTip("Set rotatetexture flag on ground meshes");
+    m_groundKeyEdit = new QLineEdit;
+    m_groundKeyEdit->setToolTip("Bitmap name substring identifying ground meshes");
+    tileForm->addRow("Ground rotate:", m_rotateGroundCombo);
+    tileForm->addRow("Ground key:", m_groundKeyEdit);
+
+    m_chamferCombo = new QComboBox; fillCombo(m_chamferCombo, Options::Chamfer);
+    m_chamferCombo->setToolTip("Add or remove chamfer geometry on tile edges");
+    m_retileGroundCombo = new QComboBox; fillCombo(m_retileGroundCombo, Options::RetileSize);
+    m_retileGroundCombo->setToolTip("Retile ground textures to a different grid size");
+    tileForm->addRow("Chamfers:", m_chamferCombo);
+    tileForm->addRow("Retile ground:", m_retileGroundCombo);
+
+    m_raiseLowerCombo = new QComboBox; fillCombo(m_raiseLowerCombo, Options::RaiseLower);
+    m_raiseLowerCombo->setToolTip("Raise or lower all geometry by a fixed amount");
+    m_raiseAmountSpin = new QDoubleSpinBox; m_raiseAmountSpin->setRange(0.01, 10); m_raiseAmountSpin->setValue(1.0); m_raiseAmountSpin->setDecimals(2); m_raiseAmountSpin->setEnabled(false);
+    m_raiseAmountSpin->setToolTip("Amount to raise/lower in meters");
+    tileForm->addRow("Raise/Lower:", m_raiseLowerCombo);
+    tileForm->addRow("Amount (m):", m_raiseAmountSpin);
+
+    tileLayout->addLayout(tileForm);
+
+    connect(m_raiseLowerCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int i) {
+        m_raiseAmountSpin->setEnabled(i > 0);
+    });
+
+    auto *tileSep = new QFrame;
+    tileSep->setFrameShape(QFrame::HLine);
+    tileSep->setFrameShadow(QFrame::Sunken);
+    tileLayout->addWidget(tileSep);
+
+    m_waterEnableCheck = new QCheckBox("Water fixups");
+    m_waterEnableCheck->setToolTip("Enable water mesh processing for tiles");
+    tileLayout->addWidget(m_waterEnableCheck);
+
+    auto *waterWidget = new QWidget;
+    auto *waterForm = new QFormLayout(waterWidget);
+    waterForm->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    waterForm->setSpacing(Layout::CompactSpacing);
+    waterForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    waterForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    waterForm->setLabelAlignment(Qt::AlignLeft);
+    m_waterKeyEdit = new QLineEdit("water");
+    m_waterKeyEdit->setToolTip("Bitmap name substring identifying water meshes");
+    m_dynamicWaterCombo = new QComboBox; fillCombo(m_dynamicWaterCombo, Options::DynamicWater);
+    m_dynamicWaterCombo->setToolTip("Water animation mode (wavy adds wave displacement)");
+    m_waveHeightSpin = new QDoubleSpinBox; m_waveHeightSpin->setRange(0.1, 10); m_waveHeightSpin->setValue(0.1); m_waveHeightSpin->setEnabled(false);
+    m_waveHeightSpin->setToolTip("Wave displacement height for wavy water");
+    m_rotateWaterCombo = new QComboBox; fillCombo(m_rotateWaterCombo, Options::RotateToggle);
+    m_rotateWaterCombo->setToolTip("Set rotatetexture flag on water meshes");
+    m_retileWaterCombo = new QComboBox; fillCombo(m_retileWaterCombo, Options::RetileSize);
+    m_retileWaterCombo->setToolTip("Retile water textures to a different grid size");
+
+    waterForm->addRow("Key:", m_waterKeyEdit);
+    waterForm->addRow("Dynamic:", m_dynamicWaterCombo);
+    waterForm->addRow("Wave height:", m_waveHeightSpin);
+    waterForm->addRow("Rotate:", m_rotateWaterCombo);
+    waterForm->addRow("Retile:", m_retileWaterCombo);
+
+    waterWidget->setVisible(false);
+    tileLayout->addWidget(waterWidget);
+    connect(m_waterEnableCheck, &QCheckBox::toggled, waterWidget, &QWidget::setVisible);
+    connect(m_dynamicWaterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this] {
+        bool isWavy = m_dynamicWaterCombo->currentData().toString() == "wavy";
+        m_waveHeightSpin->setEnabled(isWavy);
+        m_retileWaterCombo->setEnabled(!isWavy);
+    });
+
+    m_animateSplotchesCheck = new QCheckBox("Animate splotches");
+    m_animateSplotchesCheck->setToolTip("Add animation to splotch/decal meshes");
+    m_splotchKeyEdit = new QLineEdit;
+    m_splotchKeyEdit->setToolTip("Bitmap name substring identifying splotch meshes");
+    m_splotchKeyEdit->setPlaceholderText("bitmap key");
+    tileLayout->addWidget(m_animateSplotchesCheck);
+    auto *splotchKeyRow = new QHBoxLayout;
+    splotchKeyRow->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    splotchKeyRow->addWidget(new QLabel("Key:"));
+    splotchKeyRow->addWidget(m_splotchKeyEdit);
+    tileLayout->addLayout(splotchKeyRow);
+
+    m_remapWokMatCheck = new QCheckBox("Remap walkmesh material");
+    m_remapWokMatCheck->setToolTip("Remap walkmesh material IDs (e.g. change grass to dirt)");
+    m_wokMatFromSpin = new QSpinBox; m_wokMatFromSpin->setRange(0, 30);
+    m_wokMatFromSpin->setToolTip("Source material ID to remap from");
+    m_wokMatToSpin = new QSpinBox; m_wokMatToSpin->setRange(0, 30);
+    m_wokMatToSpin->setToolTip("Target material ID to remap to");
+    tileLayout->addWidget(m_remapWokMatCheck);
+    auto *wokRow = new QHBoxLayout;
+    wokRow->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    wokRow->addWidget(m_wokMatFromSpin);
+    wokRow->addWidget(new QLabel(QString::fromUtf8("\xe2\x86\x92")));
+    wokRow->addWidget(m_wokMatToSpin);
+    wokRow->addStretch();
+    tileLayout->addLayout(wokRow);
+
+    tileContent->setLayout(tileLayout);
+    optionsLayout->addWidget(m_tileGroup);
+
+    // ── Pivot Options (collapsible) ────────────────────────────────────
+    QWidget *pivotContent;
+    m_pivotGroup = createCollapsibleGroup("Pivot Options", &pivotContent, true);
+    auto *pivotLayout = new QVBoxLayout;
+    pivotLayout->setContentsMargins(Layout::GroupMarginH, Layout::GroupMarginTop, Layout::GroupMarginH, Layout::GroupMarginBottom);
+    pivotLayout->setSpacing(Layout::DefaultSpacing);
+
+    m_pivotAllowSplitCheck = new QCheckBox("Allow splitting");
+    m_pivotAllowSplitCheck->setToolTip("Allow splitting walkmesh faces to fix bad pivots");
+    m_pivotBelowZ0Combo = new QComboBox; fillCombo(m_pivotBelowZ0Combo, Options::PivotBelowZ0);
+    m_pivotBelowZ0Combo->setToolTip("How to handle pivot points below ground level");
+    m_pivotMoveBadCombo = new QComboBox; fillCombo(m_pivotMoveBadCombo, Options::PivotMoveBad);
+    m_pivotMoveBadCombo->setToolTip("Where to move pivots that fail validation");
+    m_pivotSmoothingCombo = new QComboBox; fillCombo(m_pivotSmoothingCombo, Options::PivotSmoothing);
+    m_pivotSmoothingCombo->setToolTip("How smoothing groups affect pivot computation");
+    m_pivotMinFacesSpin = new QSpinBox; m_pivotMinFacesSpin->setRange(2, 8); m_pivotMinFacesSpin->setValue(4);
+    m_pivotMinFacesSpin->setToolTip("Minimum number of faces per pivot region");
+    m_pivotSplitFirstCombo = new QComboBox; fillCombo(m_pivotSplitFirstCombo, Options::PivotSplitFirst);
+    m_pivotSplitFirstCombo->setToolTip("Whether to split convex or concave regions first");
+
+    pivotLayout->addWidget(m_pivotAllowSplitCheck);
+    auto *pivotForm = new QFormLayout;
+    pivotForm->setSpacing(Layout::CompactSpacing);
+    pivotForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    pivotForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    pivotForm->setLabelAlignment(Qt::AlignLeft);
+    pivotForm->addRow("Below Z=0:", m_pivotBelowZ0Combo);
+    pivotForm->addRow("Move bad:", m_pivotMoveBadCombo);
+    pivotForm->addRow("Smoothing:", m_pivotSmoothingCombo);
+    pivotForm->addRow("Min faces:", m_pivotMinFacesSpin);
+    pivotForm->addRow("Split first:", m_pivotSplitFirstCombo);
+    pivotLayout->addLayout(pivotForm);
+
+    pivotContent->setLayout(pivotLayout);
+    optionsLayout->addWidget(m_pivotGroup);
+
+    optionsLayout->addStretch();
+
+    sidebarLayout->addWidget(scroll, 1);
+
+    // ── Clean button — pinned at bottom of sidebar ─────────────────────
+    auto *separator = new QFrame;
+    separator->setFrameShape(QFrame::HLine);
+    separator->setFrameShadow(QFrame::Sunken);
+    sidebarLayout->addWidget(separator);
+
+    m_cleanButton = new QPushButton("Clean");
+    m_cleanButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    m_cleanButton->setMinimumHeight(Layout::CleanButtonHeight);
+    m_cleanButton->setToolTip("Run cleanmodels on all files (F5)");
+    m_cleanButton->setEnabled(false);
+    QFont cleanFont = m_cleanButton->font();
+    cleanFont.setBold(true);
+    m_cleanButton->setFont(cleanFont);
+    sidebarLayout->addWidget(m_cleanButton);
+
+    m_sidebarToggleBtn = new QPushButton("Hide Sidebar");
+    m_sidebarToggleBtn->setFlat(true);
+    m_sidebarToggleBtn->setFixedHeight(20);
+    sidebarLayout->addWidget(m_sidebarToggleBtn);
+
+    // ====================================================================
+    //  RIGHT WORKSPACE — table, detail panel, viewport, raw log drawer
+    // ====================================================================
+    auto *workspaceWidget = new QWidget;
+    auto *workspaceLayout = new QVBoxLayout(workspaceWidget);
+    workspaceLayout->setContentsMargins(0, 0, 0, 0);
+    workspaceLayout->setSpacing(Layout::DefaultSpacing);
+
+    // ── Stats row ─────────────────────────────────────────────────────
+    auto *statsRow = new QHBoxLayout;
+    m_mdlsDetectedLabel = smallLabel("Detected: 0");
+    m_mdlsCleanedLabel = smallLabel("Cleaned: 0");
+    m_mdlsFailedLabel = smallLabel("Failed: 0");
+    statsRow->addWidget(m_mdlsDetectedLabel);
+    statsRow->addSpacing(Layout::SectionGap);
+    statsRow->addWidget(m_mdlsCleanedLabel);
+    statsRow->addSpacing(Layout::SectionGap);
+    statsRow->addWidget(m_mdlsFailedLabel);
+    statsRow->addStretch();
+    workspaceLayout->addLayout(statsRow);
+
+    // ── File table ────────────────────────────────────────────────────
+    m_filesTable = new QTableWidget;
+    m_filesTable->setColumnCount(5);
+    m_filesTable->setHorizontalHeaderLabels({"File", "Size", "Status", "Fixes", "Time"});
+    m_filesTable->setAlternatingRowColors(true);
+    m_filesTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_filesTable->setColumnWidth(1, 80);
+    m_filesTable->setColumnWidth(2, 100);
+    m_filesTable->setColumnWidth(3, 80);
+    m_filesTable->setColumnWidth(4, 80);
+    QFont headerFont = m_filesTable->horizontalHeader()->font();
+    headerFont.setBold(true);
+    m_filesTable->horizontalHeader()->setFont(headerFont);
+    m_filesTable->horizontalHeader()->setVisible(true);
+    m_filesTable->verticalHeader()->setDefaultSectionSize(Layout::TableRowHeight);
+    m_filesTable->verticalHeader()->setVisible(false);
+    m_filesTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_filesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_filesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_filesTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    // ── Detail panel ─────────────────────────────────────────────────
+    m_detailPanel = new QTextBrowser;
+    m_detailPanel->setReadOnly(true);
+    m_detailPanel->setHtml("<p style='color:gray; font-style:italic;'>Click a file to see details</p>");
+    m_detailPanel->setMinimumHeight(80);
+
+    // ── Table + detail splitter ──────────────────────────────────────
+    m_tableDetailSplitter = new QSplitter(Qt::Vertical);
+    m_tableDetailSplitter->addWidget(m_filesTable);
+    m_tableDetailSplitter->addWidget(m_detailPanel);
+    m_tableDetailSplitter->setStretchFactor(0, 3);
+    m_tableDetailSplitter->setStretchFactor(1, 1);
+
+    // ── Raw log drawer (uses existing m_debugTextBrowser) ────────────
+    m_debugTextBrowser = new QTextBrowser;
+    m_debugTextBrowser->setPlaceholderText("Output from cleanmodels will appear here.\nClick Clean to begin processing.");
+    QFont logFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    logFont.setPointSizeF(logFont.pointSizeF() * 0.9);
+    m_debugTextBrowser->setFont(logFont);
+
+    m_rawLogDrawer = new QWidget;
+    auto *drawerLayout = new QVBoxLayout(m_rawLogDrawer);
+    drawerLayout->setContentsMargins(0, 0, 0, 0);
+    drawerLayout->setSpacing(0);
+
+    auto *drawerTitleBar = new QWidget;
+    drawerTitleBar->setFixedHeight(24);
+    auto *drawerTitleLayout = new QHBoxLayout(drawerTitleBar);
+    drawerTitleLayout->setContentsMargins(6, 0, 4, 0);
+    drawerTitleLayout->setSpacing(4);
+    auto *drawerLabel = new QLabel("Raw Log");
+    QFont drawerFont = drawerLabel->font();
+    drawerFont.setBold(true);
+    drawerFont.setPointSizeF(drawerFont.pointSizeF() * 0.85);
+    drawerLabel->setFont(drawerFont);
+    auto *drawerCloseBtn = new QPushButton(QString::fromUtf8("\xc3\x97"));
+    drawerCloseBtn->setFixedSize(20, 20);
+    drawerCloseBtn->setFlat(true);
+    drawerTitleLayout->addWidget(drawerLabel);
+    drawerTitleLayout->addStretch();
+    drawerTitleLayout->addWidget(drawerCloseBtn);
+
+    drawerLayout->addWidget(drawerTitleBar);
+    drawerLayout->addWidget(m_debugTextBrowser, 1);
+
+    m_rawLogDrawer->setVisible(false);
+    m_rawLogVisible = false;
+
+    connect(drawerCloseBtn, &QPushButton::clicked, this, &MainWindow::toggleRawLog);
+
+    // ── Viewport with toolbar ────────────────────────────────────────
+    m_viewport = new ModelViewport(this);
+    m_viewport->setMinimumSize(200, 150);
+
+    auto *viewportContainer = new QWidget;
+    auto *viewportVLayout = new QVBoxLayout(viewportContainer);
+    viewportVLayout->setContentsMargins(0, 0, 0, 0);
+    viewportVLayout->setSpacing(Layout::CompactSpacing);
+
+    auto *viewToolbar = new QHBoxLayout;
+    m_wireframeCheck = new QCheckBox("Wireframe");
+    m_gridCheck = new QCheckBox("Grid");
+    m_gridCheck->setChecked(true);
+    m_refModelCheck = new QCheckBox("Reference:");
+    m_refModelCombo = new QComboBox;
+    m_refModelCombo->setMinimumWidth(120);
+    m_refModelCombo->setEditable(false);
+    m_refModelCombo->addItem("(none)");
+    m_refModelCombo->setEnabled(false);
+    m_refBrowseBtn = new QPushButton("Browse…");
+    m_refBrowseBtn->setEnabled(false);
+
+    viewToolbar->setSpacing(Layout::RootMargin);
+    viewToolbar->addWidget(m_wireframeCheck);
+    viewToolbar->addWidget(m_gridCheck);
+    viewToolbar->addSpacing(Layout::SectionGap);
+    viewToolbar->addWidget(m_refModelCheck);
+    viewToolbar->addWidget(m_refModelCombo);
+    viewToolbar->addWidget(m_refBrowseBtn);
+    viewToolbar->addStretch();
+    viewportVLayout->addLayout(viewToolbar);
+    viewportVLayout->addWidget(m_viewport, 1);
+
+    // ── Vertical splitter: table+detail (top) | viewport+drawer (bottom)
+    auto *workspaceSplitter = new QSplitter(Qt::Vertical);
+    workspaceSplitter->addWidget(m_tableDetailSplitter);
+    auto *viewportAndDrawer = new QWidget;
+    auto *viewportAndDrawerLayout = new QVBoxLayout(viewportAndDrawer);
+    viewportAndDrawerLayout->setContentsMargins(0, 0, 0, 0);
+    viewportAndDrawerLayout->setSpacing(0);
+    viewportAndDrawerLayout->addWidget(viewportContainer, 1);
+    viewportAndDrawerLayout->addWidget(m_rawLogDrawer);
+    workspaceSplitter->addWidget(viewportAndDrawer);
+    workspaceSplitter->setStretchFactor(0, 2);
+    workspaceSplitter->setStretchFactor(1, 3);
+    workspaceLayout->addWidget(workspaceSplitter, 1);
+
+    // ====================================================================
+    //  MAIN SPLITTER — sidebar | workspace
+    // ====================================================================
+    m_mainSplitter = new QSplitter(Qt::Horizontal, central);
+    m_mainSplitter->addWidget(m_sidebarWidget);
+    m_mainSplitter->addWidget(workspaceWidget);
+    m_mainSplitter->setStretchFactor(0, 0);
+    m_mainSplitter->setStretchFactor(1, 1);
+    m_mainSplitter->setSizes({Layout::SidebarDefaultWidth, 700});
+
+    root->addWidget(m_mainSplitter, 1);
+
+    // ====================================================================
+    //  SIGNALS — identical to before
+    // ====================================================================
+    connect(m_wireframeCheck, &QCheckBox::toggled, this, [this](bool on) {
+        m_viewport->setWireframe(on);
+    });
+    connect(m_gridCheck, &QCheckBox::toggled, this, [this](bool on) {
+        m_viewport->setShowGrid(on);
+    });
+    connect(m_refModelCheck, &QCheckBox::toggled, this, [this](bool on) {
+        m_refModelCombo->setEnabled(on);
+        m_refBrowseBtn->setEnabled(on);
+        if (!on) {
+            m_viewport->clearReference();
+        } else if (m_refModelCombo->currentIndex() > 0) {
+            m_viewport->loadReferenceFile(m_refModelCombo->currentData().toString());
+        }
+    });
+    connect(m_refBrowseBtn, &QPushButton::clicked, this, [this] {
+        QString file = QFileDialog::getOpenFileName(this, "Reference Model",
+            m_sInDir.isEmpty() ? QDir::currentPath() : m_sInDir, "MDL Files (*.mdl)");
+        if (file.isEmpty()) return;
+        QFileInfo fi(file);
+        QString label = fi.fileName();
+        int idx = m_refModelCombo->findData(file);
+        if (idx < 0) {
+            m_refModelCombo->addItem(label, file);
+            idx = m_refModelCombo->count() - 1;
+        }
+        m_refModelCombo->setCurrentIndex(idx);
+        m_viewport->loadReferenceFile(file);
+    });
+    connect(m_refModelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (!m_refModelCheck->isChecked()) return;
+        if (idx <= 0) {
+            m_viewport->clearReference();
+        } else {
+            QString path = m_refModelCombo->currentData().toString();
+            if (!path.isEmpty())
+                m_viewport->loadReferenceFile(path);
+        }
+    });
+
+    connect(m_inDirectory, &QLineEdit::editingFinished, this, &MainWindow::populateRefModelCombo);
+
+    auto updateModeUI = [this]() {
+        bool cleanMode = m_radioClean->isChecked();
+        if (m_radioDecompile->isChecked()) {
+            m_cleanButton->setText("Decompile");
+            m_cleanButton->setIcon(m_iconDecompileButton);
+        } else if (m_radioCompile->isChecked()) {
+            m_cleanButton->setText("Compile");
+            m_cleanButton->setIcon(m_iconCleanButton);
+        } else {
+            m_cleanButton->setText("Clean");
+            m_cleanButton->setIcon(m_iconCleanButton);
+        }
+        m_allFixesCheck->setEnabled(cleanMode);
+        m_fixesDetailWidget->setEnabled(cleanMode);
+        m_advancedGroup->setEnabled(cleanMode);
+        m_tileGroup->setEnabled(cleanMode);
+        m_pivotGroup->setEnabled(cleanMode);
+    };
+    connect(m_radioDecompile, &QRadioButton::toggled, this, updateModeUI);
+    connect(m_radioCompile, &QRadioButton::toggled, this, updateModeUI);
+
+    connect(m_filesTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+        if (m_filesTable->selectedItems().isEmpty()) return;
+        QString fileName = m_filesTable->item(m_filesTable->currentRow(), 0)->data(Qt::UserRole).toString();
+        QString filePath = m_sInDir + "/" + fileName;
+
+        QMenu menu;
+        menu.addAction("Preview in viewport", this, [this, filePath] {
+            if (m_viewport && !filePath.isEmpty())
+                m_viewport->previewFile(filePath);
+        });
+        menu.addAction("Copy path to clipboard", this, &MainWindow::copyToClipboard);
+        menu.addSeparator();
+        menu.addAction("Reveal in Finder", this, [filePath] {
+            QProcess::startDetached("open", {"-R", filePath});
+        });
+        menu.exec(m_filesTable->mapToGlobal(pos));
+    });
+
+    connect(m_filesTable, &QTableWidget::doubleClicked, this, [this](const QModelIndex &index) {
+        QString cellText = index.siblingAtColumn(0).data(Qt::UserRole).toString();
+        m_debugTextBrowser->moveCursor(QTextCursor::Start);
+        if (!m_debugTextBrowser->find(cellText))
+            m_debugTextBrowser->moveCursor(QTextCursor::End);
+        if (m_viewport && !cellText.isEmpty() && !m_sInDir.isEmpty())
+            m_viewport->previewFile(m_sInDir + "/" + cellText);
+    });
+
+    connect(m_indirButton, &QPushButton::clicked, this, [this] {
+        QString dir = QFileDialog::getExistingDirectory(this, "Input Directory", m_sInDir);
+        if (!dir.isEmpty()) onUpdateInDir(dir);
+    });
+    connect(m_outdirButton, &QPushButton::clicked, this, [this] {
+        QString dir = QFileDialog::getExistingDirectory(this, "Output Directory", m_sOutDir);
+        if (!dir.isEmpty()) { m_outDirectory->setText(dir); m_sOutDir = dir; }
+    });
+    connect(m_inDirectory, &QLineEdit::editingFinished, this, [this] {
+        QFileInfo fi(m_inDirectory->text());
+        if (m_inDirectory->text().isEmpty()) {
+            m_inDirectory->setStyleSheet("");
+            m_inDirectory->setToolTip("");
+            m_cleanButton->setEnabled(false);
+        } else if (fi.exists() && fi.isDir()) {
+            m_inDirectory->setStyleSheet("");
+            m_inDirectory->setToolTip(fi.absoluteFilePath());
+            m_cleanButton->setEnabled(true);
+            onUpdateInDir(m_inDirectory->text());
+        } else {
+            m_inDirectory->setStyleSheet(QStringLiteral("color: ") + LogColor::InvalidPath);
+            m_inDirectory->setToolTip("Directory does not exist");
+            m_cleanButton->setEnabled(false);
+        }
+    });
+    connect(m_outDirectory, &QLineEdit::editingFinished, this, [this] { m_sOutDir = m_outDirectory->text(); });
+    connect(m_filePattern, &QLineEdit::textChanged, this, [this] {
+        m_dirWatcherTimer->stop();
+        m_bFilesHaveChanged = false;
+        updateFileListing();
+        m_dirWatcherTimer->start();
+    });
+    m_cleanButton->setShortcut(QKeySequence(Qt::Key_F5));
+    connect(m_cleanButton, &QPushButton::clicked, this, [this] { doClean(); });
+
+    // ── Detail panel / sidebar / raw log connections ─────────────────
+    connect(m_filesTable, &QTableWidget::currentCellChanged, this, [this](int row, int, int, int) {
+        if (row >= 0 && row < m_filesTable->rowCount()) {
+            QString fileName = m_filesTable->item(row, 0)->data(Qt::UserRole).toString();
+            showFileDetails(fileName);
+        }
+    });
+
+    connect(m_sidebarToggleBtn, &QPushButton::clicked, this, &MainWindow::toggleSidebar);
+    connect(ui->actionToggleSidebar, &QAction::triggered, this, &MainWindow::toggleSidebar);
+    connect(ui->actionToggleRawLog, &QAction::triggered, this, &MainWindow::toggleRawLog);
+}
+
+// ---------------------------------------------------------------------------
+// Constructor
+// ---------------------------------------------------------------------------
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    ui->debugTextBrowser->insertHtml(tr("Welcome to Clean Models:EE QT!<br>"));
 
-#ifdef Q_OS_WIN
-    m_sBinaryName = "cleanmodels.exe";
-#else
-    m_sBinaryName = "cleanmodels";
-#endif
+    // Icons
+    m_iconCleanButton     = style()->standardIcon(QStyle::SP_MediaPlay);
+    m_iconAbortButton     = style()->standardIcon(QStyle::SP_DialogCancelButton);
+    m_iconDecompileButton = style()->standardIcon(QStyle::SP_FileIcon);
+    ui->actionLoadPreset->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
+    ui->actionSavePreset->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    ui->actionHelp->setIcon(style()->standardIcon(QStyle::SP_DialogHelpButton));
+
+    m_sBinaryName = CliDefaults::BinaryName;
 
     bool cliFound = true;
     auto cliInPath = QStandardPaths::findExecutable(m_sBinaryName);
@@ -47,115 +858,62 @@ MainWindow::MainWindow(QWidget *parent) :
     }
 
     if (cliFound)
-    {
         m_sBinaryPath = cliInPath;
-        QString foundMsg = "Clean Models CLI found at " % m_sBinaryPath;
-        ui->debugTextBrowser->insertHtml(tr(foundMsg.toStdString().c_str()));
-        auto sb = ui->debugTextBrowser->verticalScrollBar();
-        sb->setValue(sb->maximum());
+
+    // Build the UI
+    buildUi();
+
+    if (cliFound)
+    {
+        appendDebugHtml("Clean Models:EE ready.<br>");
+        appendDebugHtml("CLI: " + m_sBinaryPath.toHtmlEscaped() + "<br>");
     }
     else
     {
         QString errorMsg = "Could not find the " % m_sBinaryName % " executable in the current directory or in your path!";
-        QMessageBox::critical(nullptr, "No cleanmodels CLI", tr(errorMsg.toStdString().c_str()));
-        ui->debugTextBrowser->insertHtml(tr(errorMsg.toStdString().c_str()));
-        auto sb = ui->debugTextBrowser->verticalScrollBar();
-        sb->setValue(sb->maximum());
+        QMessageBox::critical(this, "No cleanmodels CLI", errorMsg);
+        appendDebugHtml("<span style=\"" + QLatin1String(LogColor::Error) + ";\">" + errorMsg.toHtmlEscaped() + "</span><br>");
     }
 
+    m_viewport->setCliBinaryPath(m_sBinaryPath);
+
+    connect(m_viewport, &ModelViewport::previewError, this, [this](const QString &msg) {
+        appendDebugHtml("<p><span style=\"" + QLatin1String(LogColor::Warning) + ";\">Preview: " + msg.toHtmlEscaped() + "</span></p><br>");
+    });
+
+    // Process
     m_pCleanProcess = new QProcess(this);
     m_bCleanRunning = false;
 
-    auto* sStatusLabel = new QLabel( QString( tr("Status:") ) );
-    m_pCleanStatus = new QLabel( QString( tr("Idle") ) );
-    m_pStatusProgress = new QProgressBar();
+    // Status bar
+    auto *sStatusLabel = new QLabel("Status:");
+    m_pCleanStatus = new QLabel("Idle");
+    m_pStatusProgress = new QProgressBar;
     m_pStatusProgress->setRange(0, 0);
     m_pStatusProgress->setTextVisible(false);
     m_pStatusProgress->setVisible(false);
     m_pStatusProgress->setMaximumHeight(12);
     m_pStatusProgress->setMaximumWidth(100);
+    statusBar()->addPermanentWidget(sStatusLabel);
+    statusBar()->addPermanentWidget(m_pCleanStatus);
+    statusBar()->addPermanentWidget(m_pStatusProgress);
 
-    statusBar()->addPermanentWidget( m_pStatusProgress );
-    statusBar()->addPermanentWidget( sStatusLabel );
-    statusBar()->addPermanentWidget( m_pCleanStatus );
-
+    // Dir completer
     m_pDirCompleter = new QCompleter(this);
     m_pDirCompleter->setMaxVisibleItems(4);
     m_pFileSystemModel = new FileSystemModel(m_pDirCompleter);
-    m_pFileSystemModel->setFilter(QDir::Dirs|QDir::Drives|QDir::NoDotAndDotDot|QDir::AllDirs);
+    m_pFileSystemModel->setFilter(QDir::Dirs | QDir::Drives | QDir::NoDotAndDotDot | QDir::AllDirs);
     m_pDirCompleter->setModel(m_pFileSystemModel);
-    ui->inDirectory->setCompleter(m_pDirCompleter);
-    ui->outDirectory->setCompleter(m_pDirCompleter);
+    m_inDirectory->setCompleter(m_pDirCompleter);
+    m_outDirectory->setCompleter(m_pDirCompleter);
 
-    ui->filesTable->setColumnCount(5);
-    ui->filesTable->setColumnWidth(1, 100);
-    ui->filesTable->setColumnWidth(2, 140);
-    ui->filesTable->setColumnWidth(3, 70);
-    ui->filesTable->setColumnWidth(4, 100);
-    ui->filesTable->setHorizontalHeaderLabels({"File", "Size", "Status", "Fixes", "Time"});
-    ui->filesTable->setAlternatingRowColors(true);
-    ui->filesTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    ui->filesTable->horizontalHeader()->setVisible(true);
-    ui->filesTable->verticalHeader()->setDefaultSectionSize(20);
-    ui->filesTable->verticalHeader()->setVisible(false);
-    ui->filesTable->setContextMenuPolicy(Qt::CustomContextMenu);
-    ui->filesTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    ui->filesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-
-    m_iconReadingMDL = QIcon(":icons/reading-mdl");
-    m_iconDecompilingMDL = QIcon(":icons/decompiling-mdl");
-    m_iconCleaningMDL = QIcon(":icons/cleaning-mdl");
-    m_iconCleanSuccess = QIcon(":icons/clean-success");
-    m_iconCleanError = QIcon(":icons/clean-error");
-    m_iconCleanButton = QIcon(":icons/clean-button");
-    m_iconASCIIMdl = QIcon(":icons/mdl-ascii");
-    m_iconBinaryMdl = QIcon(":icons/mdl-binary");
-    m_iconAbortButton = QIcon(":icons/abort-button");
-    m_iconDecompileButton = QIcon(":icons/decompile-button");
-    m_iconLockRescaleBtn = QIcon(":icons/lock-rescale");
-    m_iconUnlockRescaleBtn = QIcon(":icons/unlock-rescale");
-    ui->actionLoadPreset->setIcon(QIcon(":icons/load-preset"));
-    ui->actionSavePreset->setIcon(QIcon(":icons/save-preset"));
-    ui->actionHelp->setIcon(QIcon(":icons/whats-this"));
-    ui->indirButton->setIcon(QIcon(":icons/indir"));
-    ui->outdirButton->setIcon(QIcon(":icons/outdir"));
-    ui->cleanButton->setIcon(m_iconCleanButton);
-
+    // Dir watcher
     m_dirWatcherTimer = new QTimer(this);
     m_dirWatcherTimer->setInterval(500);
-    connect(m_dirWatcherTimer, &QTimer::timeout, this, QOverload<>::of(&MainWindow::handleDirWatcherTimer));
+    connect(m_dirWatcherTimer, &QTimer::timeout, this, &MainWindow::handleDirWatcherTimer);
     m_bUpdateFilesAfterClean = false;
 
-    // 3D viewport: replace the debugTextBrowser in the splitter with
-    // a horizontal splitter containing [debugTextBrowser | viewport]
-    m_viewport = new ModelViewport(this);
-    m_viewport->setCliBinaryPath(m_sBinaryPath);
-    m_viewport->setMinimumSize(200, 150);
-
-    auto *hSplitter = new QSplitter(Qt::Horizontal, this);
-    QWidget *debugParent = ui->debugTextBrowser->parentWidget();
-    QSplitter *parentSplitter = qobject_cast<QSplitter *>(debugParent);
-    if (parentSplitter)
-    {
-        int idx = parentSplitter->indexOf(ui->debugTextBrowser);
-        hSplitter->addWidget(ui->debugTextBrowser);
-        hSplitter->addWidget(m_viewport);
-        hSplitter->setSizes({400, 400});
-        parentSplitter->insertWidget(idx, hSplitter);
-    }
-    else
-    {
-        hSplitter->addWidget(ui->debugTextBrowser);
-        hSplitter->addWidget(m_viewport);
-        hSplitter->setSizes({400, 400});
-    }
-
-    connect(m_viewport, &ModelViewport::previewError, this, [this](const QString &msg) {
-        appendDebugHtml("<p><span style=\"color:orange;\">Preview: " + msg.toHtmlEscaped() + "</span></p><br>");
-    });
-
-    loadSettings();
-
+    // Signals
     connect(m_pCleanProcess, &QProcess::finished, this, &MainWindow::onCleanFinished);
     connect(ui->actionHelp, &QAction::triggered, this, &MainWindow::onHelpTriggered);
     connect(ui->actionAbout, &QAction::triggered, this, &MainWindow::onAboutTriggered);
@@ -164,6 +922,9 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionQuit, &QAction::triggered, this, &MainWindow::onQuitTriggered);
     connect(&m_fsWatcher, &QFileSystemWatcher::directoryChanged, this, &MainWindow::onDirectoryContentsChanged);
 
+    setAcceptDrops(true);
+
+    loadSettings();
     readSettings();
 }
 
@@ -174,41 +935,40 @@ MainWindow::~MainWindow()
     delete m_pCleanProcess;
 }
 
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
 void MainWindow::readSettings()
 {
     QScreen *screen = QGuiApplication::primaryScreen();
     if (const QWindow *window = windowHandle())
         screen = window->screen();
-    if (!screen)
-        return;
+    if (!screen) return;
 
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    const QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
+    const QByteArray geometry = settings.value(Setting::Geometry, QByteArray()).toByteArray();
     if (geometry.isEmpty())
     {
-        const QRect availableGeometry = screen->availableGeometry();
-        resize(availableGeometry.width() / 3, availableGeometry.height() / 2);
-        move((availableGeometry.width() - width()) / 2,
-             (availableGeometry.height() - height()) / 2);
+        const QRect avail = screen->availableGeometry();
+        resize(avail.width() / 2, avail.height() * 2 / 3);
+        move((avail.width() - width()) / 2, (avail.height() - height()) / 2);
     }
     else
-    {
         restoreGeometry(geometry);
-    }
 }
 
 void MainWindow::writeSettings()
 {
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    settings.setValue("geometry", saveGeometry());
+    settings.setValue(Setting::Geometry, saveGeometry());
 }
 
 void MainWindow::loadSettings()
 {
     QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    s.beginGroup("options");
+    s.beginGroup(Setting::OptionsGroup);
 
-    QString inDir = s.value("indir").toString();
+    QString inDir = s.value(Setting::InDir).toString();
     if (!inDir.isEmpty())
     {
         onUpdateInDir(inDir);
@@ -216,60 +976,89 @@ void MainWindow::loadSettings()
         m_pFileSystemModel->setRootPath(absDir.absoluteFilePath(inDir));
     }
 
-    QString outDir = s.value("outdir").toString();
+    QString outDir = s.value(Setting::OutDir).toString();
     if (!outDir.isEmpty())
     {
         m_sOutDir = outDir;
-        ui->outDirectory->setText(m_sOutDir);
-        QDir absDir;
-        m_pFileSystemModel->setRootPath(absDir.absoluteFilePath(m_sOutDir));
+        m_outDirectory->setText(m_sOutDir);
     }
 
-    ui->filePattern->setText(s.value("pattern", "*.mdl").toString());
-    ui->logFileName->setText(s.value("logfile").toString());
-    ui->summaryLogFileName->setText(s.value("summary_log").toString());
-    ui->modelClassCombo->setCurrentIndex(s.value("classification", 0).toInt());
-    ui->snapCombo->setCurrentIndex(s.value("snap", 0).toInt());
-    ui->snapTVertsCombo->setCurrentIndex(s.value("tvert_snap", 0).toInt());
-    ui->smoothingGroupsCombo->setCurrentIndex(s.value("smoothing_groups", 0).toInt());
-    ui->repairAABBCombo->setCurrentIndex(s.value("fix_overhangs", 0).toInt());
-    ui->dynamicWaterCombo->setCurrentIndex(s.value("dynamic_water", 0).toInt());
-    ui->waterRotateTextureCombo->setCurrentIndex(s.value("rotate_water", 0).toInt());
-    ui->retileWaterCombo->setCurrentIndex(s.value("tile_water", 0).toInt());
-    ui->raiseLowerCombo->setCurrentIndex(s.value("tile_raise", 0).toInt());
-    ui->raiseLowerAmountSpin->setValue(s.value("tile_raise_amount", 0.0).toDouble());
-    ui->sliceForTileFadeCombo->setCurrentIndex(s.value("slice", 0).toInt());
-    ui->renderTrimeshCombo->setCurrentIndex(s.value("render", 0).toInt());
-    ui->renderShadowsCombo->setCurrentIndex(s.value("shadow", 0).toInt());
-    ui->repivotCombo->setCurrentIndex(s.value("repivot", 0).toInt());
-    ui->pivotsBelowZeroZCombo->setCurrentIndex(s.value("pivots_below_z0", 0).toInt());
-    ui->moveBadPivotsCombo->setCurrentIndex(s.value("move_bad_pivots", 0).toInt());
-    ui->foliageCombo->setCurrentIndex(s.value("foliage", 0).toInt());
-    ui->groundRotateTextureCombo->setCurrentIndex(s.value("rotate_ground", 0).toInt());
-    ui->tileEdgeChamfersCombo->setCurrentIndex(s.value("chamfer", 0).toInt());
-    ui->retileGroundPlanesCombo->setCurrentIndex(s.value("tile_ground", 0).toInt());
-    ui->cullInvisibleCheck->setChecked(s.value("invisible_mesh_cull", false).toBool());
-    ui->changeWokMatCheck->setChecked(s.value("map_aabb_material", false).toBool());
-    ui->changeWokMatGroupBox->setEnabled(s.value("map_aabb_material", false).toBool());
-    ui->allowSplittingCheck->setChecked(s.value("allow_split", false).toBool());
-    ui->waterFixupsCheck->setChecked(s.value("do_water", false).toBool());
-    ui->waterFrame->setEnabled(s.value("do_water", false).toBool());
-    ui->waterBitmapKeys->setText(s.value("water_key").toString());
-    ui->groundBitmapKeys->setText(s.value("ground_key").toString());
-    ui->splotchBitmapKeys->setText(s.value("splotch_key").toString());
-    ui->foliageBitmapKeys->setText(s.value("foliage_key").toString());
-    ui->subObjectSpin->setValue(s.value("min_size", 0).toInt());
-    ui->meshMergeCheck->setChecked(s.value("merge_by_bitmap", false).toBool());
-    ui->placeableWithTransparencyCheck->setChecked(s.value("placeable_with_transparency", false).toBool());
-    ui->animateSplotchesCheck->setChecked(s.value("animate_splotches", false).toBool());
-    ui->forceWhiteCheck->setChecked(s.value("force_white", false).toBool());
-    ui->transparentBitmapKeys->setText(s.value("transparency_key").toString());
-    ui->waveHeightSpin->setValue(s.value("wave_height", 0.0).toDouble());
-    ui->changeWokMatFromSpin->setValue(s.value("map_aabb_from", 0).toInt());
-    ui->changeWokMatToSpin->setValue(s.value("map_aabb_to", 0).toInt());
-    ui->rescaleXSpin->setValue(s.value("rescale_x", 1.0).toDouble());
-    ui->rescaleYSpin->setValue(s.value("rescale_y", 1.0).toDouble());
-    ui->rescaleZSpin->setValue(s.value("rescale_z", 1.0).toDouble());
+    m_filePattern->setText(s.value(Setting::Pattern, "*.mdl").toString());
+    m_classificationCombo->setCurrentIndex(s.value(Setting::Classification, 0).toInt());
+
+    // Fixes
+    m_allFixesCheck->setChecked(s.value(Setting::AllFixes, true).toBool());
+    m_checkValidate->setChecked(s.value(Setting::FixValidate, true).toBool());
+    m_checkStripDegen->setChecked(s.value(Setting::FixStripDegen, true).toBool());
+    m_checkFixAnims->setChecked(s.value(Setting::FixAnimations, true).toBool());
+    m_checkRepairPivots->setChecked(s.value(Setting::FixPivots, true).toBool());
+    m_checkFixTilefade->setChecked(s.value(Setting::FixTilefade, true).toBool());
+    m_checkTilefadeUndo->setChecked(s.value(Setting::TilefadeUndo, false).toBool());
+    m_checkRebuildAABB->setChecked(s.value(Setting::FixAabb, true).toBool());
+    m_checkReparentChildren->setChecked(s.value(Setting::FixReparent, true).toBool());
+    m_checkWrapRoot->setChecked(s.value(Setting::FixWrapRoot, true).toBool());
+    m_checkSplitMultiEdge->setChecked(s.value(Setting::FixSplitMultiedge, true).toBool());
+
+    // Advanced
+    m_scaleXSpin->setValue(s.value(Setting::RescaleX, 1.0).toDouble());
+    m_scaleYSpin->setValue(s.value(Setting::RescaleY, 1.0).toDouble());
+    m_scaleZSpin->setValue(s.value(Setting::RescaleZ, 1.0).toDouble());
+    m_snapCombo->setCurrentIndex(s.value(Setting::Snap, 0).toInt());
+    m_tvertSnapCombo->setCurrentIndex(s.value(Setting::TvertSnap, 0).toInt());
+    m_renderCombo->setCurrentIndex(s.value(Setting::RenderMode, 0).toInt());
+    m_shadowCombo->setCurrentIndex(s.value(Setting::ShadowMode, 0).toInt());
+    m_forceWhiteCheck->setChecked(s.value(Setting::ForceWhite, false).toBool());
+    m_mergeByBitmapCheck->setChecked(s.value(Setting::MergeByBitmap, false).toBool());
+    m_cullInvisibleCheck->setChecked(s.value(Setting::InvisibleMeshCull, false).toBool());
+    m_placeableTransCheck->setChecked(s.value(Setting::PlaceableTrans, false).toBool());
+    m_transparencyKeyEdit->setText(s.value(Setting::TransparencyKey, "glass").toString());
+
+    // Tiles
+    m_sliceHeightSpin->setValue(s.value(Setting::SliceHeight, 20.0).toDouble());
+    m_waterEnableCheck->setChecked(s.value(Setting::DoWater, false).toBool());
+    m_dynamicWaterCombo->setCurrentIndex(s.value(Setting::DynamicWater, 0).toInt());
+    m_waveHeightSpin->setValue(s.value(Setting::WaveHeight, 0.1).toDouble());
+    m_waterKeyEdit->setText(s.value(Setting::WaterKey, "water").toString());
+    m_rotateWaterCombo->setCurrentIndex(s.value(Setting::RotateWater, 0).toInt());
+    m_retileWaterCombo->setCurrentIndex(s.value(Setting::TileWater, 0).toInt());
+    m_foliageCombo->setCurrentIndex(s.value(Setting::Foliage, 0).toInt());
+    m_foliageKeyEdit->setText(s.value(Setting::FoliageKey, "trefol").toString());
+    m_animateSplotchesCheck->setChecked(s.value(Setting::AnimateSplotches, false).toBool());
+    m_splotchKeyEdit->setText(s.value(Setting::SplotchKey).toString());
+    m_rotateGroundCombo->setCurrentIndex(s.value(Setting::RotateGround, 0).toInt());
+    m_chamferCombo->setCurrentIndex(s.value(Setting::ChamferMode, 0).toInt());
+    m_retileGroundCombo->setCurrentIndex(s.value(Setting::TileGround, 0).toInt());
+    m_groundKeyEdit->setText(s.value(Setting::GroundKey).toString());
+    m_raiseLowerCombo->setCurrentIndex(s.value(Setting::TileRaise, 0).toInt());
+    m_raiseAmountSpin->setValue(s.value(Setting::TileRaiseAmount, 1.0).toDouble());
+    m_remapWokMatCheck->setChecked(s.value(Setting::MapAabbMaterial, false).toBool());
+    m_wokMatFromSpin->setValue(s.value(Setting::MapAabbFrom, 0).toInt());
+    m_wokMatToSpin->setValue(s.value(Setting::MapAabbTo, 0).toInt());
+
+    // Pivots
+    m_pivotAllowSplitCheck->setChecked(s.value(Setting::AllowSplit, false).toBool());
+    m_pivotBelowZ0Combo->setCurrentIndex(s.value(Setting::PivotsBelowZ0, 0).toInt());
+    m_pivotMoveBadCombo->setCurrentIndex(s.value(Setting::MoveBadPivots, 0).toInt());
+    m_pivotSmoothingCombo->setCurrentIndex(s.value(Setting::SmoothingGroups, 0).toInt());
+    m_pivotMinFacesSpin->setValue(s.value(Setting::MinSize, 4).toInt());
+    m_pivotSplitFirstCombo->setCurrentIndex(s.value(Setting::SplitFirst, 0).toInt());
+
+    // Camera
+    if (m_viewport) {
+        Camera &cam = m_viewport->camera();
+        cam.setRotationSensitivity(s.value(Setting::CameraRotSens, Camera::DefaultRotationSensitivity).toFloat());
+        cam.setPanScale(s.value(Setting::CameraPanScale, Camera::DefaultPanScale).toFloat());
+        cam.setZoomFactor(s.value(Setting::CameraZoomFactor, Camera::DefaultZoomFactor).toFloat());
+    }
+
+    // Layout visibility
+    bool sidebarVis = s.value(Setting::SidebarVisible, true).toBool();
+    m_sidebarWidget->setVisible(sidebarVis);
+    m_sidebarToggleBtn->setText(sidebarVis ? "Hide Sidebar" : "Show Sidebar");
+    m_sidebarToggleBtn->setVisible(!sidebarVis);
+
+    m_rawLogVisible = s.value(Setting::RawLogVisible, false).toBool();
+    m_rawLogDrawer->setVisible(m_rawLogVisible);
 
     s.endGroup();
 }
@@ -277,71 +1066,95 @@ void MainWindow::loadSettings()
 void MainWindow::saveSettings()
 {
     QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    s.beginGroup("options");
+    s.beginGroup(Setting::OptionsGroup);
 
-    s.setValue("indir", m_sInDir);
-    s.setValue("outdir", m_sOutDir);
-    s.setValue("pattern", ui->filePattern->text());
-    s.setValue("logfile", ui->logFileName->text());
-    s.setValue("summary_log", ui->summaryLogFileName->text());
-    s.setValue("classification", ui->modelClassCombo->currentIndex());
-    s.setValue("snap", ui->snapCombo->currentIndex());
-    s.setValue("tvert_snap", ui->snapTVertsCombo->currentIndex());
-    s.setValue("smoothing_groups", ui->smoothingGroupsCombo->currentIndex());
-    s.setValue("fix_overhangs", ui->repairAABBCombo->currentIndex());
-    s.setValue("dynamic_water", ui->dynamicWaterCombo->currentIndex());
-    s.setValue("rotate_water", ui->waterRotateTextureCombo->currentIndex());
-    s.setValue("tile_water", ui->retileWaterCombo->currentIndex());
-    s.setValue("tile_raise", ui->raiseLowerCombo->currentIndex());
-    s.setValue("tile_raise_amount", ui->raiseLowerAmountSpin->value());
-    s.setValue("slice", ui->sliceForTileFadeCombo->currentIndex());
-    s.setValue("render", ui->renderTrimeshCombo->currentIndex());
-    s.setValue("shadow", ui->renderShadowsCombo->currentIndex());
-    s.setValue("repivot", ui->repivotCombo->currentIndex());
-    s.setValue("pivots_below_z0", ui->pivotsBelowZeroZCombo->currentIndex());
-    s.setValue("move_bad_pivots", ui->moveBadPivotsCombo->currentIndex());
-    s.setValue("foliage", ui->foliageCombo->currentIndex());
-    s.setValue("rotate_ground", ui->groundRotateTextureCombo->currentIndex());
-    s.setValue("chamfer", ui->tileEdgeChamfersCombo->currentIndex());
-    s.setValue("tile_ground", ui->retileGroundPlanesCombo->currentIndex());
-    s.setValue("invisible_mesh_cull", ui->cullInvisibleCheck->isChecked());
-    s.setValue("map_aabb_material", ui->changeWokMatCheck->isChecked());
-    s.setValue("allow_split", ui->allowSplittingCheck->isChecked());
-    s.setValue("do_water", ui->waterFixupsCheck->isChecked());
-    s.setValue("water_key", ui->waterBitmapKeys->text());
-    s.setValue("ground_key", ui->groundBitmapKeys->text());
-    s.setValue("splotch_key", ui->splotchBitmapKeys->text());
-    s.setValue("foliage_key", ui->foliageBitmapKeys->text());
-    s.setValue("min_size", ui->subObjectSpin->value());
-    s.setValue("merge_by_bitmap", ui->meshMergeCheck->isChecked());
-    s.setValue("placeable_with_transparency", ui->placeableWithTransparencyCheck->isChecked());
-    s.setValue("animate_splotches", ui->animateSplotchesCheck->isChecked());
-    s.setValue("force_white", ui->forceWhiteCheck->isChecked());
-    s.setValue("transparency_key", ui->transparentBitmapKeys->text());
-    s.setValue("wave_height", ui->waveHeightSpin->value());
-    s.setValue("map_aabb_from", ui->changeWokMatFromSpin->value());
-    s.setValue("map_aabb_to", ui->changeWokMatToSpin->value());
-    s.setValue("rescale_x", ui->rescaleXSpin->value());
-    s.setValue("rescale_y", ui->rescaleYSpin->value());
-    s.setValue("rescale_z", ui->rescaleZSpin->value());
+    s.setValue(Setting::InDir, m_sInDir);
+    s.setValue(Setting::OutDir, m_sOutDir);
+    s.setValue(Setting::Pattern, m_filePattern->text());
+    s.setValue(Setting::Classification, m_classificationCombo->currentIndex());
+
+    s.setValue(Setting::AllFixes, m_allFixesCheck->isChecked());
+    s.setValue(Setting::FixValidate, m_checkValidate->isChecked());
+    s.setValue(Setting::FixStripDegen, m_checkStripDegen->isChecked());
+    s.setValue(Setting::FixAnimations, m_checkFixAnims->isChecked());
+    s.setValue(Setting::FixPivots, m_checkRepairPivots->isChecked());
+    s.setValue(Setting::FixTilefade, m_checkFixTilefade->isChecked());
+    s.setValue(Setting::TilefadeUndo, m_checkTilefadeUndo->isChecked());
+    s.setValue(Setting::FixAabb, m_checkRebuildAABB->isChecked());
+    s.setValue(Setting::FixReparent, m_checkReparentChildren->isChecked());
+    s.setValue(Setting::FixWrapRoot, m_checkWrapRoot->isChecked());
+    s.setValue(Setting::FixSplitMultiedge, m_checkSplitMultiEdge->isChecked());
+
+    s.setValue(Setting::RescaleX, m_scaleXSpin->value());
+    s.setValue(Setting::RescaleY, m_scaleYSpin->value());
+    s.setValue(Setting::RescaleZ, m_scaleZSpin->value());
+    s.setValue(Setting::Snap, m_snapCombo->currentIndex());
+    s.setValue(Setting::TvertSnap, m_tvertSnapCombo->currentIndex());
+    s.setValue(Setting::RenderMode, m_renderCombo->currentIndex());
+    s.setValue(Setting::ShadowMode, m_shadowCombo->currentIndex());
+    s.setValue(Setting::ForceWhite, m_forceWhiteCheck->isChecked());
+    s.setValue(Setting::MergeByBitmap, m_mergeByBitmapCheck->isChecked());
+    s.setValue(Setting::InvisibleMeshCull, m_cullInvisibleCheck->isChecked());
+    s.setValue(Setting::PlaceableTrans, m_placeableTransCheck->isChecked());
+    s.setValue(Setting::TransparencyKey, m_transparencyKeyEdit->text());
+
+    s.setValue(Setting::SliceHeight, m_sliceHeightSpin->value());
+    s.setValue(Setting::DoWater, m_waterEnableCheck->isChecked());
+    s.setValue(Setting::DynamicWater, m_dynamicWaterCombo->currentIndex());
+    s.setValue(Setting::WaveHeight, m_waveHeightSpin->value());
+    s.setValue(Setting::WaterKey, m_waterKeyEdit->text());
+    s.setValue(Setting::RotateWater, m_rotateWaterCombo->currentIndex());
+    s.setValue(Setting::TileWater, m_retileWaterCombo->currentIndex());
+    s.setValue(Setting::Foliage, m_foliageCombo->currentIndex());
+    s.setValue(Setting::FoliageKey, m_foliageKeyEdit->text());
+    s.setValue(Setting::AnimateSplotches, m_animateSplotchesCheck->isChecked());
+    s.setValue(Setting::SplotchKey, m_splotchKeyEdit->text());
+    s.setValue(Setting::RotateGround, m_rotateGroundCombo->currentIndex());
+    s.setValue(Setting::ChamferMode, m_chamferCombo->currentIndex());
+    s.setValue(Setting::TileGround, m_retileGroundCombo->currentIndex());
+    s.setValue(Setting::GroundKey, m_groundKeyEdit->text());
+    s.setValue(Setting::TileRaise, m_raiseLowerCombo->currentIndex());
+    s.setValue(Setting::TileRaiseAmount, m_raiseAmountSpin->value());
+    s.setValue(Setting::MapAabbMaterial, m_remapWokMatCheck->isChecked());
+    s.setValue(Setting::MapAabbFrom, m_wokMatFromSpin->value());
+    s.setValue(Setting::MapAabbTo, m_wokMatToSpin->value());
+
+    s.setValue(Setting::AllowSplit, m_pivotAllowSplitCheck->isChecked());
+    s.setValue(Setting::PivotsBelowZ0, m_pivotBelowZ0Combo->currentIndex());
+    s.setValue(Setting::MoveBadPivots, m_pivotMoveBadCombo->currentIndex());
+    s.setValue(Setting::SmoothingGroups, m_pivotSmoothingCombo->currentIndex());
+    s.setValue(Setting::MinSize, m_pivotMinFacesSpin->value());
+    s.setValue(Setting::SplitFirst, m_pivotSplitFirstCombo->currentIndex());
+
+    // Camera
+    if (m_viewport) {
+        const Camera &cam = m_viewport->camera();
+        s.setValue(Setting::CameraRotSens, static_cast<double>(cam.rotationSensitivity()));
+        s.setValue(Setting::CameraPanScale, static_cast<double>(cam.panScale()));
+        s.setValue(Setting::CameraZoomFactor, static_cast<double>(cam.zoomFactor()));
+    }
+
+    // Layout visibility
+    s.setValue(Setting::SidebarVisible, m_sidebarWidget->isVisible());
+    s.setValue(Setting::RawLogVisible, m_rawLogVisible);
 
     s.endGroup();
 }
 
-void MainWindow::closeEvent(QCloseEvent*)
+void MainWindow::closeEvent(QCloseEvent *)
 {
     writeSettings();
     saveSettings();
 }
 
+// ---------------------------------------------------------------------------
+// Menu actions
+// ---------------------------------------------------------------------------
 void MainWindow::onLoadConfigTriggered()
 {
-    QFileDialog fileDialog;
-    fileDialog.setAcceptMode(QFileDialog::AcceptMode::AcceptOpen);
-    QStringList nameFilters;
-    nameFilters.append("Clean Models Config (*.ini)");
-    nameFilters.append("Legacy Config (*.cm *.pl)");
-    fileDialog.setNameFilters(nameFilters);
+    QFileDialog fileDialog(this);
+    fileDialog.setAcceptMode(QFileDialog::AcceptOpen);
+    fileDialog.setNameFilters({"Clean Models Config (*.ini)", "Legacy Config (*.cm *.pl)"});
     fileDialog.setDirectory(QDir::currentPath());
     if (fileDialog.exec())
     {
@@ -357,14 +1170,11 @@ void MainWindow::onLoadConfigTriggered()
 void MainWindow::onSaveConfigTriggered()
 {
     saveSettings();
-
-    QFileDialog fileDialog;
-    fileDialog.setAcceptMode(QFileDialog::AcceptMode::AcceptSave);
+    QFileDialog fileDialog(this);
+    fileDialog.setAcceptMode(QFileDialog::AcceptSave);
     fileDialog.setFileMode(QFileDialog::AnyFile);
     fileDialog.setDefaultSuffix("ini");
-    QStringList nameFilters;
-    nameFilters.append("Clean Models Config (*.ini)");
-    fileDialog.setNameFilters(nameFilters);
+    fileDialog.setNameFilters({"Clean Models Config (*.ini)"});
     fileDialog.setDirectory(QDir::currentPath());
     if (fileDialog.exec())
     {
@@ -378,60 +1188,55 @@ void MainWindow::onSaveConfigTriggered()
 
 void MainWindow::onAboutTriggered()
 {
-    QMessageBox::about(this, tr("About Clean Models:EE QT"),
-                       tr("A front end to Clean Models, a utility to tidy up 3d models\n"
-                          "for usage in Neverwinter Nights: Enhanced Edition.\n\n"
-                          "Powered by cleanmodels (Go CLI)."));
+    QMessageBox::about(this, "About Clean Models:EE",
+                       "Clean Models:EE\n\n"
+                       "A tool to validate, repair, and compile 3D models\n"
+                       "for Neverwinter Nights: Enhanced Edition.\n\n"
+                       "Powered by cleanmodels (Go CLI).\n"
+                       "Press F5 to clean.");
 }
 
-void MainWindow::onHelpTriggered()
-{
-    QWhatsThis::enterWhatsThisMode();
-}
+void MainWindow::onHelpTriggered() { QWhatsThis::enterWhatsThisMode(); }
 
 void MainWindow::onQuitTriggered()
 {
-    if (m_bCleanRunning)
-        m_pCleanProcess->kill();
-
+    if (m_bCleanRunning) m_pCleanProcess->kill();
     QApplication::quit();
 }
 
-void MainWindow::copyToClipboard()
+// ---------------------------------------------------------------------------
+// Directory / file listing
+// ---------------------------------------------------------------------------
+void MainWindow::onUpdateInDir(const QString &newInDir)
 {
-    auto *selectedFile = ui->filesTable->selectedItems()[0];
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setText(m_sInDir % "/" % selectedFile->text());
+    m_dirWatcherTimer->stop();
+    if (!m_sInDir.isEmpty()) m_fsWatcher.removePath(m_sInDir);
+    m_bFilesHaveChanged = false;
+    m_fsWatcher.addPath(newInDir);
+    m_inDirectory->setText(newInDir);
+    m_inDirectory->setStyleSheet("");
+    m_sInDir = newInDir;
+    m_cleanButton->setEnabled(true);
+    updateFileListing();
+    m_dirWatcherTimer->start();
+    populateRefModelCombo();
 }
 
-void MainWindow::on_cleanButton_released()
+void MainWindow::populateRefModelCombo()
 {
-    doClean();
-}
-
-void MainWindow::on_decompileCheck_stateChanged(int arg1)
-{
-    if (arg1 == Qt::Unchecked)
-    {
-        ui->cleanButton->setText(tr("Clean"));
-        ui->cleanButton->setIcon(m_iconCleanButton);
-        ui->mdlsCleanedLabel->setText(tr("Files Cleaned: 0"));
-        ui->classSnapBox->setDisabled(false);
-        ui->tilesTab->setDisabled(false);
-        ui->coreFixesBox->setDisabled(false);
-        ui->pivotFrame->setDisabled(false);
-        ui->rescaleFrame->setDisabled(false);
+    QString current = m_refModelCombo->currentData().toString();
+    m_refModelCombo->clear();
+    m_refModelCombo->addItem("(none)");
+    if (!m_sInDir.isEmpty()) {
+        QDir dir(m_sInDir);
+        dir.setNameFilters({"*.mdl"});
+        dir.setFilter(QDir::Files | QDir::Readable);
+        for (const QString &f : dir.entryList())
+            m_refModelCombo->addItem(f, dir.absoluteFilePath(f));
     }
-    else
-    {
-        ui->cleanButton->setText(tr("Decompile"));
-        ui->cleanButton->setIcon(m_iconDecompileButton);
-        ui->mdlsCleanedLabel->setText(tr("Files Decompiled: 0"));
-        ui->classSnapBox->setDisabled(true);
-        ui->tilesTab->setDisabled(true);
-        ui->coreFixesBox->setDisabled(true);
-        ui->pivotFrame->setDisabled(true);
-        ui->rescaleFrame->setDisabled(true);
+    if (!current.isEmpty()) {
+        int idx = m_refModelCombo->findData(current);
+        if (idx >= 0) m_refModelCombo->setCurrentIndex(idx);
     }
 }
 
@@ -448,363 +1253,126 @@ void MainWindow::handleDirWatcherTimer()
     {
         m_bFilesHaveChanged = false;
         if (m_bCleanRunning)
-        {
             m_bUpdateFilesAfterClean = true;
-        }
         else
             updateFileListing();
     }
 }
 
+QString MainWindow::humanFileSize(qint64 bytes)
+{
+    if (bytes < 1024)
+        return QString::number(bytes) + " B";
+    if (bytes < 1024 * 1024)
+        return QString::number(bytes / 1024.0, 'f', 1) + " KB";
+    return QString::number(bytes / (1024.0 * 1024.0), 'f', 1) + " MB";
+}
+
 void MainWindow::updateFileListing()
 {
-    ui->filesTable->setRowCount(0);
-    auto pattern = ui->filePattern->text();
-    QDir dir(ui->inDirectory->text());
-    dir.setNameFilters((QStringList(pattern)));
+    m_filesTable->setRowCount(0);
+    QDir dir(m_inDirectory->text());
+    dir.setNameFilters(QStringList(m_filePattern->text()));
     dir.setFilter(QDir::Files | QDir::NoDotAndDotDot | QDir::Readable | QDir::CaseSensitive);
     QStringList totalfiles = dir.entryList();
-    ui->mdlsDetectedLabel->setText(tr("Files detected: ") % QString::number(totalfiles.count()));
-    if (!ui->decompileCheck->isChecked())
-        ui->mdlsCleanedLabel->setText(tr("Files Cleaned: 0"));
-    else
-        ui->mdlsCleanedLabel->setText(tr("Files Decompiled: 0"));
-    ui->mdlsFailedLabel->setText(tr("Failures: 0"));
+    m_mdlsDetectedLabel->setText("Detected: " + QString::number(totalfiles.count()));
+    m_mdlsCleanedLabel->setText(
+        m_radioCompile->isChecked() ? "Compiled: 0" :
+        m_radioDecompile->isChecked() ? "Decompiled: 0" : "Cleaned: 0");
+    m_mdlsFailedLabel->setText("Failed: 0");
 
     for (const QString &filePath : totalfiles)
     {
-        QFile inputFile(ui->inDirectory->text() % "/" % filePath);
+        QFile inputFile(m_inDirectory->text() + "/" + filePath);
         QTextStream stream(&inputFile);
-        if (!inputFile.open(QIODevice::ReadOnly))
-            continue;
-        if (!inputFile.isOpen())
-            continue;
+        if (!inputFile.open(QIODevice::ReadOnly)) continue;
         auto line = stream.readLine().trimmed().toStdString();
         inputFile.close();
         auto isASCII = std::all_of(line.begin(), line.end(), ::isprint);
-        auto *fileNameItem = new QTableWidgetItem(filePath);
-        fileNameItem->setIcon(isASCII ? m_iconASCIIMdl : m_iconBinaryMdl);
-        fileNameItem->setToolTip(isASCII ? tr("ASCII MDL") : tr("Binary MDL"));
-        auto *fileSizeItem = new QTableWidgetItem();
-        fileSizeItem->setText(QString::number(inputFile.size()));
-        auto *fixesItem = new QTableWidgetItem("0");
+        auto *fileNameItem = new QTableWidgetItem();
+        fileNameItem->setText((isASCII ? QString::fromUtf8("📄 ") : QString::fromUtf8("📦 ")) + filePath);
+        fileNameItem->setData(Qt::UserRole, filePath);
+        fileNameItem->setToolTip(isASCII ? "ASCII MDL" : "Binary MDL");
+        auto *fileSizeItem = new QTableWidgetItem(humanFileSize(inputFile.size()));
+        fileSizeItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        fileSizeItem->setData(Qt::UserRole, inputFile.size());
+        auto *statusItem = new QTableWidgetItem("Pending");
+        statusItem->setTextAlignment(Qt::AlignCenter);
+        auto *fixesItem = new QTableWidgetItem();
         fixesItem->setTextAlignment(Qt::AlignCenter);
-        auto *timerItem = new QTableWidgetItem("00:00.000");
+        auto *timerItem = new QTableWidgetItem();
         timerItem->setTextAlignment(Qt::AlignCenter);
-        int row = ui->filesTable->rowCount();
-        ui->filesTable->insertRow(row);
-        ui->filesTable->setItem(row, 0, fileNameItem);
-        ui->filesTable->setItem(row, 1, fileSizeItem);
-        ui->filesTable->setItem(row, 3, fixesItem);
-        ui->filesTable->setItem(row, 4, timerItem);
+        int row = m_filesTable->rowCount();
+        m_filesTable->insertRow(row);
+        m_filesTable->setItem(row, 0, fileNameItem);
+        m_filesTable->setItem(row, 1, fileSizeItem);
+        m_filesTable->setItem(row, 2, statusItem);
+        m_filesTable->setItem(row, 3, fixesItem);
+        m_filesTable->setItem(row, 4, timerItem);
     }
 }
 
-void MainWindow::onUpdateInDir(const QString& newInDir)
+void MainWindow::copyToClipboard()
 {
-    m_dirWatcherTimer->stop();
-    if (!m_sInDir.isEmpty())
-        m_fsWatcher.removePath(m_sInDir);
-    m_bFilesHaveChanged = false;
-    m_fsWatcher.addPath(newInDir);
-    ui->inDirectory->setText(newInDir);
-    m_sInDir = newInDir;
-    updateFileListing();
-    m_dirWatcherTimer->start();
+    if (m_filesTable->selectedItems().isEmpty()) return;
+    auto *selectedFile = m_filesTable->item(m_filesTable->currentRow(), 0);
+    QApplication::clipboard()->setText(m_sInDir + "/" + selectedFile->data(Qt::UserRole).toString());
 }
 
-void MainWindow::on_indirButton_released()
+// ---------------------------------------------------------------------------
+// Sidebar / raw-log / detail panel
+// ---------------------------------------------------------------------------
+void MainWindow::toggleSidebar()
 {
-    QFileDialog dialog(this);
-    QStringList inDirectory;
-    dialog.setFileMode(QFileDialog::Directory);
-    dialog.setOption(QFileDialog::ShowDirsOnly,true);
-    dialog.setDirectory(m_sInDir);
-    dialog.setLabelText(QFileDialog::Accept, tr("Set"));
-    if ( dialog.exec() )
-    {
-        inDirectory = dialog.selectedFiles();
-        onUpdateInDir(inDirectory.at(0));
+    bool visible = m_sidebarWidget->isVisible();
+    m_sidebarWidget->setVisible(!visible);
+    m_sidebarToggleBtn->setText(visible ? "Show Sidebar" : "Hide Sidebar");
+    m_sidebarToggleBtn->setVisible(visible);
+}
+
+void MainWindow::toggleRawLog()
+{
+    m_rawLogVisible = !m_rawLogVisible;
+    m_rawLogDrawer->setVisible(m_rawLogVisible);
+}
+
+void MainWindow::showFileDetails(const QString &fileName)
+{
+    if (m_fileResults.contains(fileName)) {
+        m_detailPanel->setHtml(m_fileResults[fileName].join(""));
+    } else {
+        m_detailPanel->setHtml("<p style='color:gray;'>No results yet for this file.</p>");
     }
 }
 
-void MainWindow::on_inDirectory_textChanged(const QString &arg1)
+void MainWindow::showBatchSummary()
 {
-    const QFileInfo inputDir(arg1);
-    QDir dir(QDir::currentPath());
-    QString s, f;
-    s = dir.relativeFilePath(arg1);
-    f = dir.absoluteFilePath(arg1);
-    if ((!inputDir.exists()) || (!inputDir.isDir()) || (!inputDir.isWritable()))
-    {
-        if (QFile(s).exists())
-        {
-            ui->inDirectory->setStatusTip(tr("Input folder resolved as ") %f);
-            ui->inDirectory->setStyleSheet("");
+    if (m_batchSummary.isEmpty()) {
+        m_detailPanel->setHtml("");
+        return;
+    }
+    m_detailPanel->setHtml("<p><b>" + m_batchSummary.toHtmlEscaped() + "</b></p>");
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        for (const QUrl &url : event->mimeData()->urls()) {
+            if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir()) {
+                event->acceptProposedAction();
+                return;
+            }
         }
-        else
-            ui->inDirectory->setStyleSheet("color: #FF0000");
-    }
-    else
-    {
-        ui->inDirectory->setStatusTip(tr("Input folder resolved as ") %f);
-        ui->inDirectory->setStyleSheet("");
     }
 }
 
-void MainWindow::on_inDirectory_editingFinished()
+void MainWindow::dropEvent(QDropEvent *event)
 {
-    const QFileInfo outputDir(ui->inDirectory->text());
-    if ((!outputDir.exists()) || (!outputDir.isDir()) || (!outputDir.isWritable()))
-    {
-        ui->inDirectory->setStyleSheet("color: #FF0000");
-        ui->cleanButton->setEnabled(false);
-        ui->cleanButton->setToolTip(tr("Action disabled until valid input directory set."));
+    for (const QUrl &url : event->mimeData()->urls()) {
+        QString path = url.toLocalFile();
+        if (QFileInfo(path).isDir()) {
+            onUpdateInDir(path);
+            return;
+        }
     }
-    else
-    {
-        ui->inDirectory->setStyleSheet("");
-        ui->cleanButton->setEnabled(true);
-        ui->cleanButton->setToolTip(tr("Perform action."));
-        onUpdateInDir(ui->inDirectory->text());
-    }
-}
-
-void MainWindow::on_outdirButton_released()
-{
-    QFileDialog dialog(this);
-    QStringList outDirectory;
-    dialog.setFileMode(QFileDialog::Directory);
-    dialog.setOption(QFileDialog::ShowDirsOnly,true);
-    dialog.setDirectory(m_sOutDir);
-    dialog.setLabelText(QFileDialog::Accept, tr("Set"));
-    if ( dialog.exec() )
-    {
-        outDirectory = dialog.selectedFiles();
-        ui->outDirectory->setText(outDirectory.at(0));
-        m_sOutDir = ui->outDirectory->text();
-    }
-}
-
-void MainWindow::on_outDirectory_textChanged(const QString &arg1)
-{
-    const QFileInfo outputDir(arg1);
-    QDir dir(QDir::currentPath());
-    ui->outDirectory->setStatusTip(tr("Output folder resolved as ") % dir.absoluteFilePath(arg1));
-}
-
-void MainWindow::on_outDirectory_editingFinished()
-{
-    m_sOutDir = ui->outDirectory->text();
-    const QFileInfo outputDir(m_sOutDir);
-    QDir dir(QDir::currentPath());
-    QString f = dir.absoluteFilePath(m_sOutDir);
-    ui->outDirectory->setStatusTip(tr("Output folder resolved as ") % f);
-}
-
-void MainWindow::on_filePattern_textChanged(const QString &)
-{
-    m_dirWatcherTimer->stop();
-    m_bFilesHaveChanged = false;
-    updateFileListing();
-    m_dirWatcherTimer->start();
-}
-
-void MainWindow::on_modelClassCombo_currentIndexChanged(int index)
-{
-    if (!index || index == 5)
-    {
-        if (ui->mainTabs->count() == 1)
-            ui->mainTabs->addTab(ui->tilesTab, "Tiles");
-    }
-    else
-    {
-        if (ui->mainTabs->count() == 2)
-            ui->mainTabs->removeTab(1);
-    }
-    ui->rescaleFrame->setEnabled(index != 5);
-    ui->placeableWithTransparencyCheck->setEnabled(index <= 1);
-    if (index <= 1 && ui->placeableWithTransparencyCheck->isChecked())
-        ui->transparentBitmapKeys->setEnabled(true);
-}
-
-void MainWindow::on_snapCombo_currentIndexChanged(int) {}
-void MainWindow::on_snapTVertsCombo_currentIndexChanged(int) {}
-void MainWindow::on_renderShadowsCombo_currentIndexChanged(int) {}
-
-void MainWindow::on_repivotCombo_currentIndexChanged(int index)
-{
-    ui->repivotBox->setEnabled(index <= 1);
-}
-
-void MainWindow::on_allowSplittingCheck_toggled(bool checked)
-{
-    ui->allowSplittingFrame->setEnabled(checked);
-}
-
-void MainWindow::on_subObjectSpin_editingFinished() {}
-void MainWindow::on_smoothingGroupsCombo_currentIndexChanged(int) {}
-void MainWindow::on_splitFirstCombo_currentIndexChanged(int) {}
-
-void MainWindow::on_pivotsBelowZeroZCombo_currentIndexChanged(int) {}
-void MainWindow::on_moveBadPivotsCombo_currentIndexChanged(int) {}
-void MainWindow::on_forceWhiteCheck_toggled(bool) {}
-
-void MainWindow::on_repairAABBCombo_currentIndexChanged(int) {}
-
-void MainWindow::on_changeWokMatCheck_toggled(bool checked)
-{
-    ui->changeWokMatGroupBox->setEnabled(checked);
-}
-
-void MainWindow::on_raiseLowerCombo_currentIndexChanged(int index)
-{
-    ui->raiseLowerAmountSpin->setEnabled(index >= 1);
-}
-
-void MainWindow::on_raiseLowerAmountSpin_editingFinished() {}
-
-void MainWindow::on_sliceForTileFadeCombo_currentIndexChanged(int index)
-{
-    ui->sliceHeightFrame->setEnabled(index == 0);
-}
-
-void MainWindow::on_foliageCombo_currentIndexChanged(int index)
-{
-    ui->foliageBitmapKeys->setEnabled(index != 4);
-    ui->foliageBitmapKeysLabel->setEnabled(index != 4);
-}
-
-void MainWindow::on_groundRotateTextureCombo_currentIndexChanged(int)
-{
-    bool showGroundTextEdit = ui->groundRotateTextureCombo->currentIndex() ||
-                              ui->retileGroundPlanesCombo->currentIndex() ||
-                              ui->tileEdgeChamfersCombo->currentIndex();
-    ui->groundBitmapKeys->setEnabled(showGroundTextEdit);
-    ui->groundBitmapKeysLabel->setEnabled(showGroundTextEdit);
-}
-
-void MainWindow::on_tileEdgeChamfersCombo_currentIndexChanged(int)
-{
-    bool showGroundTextEdit = ui->groundRotateTextureCombo->currentIndex() ||
-                              ui->retileGroundPlanesCombo->currentIndex() ||
-                              ui->tileEdgeChamfersCombo->currentIndex();
-    ui->groundBitmapKeys->setEnabled(showGroundTextEdit);
-    ui->groundBitmapKeysLabel->setEnabled(showGroundTextEdit);
-}
-
-void MainWindow::on_retileGroundPlanesCombo_currentIndexChanged(int)
-{
-    bool showGroundTextEdit = ui->groundRotateTextureCombo->currentIndex() ||
-                              ui->retileGroundPlanesCombo->currentIndex() ||
-                              ui->tileEdgeChamfersCombo->currentIndex();
-    ui->groundBitmapKeys->setEnabled(showGroundTextEdit);
-    ui->groundBitmapKeysLabel->setEnabled(showGroundTextEdit);
-}
-
-void MainWindow::on_meshMergeCheck_toggled(bool) {}
-
-void MainWindow::on_placeableWithTransparencyCheck_toggled(bool checked)
-{
-    if (checked && ui->modelClassCombo->currentIndex() <= 1)
-        ui->transBitmapKeyFrame->setEnabled(true);
-    else
-        ui->transBitmapKeyFrame->setEnabled(false);
-}
-
-void MainWindow::on_animateSplotchesCheck_toggled(bool checked)
-{
-    ui->splotchBitmapKeysLabel->setEnabled(checked);
-    ui->splotchBitmapKeys->setEnabled(checked);
-}
-
-void MainWindow::on_transparentBitmapKeys_editingFinished() {}
-void MainWindow::on_cullInvisibleCheck_toggled(bool) {}
-void MainWindow::on_renderTrimeshCombo_currentIndexChanged(int) {}
-void MainWindow::on_changeWokMatFromSpin_editingFinished() {}
-void MainWindow::on_changeWokMatToSpin_editingFinished() {}
-
-void MainWindow::on_waterFixupsCheck_toggled(bool checked)
-{
-    ui->waterFrame->setEnabled(checked);
-}
-
-void MainWindow::on_waterBitmapKeys_editingFinished() {}
-void MainWindow::on_foliageBitmapKeys_editingFinished() {}
-void MainWindow::on_splotchBitmapKeys_editingFinished() {}
-void MainWindow::on_groundBitmapKeys_editingFinished() {}
-
-void MainWindow::on_dynamicWaterCombo_currentIndexChanged(int index)
-{
-    ui->waveHeightFrame->setEnabled(index == 2);
-    ui->retileWaterCombo->setEnabled(index != 2);
-    ui->retileWaterLabel->setEnabled(index != 2);
-}
-
-void MainWindow::on_waveHeightSpin_editingFinished() {}
-void MainWindow::on_waterRotateTextureCombo_currentIndexChanged(int) {}
-void MainWindow::on_retileWaterCombo_currentIndexChanged(int) {}
-
-void MainWindow::on_filesTable_customContextMenuRequested(const QPoint &pos)
-{
-    QPoint globalPos = ui->filesTable->mapToGlobal(pos);
-    QMenu myMenu;
-    myMenu.addAction(tr("Copy path to clipboard"), this, SLOT(copyToClipboard()));
-    myMenu.exec(globalPos);
-}
-
-void MainWindow::on_filesTable_doubleClicked(const QModelIndex &index)
-{
-    QString cellText = index.siblingAtColumn(0).data().toString();
-    ui->debugTextBrowser->moveCursor(QTextCursor::Start);
-    if (!ui->debugTextBrowser->find(cellText))
-        ui->debugTextBrowser->moveCursor(QTextCursor::End);
-
-    if (m_viewport && !cellText.isEmpty() && !m_sInDir.isEmpty())
-    {
-        QString fullPath = m_sInDir + "/" + cellText;
-        m_viewport->previewFile(fullPath);
-    }
-}
-
-void MainWindow::setRescaleOption()
-{
-    // Settings are saved at close via saveSettings()
-}
-
-void MainWindow::on_rescaleLockBtn_clicked(bool checked)
-{
-    if (checked)
-    {
-        ui->rescaleLockBtn->setIcon(m_iconLockRescaleBtn);
-    }
-    else
-        ui->rescaleLockBtn->setIcon(m_iconUnlockRescaleBtn);
-
-    ui->rescaleYSpin->setValue(ui->rescaleXSpin->value());
-    ui->rescaleZSpin->setValue(ui->rescaleXSpin->value());
-    ui->rescaleYSpin->setEnabled(!checked);
-    ui->rescaleZSpin->setEnabled(!checked);
-}
-
-void MainWindow::on_rescaleXSpin_valueChanged(double arg1)
-{
-    if (ui->rescaleLockBtn->isChecked())
-    {
-        QSignalBlocker blockY(ui->rescaleYSpin);
-        QSignalBlocker blockZ(ui->rescaleZSpin);
-        ui->rescaleYSpin->setValue(arg1);
-        ui->rescaleZSpin->setValue(arg1);
-    }
-    setRescaleOption();
-}
-
-void MainWindow::on_rescaleYSpin_valueChanged(double)
-{
-    setRescaleOption();
-}
-
-void MainWindow::on_rescaleZSpin_valueChanged(double)
-{
-    setRescaleOption();
 }

@@ -23,6 +23,18 @@ public:
     void loadModel(const QString &asciiMdl, const QString &textureDir = QString());
     void clearModel();
 
+    void setWireframe(bool on);
+    bool wireframe() const;
+    void setShowGrid(bool on);
+    bool showGrid() const;
+
+    void loadReferenceFile(const QString &mdlPath);
+    void clearReference();
+    bool hasReference() const;
+
+    Camera &camera() { return m_camera; }
+    const Camera &camera() const { return m_camera; }
+
 signals:
     void modelLoaded(const QString &name);
     void previewError(const QString &msg);
@@ -38,6 +50,8 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
 private:
+    QString readMdlToAscii(const QString &mdlPath, QString *errorOut = nullptr);
+
     Renderer m_renderer;
     Camera m_camera;
     QString m_cliBinaryPath;

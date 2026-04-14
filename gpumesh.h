@@ -32,6 +32,8 @@ public:
     void destroy(QOpenGLFunctions_3_3_Core *gl);
 
     bool isValid() const { return m_vao != 0; }
+    GLuint vao() const { return m_vao; }
+    int indexCount() const { return m_indexCount; }
 
 private:
     GLuint m_vao = 0;

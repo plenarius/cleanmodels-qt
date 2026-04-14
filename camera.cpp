@@ -28,8 +28,8 @@ QMatrix4x4 Camera::projectionMatrix() const
 
 void Camera::rotate(float dx, float dy)
 {
-    m_yaw -= dx * 0.01f;
-    m_pitch += dy * 0.01f;
+    m_yaw -= dx * m_rotSens;
+    m_pitch += dy * m_rotSens;
     m_pitch = std::clamp(m_pitch, -1.5f, 1.5f);
 }
 
@@ -40,13 +40,13 @@ void Camera::pan(float dx, float dy)
     QVector3D right = QVector3D::crossProduct(forward, up).normalized();
     QVector3D camUp = QVector3D::crossProduct(right, forward).normalized();
 
-    float scale = m_distance * 0.002f;
+    float scale = m_distance * m_panScale;
     m_target += right * (-dx * scale) + camUp * (dy * scale);
 }
 
 void Camera::zoom(float delta)
 {
-    m_distance *= (1.0f - delta * 0.1f);
+    m_distance *= (1.0f - delta * m_zoomFactor);
     m_distance = std::clamp(m_distance, 0.1f, 10000.0f);
 }
 

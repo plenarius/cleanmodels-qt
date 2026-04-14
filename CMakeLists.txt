@@ -22,6 +22,7 @@ add_executable(${PROJECT_NAME}
     gputexture.cpp
     renderer.cpp
     modelviewport.cpp
+    constants.h
     icons.qrc
     mainwindow.ui
 )

@@ -31,7 +31,17 @@ public:
 
     void prepareScene(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
                       const QString &textureDir = QString());
+    void prepareReferenceModel(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
+                               const QString &textureDir = QString());
+    void clearReferenceModel(QOpenGLFunctions_3_3_Core *gl);
     void render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera);
+
+    void setWireframe(bool on) { m_wireframe = on; }
+    bool wireframe() const { return m_wireframe; }
+    void setShowReference(bool on) { m_showReference = on; }
+    bool showReference() const { return m_showReference; }
+    void setShowGrid(bool on) { m_showGrid = on; }
+    bool showGrid() const { return m_showGrid; }
 
     GLuint program() const { return m_program; }
     int renderNodeCount() const { return static_cast<int>(m_renderNodes.size()); }
@@ -52,16 +62,26 @@ private:
     GLint m_locTexture = -1;
 
     GLuint m_whiteTex = 0;
+    bool m_wireframe = false;
+    bool m_showReference = false;
+    bool m_showGrid = true;
     std::vector<RenderNode> m_renderNodes;
+    std::vector<RenderNode> m_referenceNodes;
+    std::unique_ptr<GpuMesh> m_gridMesh;
     QString m_textureDir;
 
     GLuint compileShader(QOpenGLFunctions_3_3_Core *gl, GLenum type, const char *src);
     GLuint linkProgram(QOpenGLFunctions_3_3_Core *gl, GLuint vert, GLuint frag);
+    void destroyRenderNodes(QOpenGLFunctions_3_3_Core *gl, std::vector<RenderNode> &nodes);
 
     void buildRenderNodes(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
-                          int nodeIdx, const QMatrix4x4 &parentWorld);
+                          int nodeIdx, const QMatrix4x4 &parentWorld,
+                          std::vector<RenderNode> &target);
     void uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node,
-                        const QMatrix4x4 &worldTransform);
+                        const QMatrix4x4 &worldTransform,
+                        std::vector<RenderNode> &target);
+    void renderNodes(QOpenGLFunctions_3_3_Core *gl, const std::vector<RenderNode> &nodes, bool wireframe);
+    void buildGrid(QOpenGLFunctions_3_3_Core *gl);
 
     QString resolveTexturePath(const QString &bitmap) const;
 };
