@@ -82,7 +82,7 @@ QString ModelViewport::readMdlToAscii(const QString &mdlPath, QString *errorOut)
 
         QProcess proc;
         proc.setProgram(m_cliBinaryPath);
-        proc.setArguments({CliFlag::DecompileOnly, mdlPath});
+        proc.setArguments({CliCommand::Decompile, mdlPath});
         proc.start(QIODevice::ReadOnly);
 
         if (!proc.waitForFinished(CliDefaults::ProcessTimeoutMs)) {

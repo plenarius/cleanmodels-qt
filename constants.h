@@ -46,9 +46,16 @@ namespace CliDefaults {
 // ---------------------------------------------------------------------------
 // CLI flags — single source of truth for flag strings passed to cleanmodels
 // ---------------------------------------------------------------------------
+namespace CliCommand {
+    constexpr const char *Repair    = "repair";
+    constexpr const char *Decompile = "decompile";
+    constexpr const char *Compile   = "compile";
+    constexpr const char *Check     = "check";
+}
+
 namespace CliFlag {
     constexpr const char *JsonLines       = "--json-lines";
-    constexpr const char *DecompileOnly   = "--decompile-only";
+    constexpr const char *DecompileOnly   = "--decompile-only";  // legacy only
     constexpr const char *Check           = "--check";
     constexpr const char *StripDegenerate = "--strip-degenerate";
     constexpr const char *FixAnimations   = "--fix-animations";

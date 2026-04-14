@@ -212,18 +212,18 @@ void MainWindow::onCaptureCleanModelsOutput()
 QStringList MainWindow::buildCliArgs()
 {
     QStringList args;
-    args << CliFlag::JsonLines;
 
     if (m_radioDecompile->isChecked())
     {
-        args << CliFlag::DecompileOnly;
+        args << CliCommand::Decompile << CliFlag::JsonLines;
     }
     else if (m_radioCompile->isChecked())
     {
-        args << CliFlag::Compile;
+        args << CliCommand::Compile << CliFlag::JsonLines;
     }
     else
     {
+        args << CliCommand::Repair << CliFlag::JsonLines;
         // Validation checks
         if (m_checkValidate->isChecked())
             args << CliFlag::Check;
