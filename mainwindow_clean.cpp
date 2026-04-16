@@ -96,8 +96,15 @@ void MainWindow::onCaptureCleanModelsOutput()
                 }
                 else
                 {
-                    int sev = check["severity"].toInt();
-                    QString sevLabel = sev >= 2 ? "ERROR" : sev == 1 ? "WARN" : "INFO";
+                    QString sevLabel;
+                    QJsonValue sevVal = check["severity"];
+                    if (sevVal.isString()) {
+                        QString s = sevVal.toString();
+                        sevLabel = (s == "error" || s == "fatal") ? "ERROR" : s == "warning" ? "WARN" : "INFO";
+                    } else {
+                        int sev = sevVal.toInt();
+                        sevLabel = sev >= 2 ? "ERROR" : sev == 1 ? "WARN" : "INFO";
+                    }
                     findings << QString("%1: %2").arg(sevLabel, msg);
                     allTooltipLines << QString("%1: %2").arg(sevLabel, msg);
                 }
