@@ -1,5 +1,0 @@
-/Users/james/Projects/cleanmodels-qt/build/CMakeFiles/cleanmodels-qt.dir
-/Users/james/Projects/cleanmodels-qt/build/CMakeFiles/edit_cache.dir
-/Users/james/Projects/cleanmodels-qt/build/CMakeFiles/rebuild_cache.dir
-/Users/james/Projects/cleanmodels-qt/build/CMakeFiles/cleanmodels-qt_autogen_timestamp_deps.dir
-/Users/james/Projects/cleanmodels-qt/build/CMakeFiles/cleanmodels-qt_autogen.dir
