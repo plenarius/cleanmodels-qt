@@ -1,6 +1,7 @@
 #ifndef MDLSCENE_H
 #define MDLSCENE_H
 
+#include <QMatrix4x4>
 #include <QVector3D>
 #include <QQuaternion>
 #include <QString>
@@ -53,6 +54,8 @@ private:
     QVector<MdlNode> m_nodes;
 
     void parseNodeBlock(const QStringList &lines, int &pos);
+    void computeBoundsRecursive(int idx, const QMatrix4x4 &parentWorld,
+                                QVector3D &bmin, QVector3D &bmax, bool &any) const;
 };
 
 #endif

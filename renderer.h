@@ -38,13 +38,9 @@ public:
 
     void setWireframe(bool on) { m_wireframe = on; }
     bool wireframe() const { return m_wireframe; }
-    void setShowReference(bool on) { m_showReference = on; }
     bool showReference() const { return m_showReference; }
     void setShowGrid(bool on) { m_showGrid = on; }
     bool showGrid() const { return m_showGrid; }
-
-    GLuint program() const { return m_program; }
-    int renderNodeCount() const { return static_cast<int>(m_renderNodes.size()); }
 
 private:
     GLuint m_program = 0;
@@ -80,7 +76,12 @@ private:
     void uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node,
                         const QMatrix4x4 &worldTransform,
                         std::vector<RenderNode> &target);
-    void renderNodes(QOpenGLFunctions_3_3_Core *gl, const std::vector<RenderNode> &nodes, bool wireframe);
+    struct MaterialOverride {
+        QVector3D diffuse, ambient;
+        bool active;
+    };
+    void renderNodes(QOpenGLFunctions_3_3_Core *gl, const std::vector<RenderNode> &nodes,
+                     bool wireframe, const MaterialOverride &matOverride = {QVector3D(), QVector3D(), false});
     void buildGrid(QOpenGLFunctions_3_3_Core *gl);
 
     QString resolveTexturePath(const QString &bitmap) const;

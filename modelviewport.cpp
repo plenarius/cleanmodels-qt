@@ -3,17 +3,11 @@
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 
 ModelViewport::ModelViewport(QWidget *parent)
     : QOpenGLWidget(parent)
 {
-    QSurfaceFormat fmt;
-    fmt.setVersion(GLDefaults::MajorVersion, GLDefaults::MinorVersion);
-    fmt.setProfile(QSurfaceFormat::CoreProfile);
-    fmt.setDepthBufferSize(GLDefaults::DepthBits);
-    fmt.setSamples(GLDefaults::Samples);
-    setFormat(fmt);
-
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
 }
@@ -61,7 +55,7 @@ void ModelViewport::paintGL()
     m_renderer.render(this, m_camera);
 }
 
-static bool fileIsBinary(const QString &path)
+bool ModelViewport::fileIsBinaryMdl(const QString &path)
 {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly))
@@ -73,7 +67,7 @@ static bool fileIsBinary(const QString &path)
 
 QString ModelViewport::readMdlToAscii(const QString &mdlPath, QString *errorOut)
 {
-    if (fileIsBinary(mdlPath))
+    if (fileIsBinaryMdl(mdlPath))
     {
         if (m_cliBinaryPath.isEmpty()) {
             if (errorOut) *errorOut = "CLI binary path not set";
@@ -85,7 +79,13 @@ QString ModelViewport::readMdlToAscii(const QString &mdlPath, QString *errorOut)
         proc.setArguments({CliCommand::Decompile, mdlPath});
         proc.start(QIODevice::ReadOnly);
 
-        if (!proc.waitForFinished(CliDefaults::ProcessTimeoutMs)) {
+        QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+        bool finished = proc.waitForFinished(CliDefaults::ProcessTimeoutMs);
+        QGuiApplication::restoreOverrideCursor();
+
+        if (!finished) {
+            proc.kill();
+            proc.waitForFinished(1000);
             if (errorOut) *errorOut = "CLI timed out decompiling " + mdlPath;
             return {};
         }
@@ -144,7 +144,6 @@ void ModelViewport::loadModel(const QString &asciiMdl, const QString &textureDir
 
     m_hasModel = true;
     update();
-    emit modelLoaded("model");
 }
 
 void ModelViewport::clearModel()

@@ -104,6 +104,36 @@ static QLabel *smallLabel(const QString &text)
     return lbl;
 }
 
+QFormLayout *MainWindow::makeStandardForm(int spacing)
+{
+    auto *form = new QFormLayout;
+    form->setSpacing(spacing);
+    form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    form->setLabelAlignment(Qt::AlignLeft);
+    return form;
+}
+
+void MainWindow::updateModeUI()
+{
+    bool cleanMode = m_radioClean->isChecked();
+    if (m_radioDecompile->isChecked()) {
+        m_cleanButton->setText("Decompile");
+        m_cleanButton->setIcon(m_iconDecompileButton);
+    } else if (m_radioCompile->isChecked()) {
+        m_cleanButton->setText("Compile");
+        m_cleanButton->setIcon(m_iconCleanButton);
+    } else {
+        m_cleanButton->setText("Clean");
+        m_cleanButton->setIcon(m_iconCleanButton);
+    }
+    m_allFixesCheck->setEnabled(cleanMode);
+    m_fixesDetailWidget->setEnabled(cleanMode);
+    m_advancedGroup->setEnabled(cleanMode);
+    m_tileGroup->setEnabled(cleanMode);
+    m_pivotGroup->setEnabled(cleanMode);
+}
+
 void MainWindow::buildUi()
 {
     auto *central = ui->centralWidget;
@@ -122,11 +152,7 @@ void MainWindow::buildUi()
     sidebarLayout->setSpacing(0);
 
     // ── I/O paths — all 4 rows in one QFormLayout for uniform spacing ─
-    auto *ioForm = new QFormLayout;
-    ioForm->setSpacing(Layout::DefaultSpacing);
-    ioForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-    ioForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
-    ioForm->setLabelAlignment(Qt::AlignLeft);
+    auto *ioForm = makeStandardForm(Layout::DefaultSpacing);
     ioForm->setContentsMargins(0, 0, 0, 0);
 
     m_indirButton = new QPushButton(style()->standardIcon(QStyle::SP_DirOpenIcon), "");
@@ -297,11 +323,7 @@ void MainWindow::buildUi()
         }
     });
 
-    auto *meshForm = new QFormLayout;
-    meshForm->setSpacing(Layout::CompactSpacing);
-    meshForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-    meshForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
-    meshForm->setLabelAlignment(Qt::AlignLeft);
+    auto *meshForm = makeStandardForm();
     m_snapCombo = new QComboBox; fillCombo(m_snapCombo, Options::Snap);
     m_snapCombo->setToolTip("Snap vertex positions to a grid (reduces file size)");
     m_tvertSnapCombo = new QComboBox; fillCombo(m_tvertSnapCombo, Options::TvertSnap);
@@ -359,11 +381,7 @@ void MainWindow::buildUi()
     tileLayout->setContentsMargins(Layout::GroupMarginH, Layout::GroupMarginTop, Layout::GroupMarginH, Layout::GroupMarginBottom);
     tileLayout->setSpacing(Layout::RootMargin);
 
-    auto *tileForm = new QFormLayout;
-    tileForm->setSpacing(Layout::CompactSpacing);
-    tileForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-    tileForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
-    tileForm->setLabelAlignment(Qt::AlignLeft);
+    auto *tileForm = makeStandardForm();
 
     m_sliceHeightSpin = new QDoubleSpinBox; m_sliceHeightSpin->setRange(1, 100); m_sliceHeightSpin->setValue(20.0); m_sliceHeightSpin->setDecimals(1);
     m_sliceHeightSpin->setToolTip("Height at which to slice geometry for tilefade (in 10cm units)");
@@ -413,12 +431,9 @@ void MainWindow::buildUi()
     tileLayout->addWidget(m_waterEnableCheck);
 
     auto *waterWidget = new QWidget;
-    auto *waterForm = new QFormLayout(waterWidget);
+    auto *waterForm = makeStandardForm();
+    waterWidget->setLayout(waterForm);
     waterForm->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
-    waterForm->setSpacing(Layout::CompactSpacing);
-    waterForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-    waterForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
-    waterForm->setLabelAlignment(Qt::AlignLeft);
     m_waterKeyEdit = new QLineEdit("water");
     m_waterKeyEdit->setToolTip("Bitmap name substring identifying water meshes");
     m_dynamicWaterCombo = new QComboBox; fillCombo(m_dynamicWaterCombo, Options::DynamicWater);
@@ -496,11 +511,7 @@ void MainWindow::buildUi()
     m_pivotSplitFirstCombo->setToolTip("Whether to split convex or concave regions first");
 
     pivotLayout->addWidget(m_pivotAllowSplitCheck);
-    auto *pivotForm = new QFormLayout;
-    pivotForm->setSpacing(Layout::CompactSpacing);
-    pivotForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-    pivotForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
-    pivotForm->setLabelAlignment(Qt::AlignLeft);
+    auto *pivotForm = makeStandardForm();
     pivotForm->addRow("Below Z=0:", m_pivotBelowZ0Combo);
     pivotForm->addRow("Move bad:", m_pivotMoveBadCombo);
     pivotForm->addRow("Smoothing:", m_pivotSmoothingCombo);
@@ -732,26 +743,8 @@ void MainWindow::buildUi()
 
     connect(m_inDirectory, &QLineEdit::editingFinished, this, &MainWindow::populateRefModelCombo);
 
-    auto updateModeUI = [this]() {
-        bool cleanMode = m_radioClean->isChecked();
-        if (m_radioDecompile->isChecked()) {
-            m_cleanButton->setText("Decompile");
-            m_cleanButton->setIcon(m_iconDecompileButton);
-        } else if (m_radioCompile->isChecked()) {
-            m_cleanButton->setText("Compile");
-            m_cleanButton->setIcon(m_iconCleanButton);
-        } else {
-            m_cleanButton->setText("Clean");
-            m_cleanButton->setIcon(m_iconCleanButton);
-        }
-        m_allFixesCheck->setEnabled(cleanMode);
-        m_fixesDetailWidget->setEnabled(cleanMode);
-        m_advancedGroup->setEnabled(cleanMode);
-        m_tileGroup->setEnabled(cleanMode);
-        m_pivotGroup->setEnabled(cleanMode);
-    };
-    connect(m_radioDecompile, &QRadioButton::toggled, this, updateModeUI);
-    connect(m_radioCompile, &QRadioButton::toggled, this, updateModeUI);
+    connect(m_radioDecompile, &QRadioButton::toggled, this, &MainWindow::updateModeUI);
+    connect(m_radioCompile, &QRadioButton::toggled, this, &MainWindow::updateModeUI);
 
     connect(m_filesTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
         if (m_filesTable->selectedItems().isEmpty()) return;
@@ -930,9 +923,11 @@ MainWindow::MainWindow(QWidget *parent) :
 
 MainWindow::~MainWindow()
 {
+    if (m_pCleanProcess->state() != QProcess::NotRunning) {
+        m_pCleanProcess->kill();
+        m_pCleanProcess->waitForFinished(3000);
+    }
     delete ui;
-    m_pCleanProcess->close();
-    delete m_pCleanProcess;
 }
 
 // ---------------------------------------------------------------------------
@@ -1283,12 +1278,11 @@ void MainWindow::updateFileListing()
 
     for (const QString &filePath : totalfiles)
     {
-        QFile inputFile(m_inDirectory->text() + "/" + filePath);
-        QTextStream stream(&inputFile);
+        QString fullPath = m_inDirectory->text() + "/" + filePath;
+        QFile inputFile(fullPath);
         if (!inputFile.open(QIODevice::ReadOnly)) continue;
-        auto line = stream.readLine().trimmed().toStdString();
         inputFile.close();
-        auto isASCII = std::all_of(line.begin(), line.end(), ::isprint);
+        bool isASCII = !ModelViewport::fileIsBinaryMdl(fullPath);
         auto *fileNameItem = new QTableWidgetItem();
         fileNameItem->setText((isASCII ? QString::fromUtf8("📄 ") : QString::fromUtf8("📦 ")) + filePath);
         fileNameItem->setData(Qt::UserRole, filePath);

@@ -61,29 +61,34 @@ bool GpuTexture::loadTGA(QOpenGLFunctions_3_3_Core *gl, const QString &path)
 
     int channels = bpp / 8;
     int pixelDataOffset = 18 + idLen;
-    int expectedSize = pixelDataOffset + width * height * channels;
+
+    int64_t pixelCount = static_cast<int64_t>(width) * height;
+    constexpr int64_t kMaxTexturePixels = 8192LL * 8192;
+    if (pixelCount <= 0 || pixelCount > kMaxTexturePixels) {
+        qWarning() << "GpuTexture: TGA dimensions too large or invalid" << width << "x" << height;
+        return false;
+    }
+
+    int64_t expectedSize = pixelDataOffset + pixelCount * channels;
 
     bool topOrigin = (descriptor & 0x20) != 0;
     bool hasAlpha  = (bpp == 32);
 
-    QByteArray rgba(width * height * 4, '\0');
+    QByteArray rgba(static_cast<qsizetype>(pixelCount * 4), '\0');
     auto *dst = reinterpret_cast<unsigned char *>(rgba.data());
     const auto *src = reinterpret_cast<const unsigned char *>(raw.constData()) + pixelDataOffset;
 
     if (imgType == 2) {
-        // Uncompressed
         if (raw.size() < expectedSize)
             return false;
 
-        for (int i = 0; i < width * height; ++i) {
+        for (int64_t i = 0; i < pixelCount; ++i) {
             dst[i * 4 + 0] = src[i * channels + 2]; // R (TGA stores BGR)
             dst[i * 4 + 1] = src[i * channels + 1]; // G
             dst[i * 4 + 2] = src[i * channels + 0]; // B
             dst[i * 4 + 3] = hasAlpha ? src[i * channels + 3] : 255;
         }
     } else {
-        // RLE compressed (type 10)
-        int pixelCount = width * height;
         int pixel = 0;
         int srcOff = pixelDataOffset;
 

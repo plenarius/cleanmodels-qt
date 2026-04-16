@@ -50,12 +50,10 @@ namespace CliCommand {
     constexpr const char *Repair    = "repair";
     constexpr const char *Decompile = "decompile";
     constexpr const char *Compile   = "compile";
-    constexpr const char *Check     = "check";
 }
 
 namespace CliFlag {
     constexpr const char *JsonLines       = "--json-lines";
-    constexpr const char *DecompileOnly   = "--decompile-only";  // legacy only
     constexpr const char *Check           = "--check";
     constexpr const char *StripDegenerate = "--strip-degenerate";
     constexpr const char *FixAnimations   = "--fix-animations";
@@ -100,7 +98,6 @@ namespace CliFlag {
     constexpr const char *RaiseLower      = "--raise-lower";
     constexpr const char *RaiseAmount     = "--raise-amount";
     constexpr const char *RemapWalkmesh   = "--remap-walkmesh-material";
-    constexpr const char *Compile         = "--compile";
     constexpr const char *TilefadeUndo    = "--tilefade-undo";
 }
 

@@ -32,7 +32,7 @@ void MainWindow::onCaptureCleanModelsOutput()
         QJsonDocument doc = QJsonDocument::fromJson(line, &jsonErr);
         if (jsonErr.error != QJsonParseError::NoError || !doc.isObject())
         {
-            appendDebugHtml("<span>" % QString::fromUtf8(line) % "</span><br>");
+            appendDebugHtml("<span>" % QString::fromUtf8(line).toHtmlEscaped() % "</span><br>");
             continue;
         }
 
@@ -60,7 +60,7 @@ void MainWindow::onCaptureCleanModelsOutput()
                 m_pStatusProgress->setValue(idx);
             }
 
-            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Info) % ";\"><b>Processing " % file % "</b></span></p><br>");
+            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Info) % ";\"><b>Processing " % file.toHtmlEscaped() % "</b></span></p><br>");
 
             int row = findModelRow(file);
             if (row >= 0)
@@ -116,7 +116,7 @@ void MainWindow::onCaptureCleanModelsOutput()
                 allTooltipLines << QString::fromUtf8("\xe2\x9c\x93 ") % r.toString();
             }
 
-            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Success) % ";\"><b>" % file % " " % actionVerbPast.toLower() % " (" % QString::number(fixes) % " fixes)</b></span></p>");
+            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Success) % ";\"><b>" % file.toHtmlEscaped() % " " % actionVerbPast.toLower() % " (" % QString::number(fixes) % " fixes)</b></span></p>");
 
             QString detailHtml;
             if (!fixDetails.isEmpty())
@@ -150,7 +150,7 @@ void MainWindow::onCaptureCleanModelsOutput()
 
             int selectedRow = m_filesTable->currentRow();
             if (selectedRow >= 0 && selectedRow < m_filesTable->rowCount()
-                && m_filesTable->item(selectedRow, 0)->text() == file)
+                && m_filesTable->item(selectedRow, 0)->data(Qt::UserRole).toString() == file)
                 showFileDetails(file);
 
             int row = findModelRow(file);
@@ -183,7 +183,7 @@ void MainWindow::onCaptureCleanModelsOutput()
             QString msg = evt["message"].toString();
             QString elapsedStr = QTime(0, 0).addMSecs(m_cleanTimer.elapsed()).toString("mm:ss.zzz");
 
-            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Error) % ";\"><b>" % file % ": " % msg.toHtmlEscaped() % "</b></span></p><br>");
+            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Error) % ";\"><b>" % file.toHtmlEscaped() % ": " % msg.toHtmlEscaped() % "</b></span></p><br>");
 
             QStringList errorHtml;
             errorHtml << "<p style='color:" % QLatin1String(LogColor::SevError) % ";'><b>" % file.toHtmlEscaped() % " — Error</b></p>";
@@ -192,7 +192,7 @@ void MainWindow::onCaptureCleanModelsOutput()
 
             int selectedRow = m_filesTable->currentRow();
             if (selectedRow >= 0 && selectedRow < m_filesTable->rowCount()
-                && m_filesTable->item(selectedRow, 0)->text() == file)
+                && m_filesTable->item(selectedRow, 0)->data(Qt::UserRole).toString() == file)
                 showFileDetails(file);
 
             int row = findModelRow(file);
@@ -433,7 +433,7 @@ void MainWindow::doClean()
 
     QStringList args = buildCliArgs();
 
-    appendDebugHtml("<span style=\"" % QLatin1String(LogColor::Command) % ";\">$ " % m_sBinaryPath % " " % args.join(" ") % "</span><br>");
+    appendDebugHtml("<span style=\"" % QLatin1String(LogColor::Command) % ";\">$ " % m_sBinaryPath.toHtmlEscaped() % " " % args.join(" ").toHtmlEscaped() % "</span><br>");
 
     m_pCleanProcess->setWorkingDirectory(QDir::currentPath());
     m_pCleanProcess->start(m_sBinaryPath, args, QIODevice::ReadOnly);
@@ -474,10 +474,7 @@ void MainWindow::onCleanFinished(int exitCode, QProcess::ExitStatus exitStatus)
 
     m_bCleanRunning = false;
 
-    m_cleanButton->setText(
-        m_radioCompile->isChecked() ? "Compile" :
-        m_radioDecompile->isChecked() ? "Decompile" : "Clean");
-    m_cleanButton->setIcon(m_iconCleanButton);
+    updateModeUI();
     m_cleanButton->setStyleSheet("");
     m_pCleanStatus->setText("Idle");
     m_pStatusProgress->setVisible(false);
@@ -499,13 +496,6 @@ void MainWindow::onCleanFinished(int exitCode, QProcess::ExitStatus exitStatus)
         appendDebugHtml(msg);
     }
 
-    int totalFixes = 0;
-    int totalWarnings = 0;
-    for (auto it = m_fileResults.constBegin(); it != m_fileResults.constEnd(); ++it)
-        for (const QString &line : it.value()) {
-            totalFixes += line.count("FixApplied");
-            totalWarnings += line.count("SevWarning") + line.count("SevError");
-        }
     m_batchSummary = QString("%1 files cleaned, %2 failed")
         .arg(m_nMdlsCleaned)
         .arg(m_nMdlsFailed);

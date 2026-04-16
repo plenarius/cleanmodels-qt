@@ -35,8 +35,9 @@ public:
     Camera &camera() { return m_camera; }
     const Camera &camera() const { return m_camera; }
 
+    static bool fileIsBinaryMdl(const QString &path);
+
 signals:
-    void modelLoaded(const QString &name);
     void previewError(const QString &msg);
 
 protected:

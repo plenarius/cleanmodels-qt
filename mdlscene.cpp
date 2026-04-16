@@ -54,6 +54,7 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
     }
     pos++;
 
+    constexpr int kMaxArraySize = 10'000'000;
     enum class ArrayMode { None, Verts, Faces, TVerts, Normals };
     ArrayMode mode = ArrayMode::None;
     int remaining = 0;
@@ -168,7 +169,7 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
         else if (key == "verts" && tokens.size() >= 2)
         {
             int count = tokens[1].toInt();
-            if (count > 0)
+            if (count > 0 && count <= kMaxArraySize)
             {
                 mode = ArrayMode::Verts;
                 remaining = count;
@@ -178,7 +179,7 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
         else if (key == "faces" && tokens.size() >= 2)
         {
             int count = tokens[1].toInt();
-            if (count > 0)
+            if (count > 0 && count <= kMaxArraySize)
             {
                 mode = ArrayMode::Faces;
                 remaining = count;
@@ -188,7 +189,7 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
         else if (key == "tverts" && tokens.size() >= 2)
         {
             int count = tokens[1].toInt();
-            if (count > 0)
+            if (count > 0 && count <= kMaxArraySize)
             {
                 mode = ArrayMode::TVerts;
                 remaining = count;
@@ -198,7 +199,7 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
         else if (key == "normals" && tokens.size() >= 2)
         {
             int count = tokens[1].toInt();
-            if (count > 0)
+            if (count > 0 && count <= kMaxArraySize)
             {
                 mode = ArrayMode::Normals;
                 remaining = count;
@@ -238,24 +239,48 @@ void MdlScene::computeBounds(QVector3D &bmin, QVector3D &bmax) const
 {
     bmin = QVector3D(FLT_MAX, FLT_MAX, FLT_MAX);
     bmax = QVector3D(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-    bool any = false;
-    for (const auto &node : m_nodes)
-    {
-        for (const auto &v : node.verts)
-        {
-            QVector3D world = v + node.position;
-            bmin.setX(std::min(bmin.x(), world.x()));
-            bmin.setY(std::min(bmin.y(), world.y()));
-            bmin.setZ(std::min(bmin.z(), world.z()));
-            bmax.setX(std::max(bmax.x(), world.x()));
-            bmax.setY(std::max(bmax.y(), world.y()));
-            bmax.setZ(std::max(bmax.z(), world.z()));
-            any = true;
-        }
+
+    int root = rootIndex();
+    if (root < 0) {
+        bmin = QVector3D(-1, -1, -1);
+        bmax = QVector3D(1, 1, 1);
+        return;
     }
-    if (!any)
-    {
+
+    QMatrix4x4 identity;
+    bool any = false;
+    computeBoundsRecursive(root, identity, bmin, bmax, any);
+
+    if (!any) {
         bmin = QVector3D(-1, -1, -1);
         bmax = QVector3D(1, 1, 1);
     }
+}
+
+void MdlScene::computeBoundsRecursive(int idx, const QMatrix4x4 &parentWorld,
+                                       QVector3D &bmin, QVector3D &bmax, bool &any) const
+{
+    const MdlNode &node = m_nodes[idx];
+
+    QMatrix4x4 local;
+    local.translate(node.position);
+    local.rotate(node.orientation);
+    if (node.scale != 1.0f)
+        local.scale(node.scale);
+    QMatrix4x4 world = parentWorld * local;
+
+    for (const auto &v : node.verts)
+    {
+        QVector3D wp = world.map(v);
+        bmin.setX(std::min(bmin.x(), wp.x()));
+        bmin.setY(std::min(bmin.y(), wp.y()));
+        bmin.setZ(std::min(bmin.z(), wp.z()));
+        bmax.setX(std::max(bmax.x(), wp.x()));
+        bmax.setY(std::max(bmax.y(), wp.y()));
+        bmax.setZ(std::max(bmax.z(), wp.z()));
+        any = true;
+    }
+
+    for (int c : childrenOf(idx))
+        computeBoundsRecursive(c, world, bmin, bmax, any);
 }

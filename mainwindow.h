@@ -20,6 +20,7 @@
 #include <QSplitter>
 #include <QTableWidget>
 #include <QTextBrowser>
+#include <QFormLayout>
 #include <QTimer>
 
 class FileSystemModel;
@@ -193,6 +194,11 @@ private:
 
     // --- Methods ---
     void buildUi();
+    QWidget *buildSidebar();
+    QWidget *buildWorkspace();
+    void connectSignals();
+    void updateModeUI();
+    static QFormLayout *makeStandardForm(int spacing = 4);
     QWidget *createCollapsibleGroup(const QString &title, QWidget **contentOut, bool startCollapsed = true);
     void onUpdateInDir(const QString &newInDir);
     void populateRefModelCombo();

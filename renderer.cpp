@@ -378,7 +378,8 @@ QString Renderer::resolveTexturePath(const QString &bitmap) const
 }
 
 void Renderer::renderNodes(QOpenGLFunctions_3_3_Core *gl,
-                           const std::vector<RenderNode> &nodes, bool wireframe)
+                           const std::vector<RenderNode> &nodes, bool wireframe,
+                           const MaterialOverride &matOverride)
 {
     for (const auto &rn : nodes)
     {
@@ -387,12 +388,19 @@ void Renderer::renderNodes(QOpenGLFunctions_3_3_Core *gl,
         QMatrix3x3 normalMat = rn.worldTransform.normalMatrix();
         gl->glUniformMatrix3fv(m_locNormalMatrix, 1, GL_FALSE, normalMat.constData());
 
-        gl->glUniform3f(m_locDiffuse, rn.diffuse.x(), rn.diffuse.y(), rn.diffuse.z());
-        gl->glUniform3f(m_locAmbient, rn.ambient.x(), rn.ambient.y(), rn.ambient.z());
-        gl->glUniform3f(m_locSpecular, rn.specular.x(), rn.specular.y(), rn.specular.z());
-        gl->glUniform1f(m_locShininess, rn.shininess);
+        if (matOverride.active) {
+            gl->glUniform3f(m_locDiffuse, matOverride.diffuse.x(), matOverride.diffuse.y(), matOverride.diffuse.z());
+            gl->glUniform3f(m_locAmbient, matOverride.ambient.x(), matOverride.ambient.y(), matOverride.ambient.z());
+            gl->glUniform3f(m_locSpecular, 0.0f, 0.0f, 0.0f);
+            gl->glUniform1f(m_locShininess, 1.0f);
+        } else {
+            gl->glUniform3f(m_locDiffuse, rn.diffuse.x(), rn.diffuse.y(), rn.diffuse.z());
+            gl->glUniform3f(m_locAmbient, rn.ambient.x(), rn.ambient.y(), rn.ambient.z());
+            gl->glUniform3f(m_locSpecular, rn.specular.x(), rn.specular.y(), rn.specular.z());
+            gl->glUniform1f(m_locShininess, rn.shininess);
+        }
 
-        if (!wireframe && rn.texture && rn.texture->isValid())
+        if (!wireframe && !matOverride.active && rn.texture && rn.texture->isValid())
             rn.texture->bind(gl, 0);
         else {
             gl->glActiveTexture(GL_TEXTURE0);
@@ -459,7 +467,6 @@ void Renderer::render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera)
         gl->glBindVertexArray(0);
     }
 
-    // Reference model (rendered as semi-transparent wireframe, offset to the side)
     if (m_showReference && !m_referenceNodes.empty())
     {
         gl->glDisable(GL_CULL_FACE);
@@ -467,23 +474,11 @@ void Renderer::render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera)
         gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         gl->glDepthMask(GL_FALSE);
 
-        for (const auto &rn : m_referenceNodes)
-        {
-            gl->glUniformMatrix4fv(m_locModel, 1, GL_FALSE, rn.worldTransform.constData());
-            QMatrix3x3 normalMat = rn.worldTransform.normalMatrix();
-            gl->glUniformMatrix3fv(m_locNormalMatrix, 1, GL_FALSE, normalMat.constData());
-
-            gl->glUniform3f(m_locDiffuse, ViewportColor::RefR, ViewportColor::RefG, ViewportColor::RefB);
-            gl->glUniform3f(m_locAmbient, ViewportColor::RefR, ViewportColor::RefG, ViewportColor::RefB);
-            gl->glUniform3f(m_locSpecular, 0.0f, 0.0f, 0.0f);
-            gl->glUniform1f(m_locShininess, 1.0f);
-
-            gl->glActiveTexture(GL_TEXTURE0);
-            gl->glBindTexture(GL_TEXTURE_2D, m_whiteTex);
-            gl->glUniform1i(m_locTexture, 0);
-
-            rn.mesh->drawWireframe(gl);
-        }
+        MaterialOverride refMat;
+        refMat.active = true;
+        refMat.diffuse = {ViewportColor::RefR, ViewportColor::RefG, ViewportColor::RefB};
+        refMat.ambient = refMat.diffuse;
+        renderNodes(gl, m_referenceNodes, true, refMat);
 
         gl->glDepthMask(GL_TRUE);
         gl->glEnable(GL_CULL_FACE);
