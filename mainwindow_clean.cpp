@@ -260,12 +260,21 @@ QStringList MainWindow::buildCliArgs()
         if (m_checkSplitMultiEdge->isChecked())
             args << CliFlag::SplitMultiedge;
 
-        // Scale (per-axis when Go supports it, uniform for now)
+        // Per-axis scaling
         double sx = m_scaleXSpin->value(), sy = m_scaleYSpin->value(), sz = m_scaleZSpin->value();
-        if (qAbs(sx - 1.0) > 0.001 || qAbs(sy - 1.0) > 0.001 || qAbs(sz - 1.0) > 0.001)
+        bool allSame = qAbs(sx - sy) < 0.001 && qAbs(sy - sz) < 0.001;
+        if (allSame && qAbs(sx - 1.0) > 0.001)
         {
-            double avg = (sx + sy + sz) / 3.0;
-            args << CliFlag::Scale << QString::number(avg, 'g', 6);
+            args << CliFlag::Scale << QString::number(sx, 'g', 6);
+        }
+        else
+        {
+            if (qAbs(sx - 1.0) > 0.001)
+                args << CliFlag::ScaleX << QString::number(sx, 'g', 6);
+            if (qAbs(sy - 1.0) > 0.001)
+                args << CliFlag::ScaleY << QString::number(sy, 'g', 6);
+            if (qAbs(sz - 1.0) > 0.001)
+                args << CliFlag::ScaleZ << QString::number(sz, 'g', 6);
         }
 
         // Classification override

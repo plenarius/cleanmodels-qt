@@ -65,6 +65,9 @@ namespace CliFlag {
     constexpr const char *WrapRoot        = "--wrap-root";
     constexpr const char *SplitMultiedge  = "--split-multiedge";
     constexpr const char *Scale           = "--scale";
+    constexpr const char *ScaleX          = "--scale-x";
+    constexpr const char *ScaleY          = "--scale-y";
+    constexpr const char *ScaleZ          = "--scale-z";
     constexpr const char *Classification  = "--classification";
     constexpr const char *Snap            = "--snap";
     constexpr const char *TvertSnap       = "--tvert-snap";

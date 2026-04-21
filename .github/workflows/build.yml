@@ -1,198 +1,90 @@
-name: Build Clean Models QT
+name: Build
 
 on:
   push:
-    branches:
-      - main
-    paths-ignore:
-      - '**.md'
+    branches: [main]
+    tags: ["v*"]
   pull_request:
-    branches:
-      - main
-    paths-ignore:
-      - '**.md'
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            target: windows-static
-            zip_name: cleanmodels-qt.windows-static.amd64
-            executable: cleanmodels-qt.exe
-            static_build: true
-          - os: ubuntu-latest
-            target: windows-shared
-            zip_name: cleanmodels-qt.windows-shared.amd64
-            executable: cleanmodels-qt.exe
-          - os: ubuntu-16.04
-            target: linux-static
-            zip_name: cleanmodels-qt.linux-static.amd64
-            executable: cleanmodels-qt
-            static_build: true
-          - os: ubuntu-latest
-            target: linux-shared
-            zip_name: cleanmodels-qt.linux-shared.amd64
-            executable: cleanmodels-qt
+            name: linux-amd64
+            qt_arch: linux_gcc_64
           - os: macos-latest
-            target: macosx-static
-            zip_name: cleanmodels-qt.macosx-static.amd64
-            executable: cleanmodels-qt
-            static_build: true
-          - os: macos-latest
-            target: macosx-shared
-            zip_name: cleanmodels-qt.macosx-shared.amd64
-            executable: cleanmodels-qt
-
-    name: Building ${{ matrix.zip_name }}
+            name: macos-arm64
+            qt_arch: clang_64
+          - os: windows-latest
+            name: windows-amd64
+            qt_arch: win64_msvc2022_64
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.name }}
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
 
-    - name: Get QT Build Deps
-      if: matrix.target == 'linux-static'
-      run: |
-        sudo apt-get update
-        sudo apt-get install libxkbcommon-dev libxkbcommon-x11-dev '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.7.*"
+          modules: qtopengl
+          cache: true
 
-    - name: Checkout QT
-      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static')
-      uses: actions/checkout@v2
-      with:
-        repository: qt/qt5
-        path: qt5
-        ref: 5.15.2
+      - name: Install OpenGL (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev
 
-    - name: Get qtbase
-      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static')
-      working-directory: ./qt5
-      run: git submodule update --init --depth 1 -- qtbase
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
-    - name: Build QT Static
-      if: (matrix.target == 'linux-static' || matrix.target == 'macosx-static')
-      run: |
-        mkdir qt_build
-        cd qt_build
-        ../qt5/configure -v -prefix "${{ github.workspace }}/Qt" -static -release -optimize-size -ltcg -make libs -no-pch -no-zlib -qt-harfbuzz -qt-pcre -qt-libpng -no-libjpeg -no-libmd4c -nomake tools -nomake examples -nomake tests -no-feature-accessibility -no-feature-accessibility-atspi-bridge -no-feature-android-style-assets -no-feature-animation -no-feature-appstore-compliant -no-feature-avx2 -no-feature-bearermanagement -no-feature-calendarwidget -no-feature-clock-gettime -no-feature-colordialog -no-feature-commandlinkbutton -no-feature-concatenatetablesproxymodel -no-feature-cross_compile -no-feature-cups -no-feature-datetimeedit -no-feature-datetimeparser -no-feature-desktopservices -no-feature-dial -no-feature-direct2d -no-feature-direct2d1_1 -no-feature-directfb -no-feature-drm_atomic -no-feature-dtls -no-feature-easingcurve -no-feature-effects -no-feature-fontcombobox -no-feature-fontdialog -no-feature-ftp -no-feature-future -no-feature-gestures -no-feature-gif -no-feature-gssapi -no-feature-gtk3 -no-feature-hijricalendar -no-feature-ico -no-feature-identityproxymodel -no-feature-im -no-feature-imageformatplugin -no-feature-image_heuristic_mask -no-feature-image_text -no-feature-islamiccivilcalendar -no-feature-itemmodeltester -no-feature-jalalicalendar -no-feature-jpeg -no-feature-keysequenceedit -no-feature-kms -no-feature-lcdnumber -no-feature-linkat -no-feature-lttng -no-feature-mdiarea -no-feature-mimetype-database -no-feature-movie -no-feature-network -no-feature-ocsp -no-feature-opengl -no-feature-opengles2 -no-feature-opengles3 -no-feature-opengles31 -no-feature-opengles32 -no-feature-openssl -no-feature-pdf -no-feature-picture -no-feature-printdialog -no-feature-printer -no-feature-printpreviewdialog -no-feature-printpreviewwidget -no-feature-raster-64bit -no-feature-release_tools -no-feature-relocatable -no-feature-sha3-fast -no-feature-sql -no-feature-sqlmodel -no-feature-sql-mysql -no-feature-sql-odbc -no-feature-sql-psql -no-feature-sql-sqlite -no-feature-sql-sqlite2 -no-feature-sql-tds -no-feature-statemachine -no-feature-style-android -no-feature-style-mac -no-feature-style-windowsvista -no-feature-syntaxhighlighter -no-feature-systemtrayicon -no-feature-system-textmarkdownreader -no-feature-tabletevent -no-feature-testlib -no-feature-textmarkdownreader -no-feature-textmarkdownwriter -no-feature-textodfwriter -no-feature-timezone -no-feature-treewidget -no-feature-tuiotouch -no-feature-valgrind -no-feature-vnc -no-feature-wizard -no-feature-xmlstreamwriter -no-feature-zstd -opensource -confirm-license -skip qt3d -skip qtactiveqt -skip qtandroidextras -skip qtcharts -skip qtdatavis3d -skip qtdeclarative -skip qtgamepad -skip qtlocation -skip qtlottie -skip qtmultimedia -skip qtpim -skip qtpurchasing -skip qtqa -skip qtquickcontrols -skip qtquickcontrols2 -skip qtrepotools -skip qtscript -skip qtscxml -skip qtsensors -skip qtserialport -skip qtspeech -skip qtsvg -skip qttools -skip qttranslations -skip qtwebchannel -skip qtwebengine -skip qtxmlpatterns -skip serialbus -skip wayland
-        make module-qtbase -j4
-        sudo make install -j4
+      - name: Build
+        run: cmake --build build --config Release --parallel
 
-    - name: MXE Repository
-      if: matrix.target == 'windows-static' || matrix.target == 'windows-shared'
-      run: |
-        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 86B72ED9
-        sudo add-apt-repository 'deb [arch=amd64] https://mirror.mxe.cc/repos/apt bionic main'
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir dist
+          cp build/cleanmodels-qt dist/
+          strip dist/cleanmodels-qt
+          cd dist && zip ../cleanmodels-qt-${{ matrix.name }}.zip cleanmodels-qt
 
-    - name: Install Windows Static Build Dependencies
-      if: matrix.target == 'windows-static'
-      run: |
-        sudo apt-get install mxe-x86-64-w64-mingw32.static-qtbase
-        echo "/usr/lib/mxe/usr/bin" >> $GITHUB_PATH
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          mkdir dist
+          Copy-Item build/Release/cleanmodels-qt.exe dist/
+          Compress-Archive -Path dist/cleanmodels-qt.exe -DestinationPath cleanmodels-qt-${{ matrix.name }}.zip
 
-    - name: Install Windows Shared Build Dependencies
-      if: matrix.target == 'windows-shared'
-      run: |
-        sudo apt-get install mxe-x86-64-w64-mingw32.shared-qtbase
-        echo "/usr/lib/mxe/usr/bin" >> $GITHUB_PATH
-
-    - name: Install Qt for MacOS Shared Builds
-      uses: jurplel/install-qt-action@v2
-      if: matrix.target == 'macosx-shared'
-
-    - name: Install Linux Shared Build Dependencies
-      if: matrix.target == 'linux-shared'
-      run: |
-        sudo apt-get update
-        sudo apt-get install qtbase5-dev
-
-    - name: Build Windows Static Binary
-      if: matrix.target == 'windows-static'
-      run: |
-        x86_64-w64-mingw32.static-qmake-qt5
-        make -j4
-
-    - name: Build Windows Shared Binary
-      if: matrix.target == 'windows-shared'
-      run: |
-        x86_64-w64-mingw32.shared-qmake-qt5
-        make -j4
-
-    - name: Get latest CMake and ninja
-      if: matrix.target != 'windows-static' && matrix.target != 'windows-shared'
-      uses: lukka/get-cmake@latest
-
-    - name: Build Linux and MacOS Binaries
-      env:
-        STATIC_BUILD: ${{ matrix.static_build }}
-        QT_STATIC_PATH: ${{ github.workspace }}/Qt
-      if: matrix.target != 'windows-static' && matrix.target != 'windows-shared'
-      run: |
-        mkdir build
-        cd build
-        cmake ..
-        make -j4
-        mkdir ../release
-        strip cleanmodels-qt
-        mv cleanmodels-qt ../release
-
-    - name: Compress
-      working-directory: ./release
-      run: |
-        mkdir ../zips
-        zip ${{ github.workspace }}/zips/${{ matrix.zip_name }}.zip ${{ matrix.executable }}
-
-    - name: Upload Binaries
-      uses: actions/upload-artifact@v2
-      if: github.event_name == 'push'
-      with:
-       path: ${{ github.workspace }}/zips
-       name: ${{ matrix.zip_name }}.zip
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: cleanmodels-qt-${{ matrix.name }}
+          path: "*.zip"
 
   release:
-    name: Uploading Release
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    permissions:
+      contents: write
     steps:
-    - uses: actions/checkout@v2
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          merge-multiple: true
 
-    - name: Download Artifacts
-      uses: actions/download-artifact@v2
-      with:
-        path: ${{ github.workspace }}/zips
-
-    - name: Tag With Version and Release
-      uses: "marvinpinto/action-automatic-releases@latest"
-      if: github.event_name == 'push'
-      with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "build0.8.0-HEAD"
-        prerelease: false
-        draft: false
-        title: "build0.8.0-HEAD"
-        files: |
-          ./zips/cleanmodels-qt.windows-static.amd64.zip
-          ./zips/cleanmodels-qt.windows-shared.amd64.zip
-          ./zips/cleanmodels-qt.linux-static.amd64.zip
-          ./zips/cleanmodels-qt.linux-shared.amd64.zip
-          ./zips/cleanmodels-qt.macosx-static.amd64.zip
-          ./zips/cleanmodels-qt.macosx-shared.amd64.zip
-
-    - name: Tag With Latest and Release
-      uses: "marvinpinto/action-automatic-releases@latest"
-      if: github.event_name == 'push'
-      with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "latest"
-        prerelease: false
-        draft: false
-        title: "build0.8.0-HEAD"
-        files: |
-          ./zips/cleanmodels-qt.windows-static.amd64.zip
-          ./zips/cleanmodels-qt.windows-shared.amd64.zip
-          ./zips/cleanmodels-qt.linux-static.amd64.zip
-          ./zips/cleanmodels-qt.linux-shared.amd64.zip
-          ./zips/cleanmodels-qt.macosx-static.amd64.zip
-          ./zips/cleanmodels-qt.macosx-shared.amd64.zip
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          files: "*.zip"
