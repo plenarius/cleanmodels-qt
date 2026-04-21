@@ -34,7 +34,6 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.7.*"
-          modules: qtopengl
           cache: true
 
       - name: Install OpenGL (Linux)
