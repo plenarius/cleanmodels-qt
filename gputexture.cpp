@@ -22,7 +22,7 @@ bool GpuTexture::loadFromFile(QOpenGLFunctions_3_3_Core *gl, const QString &path
         qWarning() << "GpuTexture: cannot load" << path;
         return false;
     }
-    img = img.convertToFormat(QImage::Format_RGBA8888).flipped(Qt::Vertical);
+    img = img.convertToFormat(QImage::Format_RGBA8888).mirrored(false, true);
     return uploadRGBA(gl, img.constBits(), img.width(), img.height(), true);
 }
 
