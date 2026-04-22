@@ -17,13 +17,10 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-amd64
-            qt_arch: linux_gcc_64
           - os: macos-latest
             name: macos-arm64
-            qt_arch: clang_64
           - os: windows-latest
             name: windows-amd64
-            qt_arch: win64_msvc2022_64
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.name }}
 
@@ -40,7 +37,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev
+          sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxcb-cursor0
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -48,21 +45,60 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
+      - name: Deploy (Linux)
+        if: runner.os == 'Linux'
         run: |
-          mkdir dist
-          cp build/cleanmodels-qt dist/
-          strip dist/cleanmodels-qt
-          cd dist && zip ../cleanmodels-qt-${{ matrix.name }}.zip cleanmodels-qt
+          mkdir -p dist/cleanmodels-qt
+          cp build/cleanmodels-qt dist/cleanmodels-qt/
+          strip dist/cleanmodels-qt/cleanmodels-qt
 
-      - name: Package (Windows)
+          QTDIR="$QT_ROOT_DIR"
+          LIBDIR="$QTDIR/lib"
+          PLUGDIR="$QTDIR/plugins"
+
+          # Gather Qt shared libs needed by the binary
+          ldd dist/cleanmodels-qt/cleanmodels-qt | grep -oP '\S+/libQt6\S+' | sort -u | while read lib; do
+            cp "$lib" dist/cleanmodels-qt/
+          done
+          # Also grab ICU and other Qt dependencies from the same lib dir
+          for lib in libicui18n libicuuc libicudata; do
+            cp "$LIBDIR"/${lib}*.so.* dist/cleanmodels-qt/ 2>/dev/null || true
+          done
+
+          # Platform and xcb plugins
+          mkdir -p dist/cleanmodels-qt/plugins/platforms dist/cleanmodels-qt/plugins/xcbglintegrations
+          cp "$PLUGDIR"/platforms/libqxcb.so dist/cleanmodels-qt/plugins/platforms/ 2>/dev/null || true
+          cp "$PLUGDIR"/platforms/libqwayland*.so dist/cleanmodels-qt/plugins/platforms/ 2>/dev/null || true
+          cp "$PLUGDIR"/xcbglintegrations/*.so dist/cleanmodels-qt/plugins/xcbglintegrations/ 2>/dev/null || true
+
+          # Launcher script
+          cat > dist/cleanmodels-qt/cleanmodels-qt.sh << 'LAUNCHER'
+          #!/bin/sh
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          export LD_LIBRARY_PATH="$DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export QT_PLUGIN_PATH="$DIR/plugins"
+          exec "$DIR/cleanmodels-qt" "$@"
+          LAUNCHER
+          chmod +x dist/cleanmodels-qt/cleanmodels-qt.sh
+
+          cd dist && zip -r ../cleanmodels-qt-${{ matrix.name }}.zip cleanmodels-qt/
+
+      - name: Deploy (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          "$QT_ROOT_DIR/bin/macdeployqt" build/cleanmodels-qt.app -verbose=1
+          mkdir dist
+          cp -R build/cleanmodels-qt.app dist/
+          cd dist && zip -r ../cleanmodels-qt-${{ matrix.name }}.zip cleanmodels-qt.app
+
+      - name: Deploy (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          mkdir dist
-          Copy-Item build/Release/cleanmodels-qt.exe dist/
-          Compress-Archive -Path dist/cleanmodels-qt.exe -DestinationPath cleanmodels-qt-${{ matrix.name }}.zip
+          mkdir dist\cleanmodels-qt
+          Copy-Item build\Release\cleanmodels-qt.exe dist\cleanmodels-qt\
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" dist\cleanmodels-qt\cleanmodels-qt.exe --release --no-translations --no-system-d3d-compiler
+          Compress-Archive -Path dist\cleanmodels-qt -DestinationPath cleanmodels-qt-${{ matrix.name }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
