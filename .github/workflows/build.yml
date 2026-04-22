@@ -60,9 +60,15 @@ jobs:
           ldd dist/cleanmodels-qt/cleanmodels-qt | grep -oP '\S+/libQt6\S+' | sort -u | while read lib; do
             cp "$lib" dist/cleanmodels-qt/
           done
-          # Also grab ICU and other Qt dependencies from the same lib dir
+          # ICU libs (Qt dependency)
           for lib in libicui18n libicuuc libicudata; do
             cp "$LIBDIR"/${lib}*.so.* dist/cleanmodels-qt/ 2>/dev/null || true
+          done
+
+          # xcb-cursor and other xcb libs needed by the platform plugin
+          for lib in libxcb-cursor.so.0 libxcb-cursor.so; do
+            src=$(find /usr/lib -name "$lib" 2>/dev/null | head -1)
+            [ -n "$src" ] && cp "$src" dist/cleanmodels-qt/
           done
 
           # Platform and xcb plugins
