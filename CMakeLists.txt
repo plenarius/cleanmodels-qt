@@ -36,3 +36,5 @@ endif()
 if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
+
+install(TARGETS ${PROJECT_NAME} DESTINATION bin)

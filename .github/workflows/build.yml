@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             name: linux-amd64
           - os: macos-latest
             name: macos-arm64
@@ -33,61 +33,44 @@ jobs:
           version: "6.7.*"
           cache: true
 
-      - name: Install OpenGL (Linux)
+      - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxcb-cursor0
+          sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxcb-cursor0 libfuse2
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
 
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Deploy (Linux)
+      - name: Deploy AppImage (Linux)
         if: runner.os == 'Linux'
         run: |
-          mkdir -p dist/cleanmodels-qt
-          cp build/cleanmodels-qt dist/cleanmodels-qt/
-          strip dist/cleanmodels-qt/cleanmodels-qt
+          # Install to AppDir
+          DESTDIR=AppDir cmake --install build
 
-          QTDIR="$QT_ROOT_DIR"
-          LIBDIR="$QTDIR/lib"
-          PLUGDIR="$QTDIR/plugins"
+          # Get linuxdeploy and Qt plugin
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
 
-          # Gather Qt shared libs needed by the binary
-          ldd dist/cleanmodels-qt/cleanmodels-qt | grep -oP '\S+/libQt6\S+' | sort -u | while read lib; do
-            cp "$lib" dist/cleanmodels-qt/
-          done
-          # ICU libs (Qt dependency)
-          for lib in libicui18n libicuuc libicudata; do
-            cp "$LIBDIR"/${lib}*.so.* dist/cleanmodels-qt/ 2>/dev/null || true
-          done
+          # Convert ico to png for AppImage icon
+          convert cmicon.ico[0] -resize 256x256 cleanmodels-qt.png 2>/dev/null || \
+            cp icons/clean-button.png cleanmodels-qt.png
 
-          # xcb-cursor and other xcb libs needed by the platform plugin
-          for lib in libxcb-cursor.so.0 libxcb-cursor.so; do
-            src=$(find /usr/lib -name "$lib" 2>/dev/null | head -1)
-            [ -n "$src" ] && cp "$src" dist/cleanmodels-qt/
-          done
+          # Build AppImage
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          export LD_LIBRARY_PATH="$QT_ROOT_DIR/lib:$LD_LIBRARY_PATH"
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --icon-file cleanmodels-qt.png \
+            --desktop-file cleanmodels-qt.desktop \
+            --plugin qt \
+            --output appimage
 
-          # Platform and xcb plugins
-          mkdir -p dist/cleanmodels-qt/plugins/platforms dist/cleanmodels-qt/plugins/xcbglintegrations
-          cp "$PLUGDIR"/platforms/libqxcb.so dist/cleanmodels-qt/plugins/platforms/ 2>/dev/null || true
-          cp "$PLUGDIR"/platforms/libqwayland*.so dist/cleanmodels-qt/plugins/platforms/ 2>/dev/null || true
-          cp "$PLUGDIR"/xcbglintegrations/*.so dist/cleanmodels-qt/plugins/xcbglintegrations/ 2>/dev/null || true
-
-          # Launcher script
-          cat > dist/cleanmodels-qt/cleanmodels-qt.sh << 'LAUNCHER'
-          #!/bin/sh
-          DIR="$(cd "$(dirname "$0")" && pwd)"
-          export LD_LIBRARY_PATH="$DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-          export QT_PLUGIN_PATH="$DIR/plugins"
-          exec "$DIR/cleanmodels-qt" "$@"
-          LAUNCHER
-          chmod +x dist/cleanmodels-qt/cleanmodels-qt.sh
-
-          cd dist && zip -r ../cleanmodels-qt-${{ matrix.name }}.zip cleanmodels-qt/
+          mv cleanmodels-qt*.AppImage cleanmodels-qt-${{ matrix.name }}.AppImage
 
       - name: Deploy (macOS)
         if: runner.os == 'macOS'
@@ -110,7 +93,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: cleanmodels-qt-${{ matrix.name }}
-          path: "*.zip"
+          path: |
+            *.AppImage
+            *.zip
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -128,4 +113,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
-          files: "*.zip"
+          files: |
+            *.AppImage
+            *.zip

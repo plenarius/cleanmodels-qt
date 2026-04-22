@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=CleanModels Qt
+Comment=Validate, repair, compile, and decompile NWN MDL model files
+Exec=cleanmodels-qt
+Icon=cleanmodels-qt
+Categories=Utility;Development;
+Terminal=false
