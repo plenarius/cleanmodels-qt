@@ -70,7 +70,7 @@ jobs:
             --plugin qt \
             --output appimage
 
-          mv cleanmodels-qt*.AppImage cleanmodels-qt-${{ matrix.name }}.AppImage
+          mv CleanModels_Qt*.AppImage cleanmodels-qt-${{ matrix.name }}.AppImage
 
       - name: Deploy (macOS)
         if: runner.os == 'macOS'
