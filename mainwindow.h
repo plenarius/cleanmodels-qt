@@ -12,6 +12,7 @@
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QMap>
+#include <QSet>
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
@@ -55,6 +56,7 @@ private slots:
     void onCaptureCleanModelsOutput();
     void onCleanFinished(int, QProcess::ExitStatus);
     void copyToClipboard();
+    void onReportIssueTriggered();
 
 private:
     Ui::MainWindow *ui;
@@ -192,11 +194,13 @@ private:
 
     ModelViewport *m_viewport = nullptr;
 
+    // --- Report issue state ---
+    QStringList m_lastFailedFiles;
+    QString m_lastErrorOutput;
+    QString m_lastCommand;
+
     // --- Methods ---
     void buildUi();
-    QWidget *buildSidebar();
-    QWidget *buildWorkspace();
-    void connectSignals();
     void updateModeUI();
     static QFormLayout *makeStandardForm(int spacing = 4);
     QWidget *createCollapsibleGroup(const QString &title, QWidget **contentOut, bool startCollapsed = true);
@@ -214,6 +218,9 @@ private:
     void toggleRawLog();
     void showFileDetails(const QString &fileName);
     void showBatchSummary();
+    QStringList collectTableFilePaths(bool allRows) const;
+    void reportIssue(const QStringList &files, const QString &errorOutput, const QString &command);
+    void reportIssueInteractive(const QStringList &files);
     static QString humanFileSize(qint64 bytes);
 };
 

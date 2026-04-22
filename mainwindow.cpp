@@ -6,6 +6,8 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDebug>
+#include <QDesktopServices>
+#include <QInputDialog>
 #include <QDir>
 #include <QFile>
 #include <QDragEnterEvent>
@@ -132,6 +134,14 @@ void MainWindow::updateModeUI()
     m_advancedGroup->setEnabled(cleanMode);
     m_tileGroup->setEnabled(cleanMode);
     m_pivotGroup->setEnabled(cleanMode);
+}
+
+static QFrame *makeHLine()
+{
+    auto *f = new QFrame;
+    f->setFrameShape(QFrame::HLine);
+    f->setFrameShadow(QFrame::Sunken);
+    return f;
 }
 
 void MainWindow::buildUi()
@@ -305,10 +315,7 @@ void MainWindow::buildUi()
     scaleGrid->setColumnStretch(1, 1);
     advLayout->addLayout(scaleGrid);
 
-    auto *scaleSep = new QFrame;
-    scaleSep->setFrameShape(QFrame::HLine);
-    scaleSep->setFrameShadow(QFrame::Sunken);
-    advLayout->addWidget(scaleSep);
+    advLayout->addWidget(makeHLine());
 
     connect(m_scaleLockBtn, &QPushButton::toggled, this, [this](bool locked) {
         m_scaleLockBtn->setText(locked ? QString::fromUtf8("🔒") : QString::fromUtf8("🔓"));
@@ -338,10 +345,7 @@ void MainWindow::buildUi()
     meshForm->addRow("Shadow:", m_shadowCombo);
     advLayout->addLayout(meshForm);
 
-    auto *meshOpsSep = new QFrame;
-    meshOpsSep->setFrameShape(QFrame::HLine);
-    meshOpsSep->setFrameShadow(QFrame::Sunken);
-    advLayout->addWidget(meshOpsSep);
+    advLayout->addWidget(makeHLine());
 
     m_forceWhiteCheck = new QCheckBox("Force white ambient/diffuse");
     m_forceWhiteCheck->setToolTip("Set ambient and diffuse colors to white on all meshes");
@@ -421,10 +425,7 @@ void MainWindow::buildUi()
         m_raiseAmountSpin->setEnabled(i > 0);
     });
 
-    auto *tileSep = new QFrame;
-    tileSep->setFrameShape(QFrame::HLine);
-    tileSep->setFrameShadow(QFrame::Sunken);
-    tileLayout->addWidget(tileSep);
+    tileLayout->addWidget(makeHLine());
 
     m_waterEnableCheck = new QCheckBox("Water fixups");
     m_waterEnableCheck->setToolTip("Enable water mesh processing for tiles");
@@ -527,10 +528,7 @@ void MainWindow::buildUi()
     sidebarLayout->addWidget(scroll, 1);
 
     // ── Clean button — pinned at bottom of sidebar ─────────────────────
-    auto *separator = new QFrame;
-    separator->setFrameShape(QFrame::HLine);
-    separator->setFrameShadow(QFrame::Sunken);
-    sidebarLayout->addWidget(separator);
+    sidebarLayout->addWidget(makeHLine());
 
     m_cleanButton = new QPushButton("Clean");
     m_cleanButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
@@ -585,7 +583,7 @@ void MainWindow::buildUi()
     m_filesTable->verticalHeader()->setDefaultSectionSize(Layout::TableRowHeight);
     m_filesTable->verticalHeader()->setVisible(false);
     m_filesTable->setContextMenuPolicy(Qt::CustomContextMenu);
-    m_filesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_filesTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_filesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_filesTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
@@ -748,19 +746,33 @@ void MainWindow::buildUi()
 
     connect(m_filesTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
         if (m_filesTable->selectedItems().isEmpty()) return;
-        QString fileName = m_filesTable->item(m_filesTable->currentRow(), 0)->data(Qt::UserRole).toString();
-        QString filePath = m_sInDir + "/" + fileName;
+
+        QStringList selectedFiles = collectTableFilePaths(false);
+        QString firstFile = selectedFiles.isEmpty() ? QString() : selectedFiles.first();
 
         QMenu menu;
-        menu.addAction("Preview in viewport", this, [this, filePath] {
-            if (m_viewport && !filePath.isEmpty())
-                m_viewport->previewFile(filePath);
-        });
+        if (selectedFiles.size() == 1) {
+            menu.addAction("Preview in viewport", this, [this, firstFile] {
+                if (m_viewport && !firstFile.isEmpty())
+                    m_viewport->previewFile(firstFile);
+            });
+        }
         menu.addAction("Copy path to clipboard", this, &MainWindow::copyToClipboard);
         menu.addSeparator();
-        menu.addAction("Reveal in Finder", this, [filePath] {
-            QProcess::startDetached("open", {"-R", filePath});
+
+        QString reportLabel = selectedFiles.size() == 1
+            ? "Report Issue..."
+            : QString("Report Issue (%1 files)...").arg(selectedFiles.size());
+        menu.addAction(reportLabel, this, [this, selectedFiles] {
+            reportIssueInteractive(selectedFiles);
         });
+        menu.addSeparator();
+
+        if (selectedFiles.size() == 1) {
+            menu.addAction("Reveal in Finder", this, [firstFile] {
+                QProcess::startDetached("open", {"-R", firstFile});
+            });
+        }
         menu.exec(m_filesTable->mapToGlobal(pos));
     });
 
@@ -865,13 +877,13 @@ MainWindow::MainWindow(QWidget *parent) :
     {
         QString errorMsg = "Could not find the " % m_sBinaryName % " executable in the current directory or in your path!";
         QMessageBox::critical(this, "No cleanmodels CLI", errorMsg);
-        appendDebugHtml("<span style=\"" + QLatin1String(LogColor::Error) + ";\">" + errorMsg.toHtmlEscaped() + "</span><br>");
+        appendDebugHtml("<span style=\"color:" + QLatin1String(LogColor::Error) + ";\">" + errorMsg.toHtmlEscaped() + "</span><br>");
     }
 
     m_viewport->setCliBinaryPath(m_sBinaryPath);
 
     connect(m_viewport, &ModelViewport::previewError, this, [this](const QString &msg) {
-        appendDebugHtml("<p><span style=\"" + QLatin1String(LogColor::Warning) + ";\">Preview: " + msg.toHtmlEscaped() + "</span></p><br>");
+        appendDebugHtml("<p><span style=\"color:" + QLatin1String(LogColor::Warning) + ";\">Preview: " + msg.toHtmlEscaped() + "</span></p><br>");
     });
 
     // Process
@@ -909,6 +921,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // Signals
     connect(m_pCleanProcess, &QProcess::finished, this, &MainWindow::onCleanFinished);
     connect(ui->actionHelp, &QAction::triggered, this, &MainWindow::onHelpTriggered);
+    connect(ui->actionReportIssue, &QAction::triggered, this, &MainWindow::onReportIssueTriggered);
     connect(ui->actionAbout, &QAction::triggered, this, &MainWindow::onAboutTriggered);
     connect(ui->actionSavePreset, &QAction::triggered, this, &MainWindow::onSaveConfigTriggered);
     connect(ui->actionLoadPreset, &QAction::triggered, this, &MainWindow::onLoadConfigTriggered);
@@ -1192,6 +1205,170 @@ void MainWindow::onAboutTriggered()
 }
 
 void MainWindow::onHelpTriggered() { QWhatsThis::enterWhatsThisMode(); }
+
+QStringList MainWindow::collectTableFilePaths(bool allRows) const
+{
+    QStringList paths;
+    if (allRows) {
+        for (int i = 0; i < m_filesTable->rowCount(); ++i) {
+            auto *item = m_filesTable->item(i, 0);
+            if (item)
+                paths << (m_sInDir + "/" + item->data(Qt::UserRole).toString());
+        }
+    } else {
+        QSet<int> rows;
+        for (auto *item : m_filesTable->selectedItems())
+            rows.insert(item->row());
+        for (int row : rows) {
+            auto *item = m_filesTable->item(row, 0);
+            if (item)
+                paths << (m_sInDir + "/" + item->data(Qt::UserRole).toString());
+        }
+    }
+    return paths;
+}
+
+void MainWindow::onReportIssueTriggered()
+{
+    QStringList filesToReport;
+
+    // Prefer last failed files, then selected table rows
+    if (!m_lastFailedFiles.isEmpty()) {
+        filesToReport = m_lastFailedFiles;
+    } else {
+        filesToReport = collectTableFilePaths(false);
+    }
+
+    if (filesToReport.isEmpty()) {
+        QMessageBox::information(this, "Report Issue",
+            "Select one or more files in the table first, or run cleanmodels so failed files can be reported.");
+        return;
+    }
+
+    if (!m_lastErrorOutput.isEmpty()) {
+        reportIssue(filesToReport, m_lastErrorOutput, m_lastCommand);
+    } else {
+        reportIssueInteractive(filesToReport);
+    }
+}
+
+void MainWindow::reportIssue(const QStringList &files, const QString &errorOutput, const QString &command)
+{
+    if (m_sBinaryPath.isEmpty()) {
+        QMessageBox::warning(this, "Report Issue",
+            "Cannot find the cleanmodels CLI binary.\n"
+            "The report command requires the CLI to be available.");
+        return;
+    }
+
+    QStringList args;
+    args << "report";
+    args << "--error" << errorOutput;
+    if (!command.isEmpty())
+        args << "--command" << command;
+
+    for (const auto &f : files) {
+        if (QFile::exists(f))
+            args << f;
+    }
+
+    if (args.count() <= 4) {
+        QMessageBox::warning(this, "Report Issue",
+            "None of the failed model files could be found on disk.\n"
+            "They may have been moved or deleted.");
+        return;
+    }
+
+    auto confirm = QMessageBox::question(this, "Report Issue",
+        QString("Submit a bug report with %1 file(s)?\n\n"
+                "This will send the model file(s) and error details to the cleanmodels issue tracker.\n"
+                "No GitHub account is needed.")
+            .arg(files.size()),
+        QMessageBox::Yes | QMessageBox::Cancel);
+
+    if (confirm != QMessageBox::Yes)
+        return;
+
+    appendDebugHtml("<span style=\"color:" % QLatin1String(LogColor::Info) % ";\">Submitting bug report...</span><br>");
+
+    auto *proc = new QProcess(this);
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, proc](int exitCode, QProcess::ExitStatus) {
+        QString output = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+        QString errors = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        proc->deleteLater();
+
+        if (exitCode == 0 && !output.isEmpty()) {
+            QString issueUrl = output.split('\n').last().trimmed();
+            appendDebugHtml("<span style=\"color:" % QLatin1String(LogColor::Success)
+                % ";\">Report submitted: <a href=\"" % issueUrl.toHtmlEscaped()
+                % "\">" % issueUrl.toHtmlEscaped() % "</a></span><br>");
+            m_detailPanel->setHtml(
+                "<p style='color:" + QLatin1String(LogColor::FixApplied) + ";'>"
+                "<b>Report submitted successfully!</b></p>"
+                "<p><a href='" + issueUrl.toHtmlEscaped() + "'>" + issueUrl.toHtmlEscaped() + "</a></p>");
+        } else {
+            QString msg = errors.isEmpty() ? "Unknown error" : errors;
+            appendDebugHtml("<span style=\"color:" % QLatin1String(LogColor::Error)
+                % ";\">Report failed: " % msg.toHtmlEscaped() % "</span><br>");
+            QMessageBox::warning(this, "Report Failed",
+                "Failed to submit the bug report:\n\n" + msg);
+        }
+    });
+
+    proc->start(m_sBinaryPath, args);
+}
+
+void MainWindow::reportIssueInteractive(const QStringList &files)
+{
+    // Validate total size before prompting user
+    qint64 totalSize = 0;
+    QStringList validFiles;
+    for (const auto &f : files) {
+        QFileInfo fi(f);
+        if (!fi.exists()) continue;
+        if (fi.size() > ReportLimits::MaxFileSize) {
+            QMessageBox::warning(this, "Report Issue",
+                QString("File '%1' exceeds the 10MB per-file limit and cannot be reported.")
+                    .arg(fi.fileName()));
+            return;
+        }
+        totalSize += fi.size();
+        validFiles << f;
+    }
+
+    if (validFiles.isEmpty()) {
+        QMessageBox::warning(this, "Report Issue",
+            "None of the selected files could be found on disk.");
+        return;
+    }
+
+    if (totalSize > ReportLimits::MaxTotalSize) {
+        QMessageBox::warning(this, "Report Issue",
+            QString("Total size of selected files (%1) exceeds the 25MB limit.\n"
+                    "Try selecting fewer files.")
+                .arg(humanFileSize(totalSize)));
+        return;
+    }
+
+    bool ok = false;
+    QString description = QInputDialog::getMultiLineText(this, "Report Issue",
+        QString("Describe the problem with %1 file(s) (%2 total):\n\n"
+                "Examples: \"missing faces after decompile\", \"textures wrong after compile\",\n"
+                "\"model looks broken in-game\"\n\n"
+                "Leave blank if you just want us to look at the file(s).")
+            .arg(validFiles.size())
+            .arg(humanFileSize(totalSize)),
+        QString(), &ok);
+
+    if (!ok)
+        return;
+
+    if (description.isEmpty())
+        description = "User-reported issue (no specific error — model may produce incorrect output)";
+
+    reportIssue(validFiles, description, m_lastCommand);
+}
 
 void MainWindow::onQuitTriggered()
 {

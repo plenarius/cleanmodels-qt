@@ -60,7 +60,7 @@ void MainWindow::onCaptureCleanModelsOutput()
                 m_pStatusProgress->setValue(idx);
             }
 
-            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Info) % ";\"><b>Processing " % file.toHtmlEscaped() % "</b></span></p><br>");
+            appendDebugHtml("<p><span style=\"color:" % QLatin1String(LogColor::Info) % ";\"><b>Processing " % file.toHtmlEscaped() % "</b></span></p><br>");
 
             int row = findModelRow(file);
             if (row >= 0)
@@ -116,7 +116,7 @@ void MainWindow::onCaptureCleanModelsOutput()
                 allTooltipLines << QString::fromUtf8("\xe2\x9c\x93 ") % r.toString();
             }
 
-            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Success) % ";\"><b>" % file.toHtmlEscaped() % " " % actionVerbPast.toLower() % " (" % QString::number(fixes) % " fixes)</b></span></p>");
+            appendDebugHtml("<p><span style=\"color:" % QLatin1String(LogColor::Success) % ";\"><b>" % file.toHtmlEscaped() % " " % actionVerbPast.toLower() % " (" % QString::number(fixes) % " fixes)</b></span></p>");
 
             QString detailHtml;
             if (!fixDetails.isEmpty())
@@ -183,7 +183,7 @@ void MainWindow::onCaptureCleanModelsOutput()
             QString msg = evt["message"].toString();
             QString elapsedStr = QTime(0, 0).addMSecs(m_cleanTimer.elapsed()).toString("mm:ss.zzz");
 
-            appendDebugHtml("<p><span style=\"" % QLatin1String(LogColor::Error) % ";\"><b>" % file.toHtmlEscaped() % ": " % msg.toHtmlEscaped() % "</b></span></p><br>");
+            appendDebugHtml("<p><span style=\"color:" % QLatin1String(LogColor::Error) % ";\"><b>" % file.toHtmlEscaped() % ": " % msg.toHtmlEscaped() % "</b></span></p><br>");
 
             QStringList errorHtml;
             errorHtml << "<p style='color:" % QLatin1String(LogColor::SevError) % ";'><b>" % file.toHtmlEscaped() % " — Error</b></p>";
@@ -436,13 +436,16 @@ void MainWindow::doClean()
     m_fileResults.clear();
     m_batchSummary.clear();
     m_detailPanel->clear();
+    m_lastFailedFiles.clear();
+    m_lastErrorOutput.clear();
 
     if (!m_rawLogVisible)
         toggleRawLog();
 
     QStringList args = buildCliArgs();
+    m_lastCommand = args.join(" ");
 
-    appendDebugHtml("<span style=\"" % QLatin1String(LogColor::Command) % ";\">$ " % m_sBinaryPath.toHtmlEscaped() % " " % args.join(" ").toHtmlEscaped() % "</span><br>");
+    appendDebugHtml("<span style=\"color:" % QLatin1String(LogColor::Command) % ";\">$ " % m_sBinaryPath.toHtmlEscaped() % " " % args.join(" ").toHtmlEscaped() % "</span><br>");
 
     m_pCleanProcess->setWorkingDirectory(QDir::currentPath());
     m_pCleanProcess->start(m_sBinaryPath, args, QIODevice::ReadOnly);
@@ -464,7 +467,7 @@ void MainWindow::doClean()
     }
     else
     {
-        QString errorMsg = "<p><span style=\"" % QLatin1String(LogColor::Error) % ";\">Failed to run cleanmodels! Does the " %
+        QString errorMsg = "<p><span style=\"color:" % QLatin1String(LogColor::Error) % ";\">Failed to run cleanmodels! Does the " %
             m_sBinaryName % " executable exist in the working directory or your PATH?</span></p><br>";
         appendDebugHtml(errorMsg);
         m_detailPanel->setHtml("<p style='color:" + QLatin1String(LogColor::SevError) + ";'><b>Failed to start cleanmodels.</b><br>"
@@ -488,19 +491,33 @@ void MainWindow::onCleanFinished(int exitCode, QProcess::ExitStatus exitStatus)
     m_pCleanStatus->setText("Idle");
     m_pStatusProgress->setVisible(false);
 
+    const QString reportHint = "<p style='margin-top:8px;'><i>Right-click a file or use Help &gt; Report Issue to submit a bug report.</i></p>";
+
     if (exitStatus == QProcess::CrashExit) {
+        m_lastErrorOutput = "cleanmodels crashed";
+        if (!stderrOutput.isEmpty())
+            m_lastErrorOutput += ": " + stderrOutput;
+        m_lastFailedFiles = collectTableFilePaths(true);
+
         QString msg = "<p style='color:" + QLatin1String(LogColor::SevError) + ";'><b>cleanmodels crashed.</b></p>";
         if (!stderrOutput.isEmpty())
             msg += "<pre style='color:" + QLatin1String(LogColor::SevError) + ";'>" + stderrOutput.toHtmlEscaped() + "</pre>";
+        msg += reportHint;
         m_detailPanel->setHtml(msg);
         appendDebugHtml(msg);
     } else if (exitCode != 0 && m_nMdlsCleaned == 0 && m_nMdlsFailed == 0) {
+        m_lastErrorOutput = "exit code " + QString::number(exitCode);
+        if (!stderrOutput.isEmpty())
+            m_lastErrorOutput += ": " + stderrOutput;
+        m_lastFailedFiles = collectTableFilePaths(true);
+
         QString msg = "<p style='color:" + QLatin1String(LogColor::SevError) + ";'><b>cleanmodels exited with error code " +
                       QString::number(exitCode) + "</b></p>";
         if (!stderrOutput.isEmpty())
             msg += "<pre style='color:" + QLatin1String(LogColor::SevError) + ";'>" + stderrOutput.toHtmlEscaped() + "</pre>";
         else
             msg += "<p>No output was produced. Check the CLI flags and try running from a terminal.</p>";
+        msg += reportHint;
         m_detailPanel->setHtml(msg);
         appendDebugHtml(msg);
     }

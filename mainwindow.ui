@@ -31,6 +31,8 @@
    <widget class="QMenu" name="menuHelp">
     <property name="title"><string>Help</string></property>
     <addaction name="actionHelp"/>
+    <addaction name="actionReportIssue"/>
+    <addaction name="separator"/>
     <addaction name="actionAbout"/>
    </widget>
    <addaction name="menuFile"/>
@@ -70,6 +72,9 @@
   <action name="actionToggleRawLog">
    <property name="text"><string>Raw Log</string></property>
    <property name="shortcut"><string>Ctrl+L</string></property>
+  </action>
+  <action name="actionReportIssue">
+   <property name="text"><string>Report Issue...</string></property>
   </action>
  </widget>
  <resources>

@@ -7,11 +7,11 @@
 // Log output HTML colors
 // ---------------------------------------------------------------------------
 namespace LogColor {
-    constexpr const char *Info     = "color:blue";
-    constexpr const char *Success  = "color:green";
-    constexpr const char *Error    = "color:red";
-    constexpr const char *Warning  = "color:orange";
-    constexpr const char *Command  = "color:gray";
+    constexpr const char *Info     = "#3498db";
+    constexpr const char *Success  = "#27ae60";
+    constexpr const char *Error    = "#e74c3c";
+    constexpr const char *Warning  = "#e67e22";
+    constexpr const char *Command  = "#95a5a6";
 
     constexpr const char *FixApplied  = "#2ecc71";
     constexpr const char *SevError    = "#e74c3c";
@@ -19,6 +19,14 @@ namespace LogColor {
     constexpr const char *SevInfo     = "#7f8c8d";
 
     constexpr const char *InvalidPath = "#FF0000";
+}
+
+// ---------------------------------------------------------------------------
+// Report size limits (must match Worker and CLI constraints)
+// ---------------------------------------------------------------------------
+namespace ReportLimits {
+    constexpr qint64 MaxFileSize  = 10 * 1024 * 1024; // 10 MB per file
+    constexpr qint64 MaxTotalSize = 25 * 1024 * 1024;  // 25 MB total
 }
 
 // ---------------------------------------------------------------------------
