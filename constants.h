@@ -110,6 +110,10 @@ namespace CliFlag {
     constexpr const char *RaiseAmount     = "--raise-amount";
     constexpr const char *RemapWalkmesh   = "--remap-walkmesh-material";
     constexpr const char *TilefadeUndo    = "--tilefade-undo";
+    constexpr const char *IncludeChecks       = "--include-checks";
+    constexpr const char *ExcludeChecks       = "--exclude-checks";
+    constexpr const char *StandardizeTexture0 = "--standardize-texture0";
+    constexpr const char *StripEEExtras       = "--strip-ee-extras";
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +180,9 @@ namespace Setting {
     constexpr const char *SmoothingGroups = "smoothing_groups";
     constexpr const char *MinSize        = "min_size";
     constexpr const char *SplitFirst     = "split_first";
+
+    constexpr const char *StandardizeTexture0 = "standardize_texture0";
+    constexpr const char *StripEEExtras      = "strip_ee_extras";
 
     constexpr const char *CameraRotSens  = "camera_rotation_sensitivity";
     constexpr const char *CameraPanScale = "camera_pan_scale";

@@ -9,6 +9,9 @@
 #include <QDesktopServices>
 #include <QInputDialog>
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QFile>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -237,8 +240,23 @@ void MainWindow::buildUi()
     fixesGrid->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
     fixesGrid->setSpacing(Layout::DefaultSpacing);
 
-    m_checkValidate       = new QCheckBox("Validate && auto-fix checks");
-    m_checkValidate->setToolTip("Run validation checks and auto-fix common issues");
+    m_checkValidateAll = new QCheckBox("Run validation checks");
+    m_checkValidateAll->setToolTip("Validate model structure, geometry, parameters, animations, and emitters.\n"
+                                    "Auto-fixes safe issues like duplicate names and orphaned nodes.");
+    m_checkValidateAll->setChecked(true);
+    fixesGrid->addWidget(m_checkValidateAll);
+
+    m_checksDetailWidget = new QWidget;
+    auto *checksDetailLayout = new QVBoxLayout(m_checksDetailWidget);
+    checksDetailLayout->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    checksDetailLayout->setSpacing(Layout::CompactSpacing);
+    m_checksDetailWidget->setVisible(false);
+    fixesGrid->addWidget(m_checksDetailWidget);
+
+    connect(m_checkValidateAll, &QCheckBox::toggled, this, [this](bool allOn) {
+        m_checksDetailWidget->setVisible(!allOn);
+    });
+
     m_checkStripDegen     = new QCheckBox("Strip degenerate faces");
     m_checkStripDegen->setToolTip("Remove triangles with zero area (collapsed vertices)");
     m_checkFixAnims       = new QCheckBox("Fix animations");
@@ -259,7 +277,7 @@ void MainWindow::buildUi()
     m_checkSplitMultiEdge = new QCheckBox("Split multi-edge shadows");
     m_checkSplitMultiEdge->setToolTip("Fix non-manifold edges that break shadow rendering");
 
-    for (auto *cb : {m_checkValidate, m_checkStripDegen, m_checkFixAnims,
+    for (auto *cb : {m_checkStripDegen, m_checkFixAnims,
          m_checkRepairPivots, m_checkFixTilefade, m_checkRebuildAABB,
          m_checkReparentChildren, m_checkWrapRoot, m_checkSplitMultiEdge})
     {
@@ -275,7 +293,8 @@ void MainWindow::buildUi()
         m_fixesDetailWidget->setVisible(!allOn);
         if (allOn)
         {
-            for (auto *cb : {m_checkValidate, m_checkStripDegen, m_checkFixAnims,
+            m_checkValidateAll->setChecked(true);
+            for (auto *cb : {m_checkStripDegen, m_checkFixAnims,
                  m_checkRepairPivots, m_checkFixTilefade, m_checkRebuildAABB,
                  m_checkReparentChildren, m_checkWrapRoot, m_checkSplitMultiEdge})
                 cb->setChecked(true);
@@ -353,6 +372,10 @@ void MainWindow::buildUi()
     m_mergeByBitmapCheck->setToolTip("Merge mesh nodes that share the same texture");
     m_cullInvisibleCheck = new QCheckBox("Cull invisible meshes");
     m_cullInvisibleCheck->setToolTip("Remove mesh nodes with render=0 and no animations");
+    m_standardizeTexture0Check = new QCheckBox("Standardize bitmap → texture0");
+    m_standardizeTexture0Check->setToolTip("Emit texture0 instead of bitmap in output (EE standard)");
+    m_stripEEExtrasCheck = new QCheckBox("Strip unused EE fields");
+    m_stripEEExtrasCheck->setToolTip("Remove wirecolor, specular, and shininess from output");
     m_placeableTransCheck = new QCheckBox("Placeable with transparency");
     m_placeableTransCheck->setToolTip("Set transparency hint on meshes matching the key");
     m_transparencyKeyEdit = new QLineEdit("glass");
@@ -364,6 +387,8 @@ void MainWindow::buildUi()
     meshOpsGroup->addWidget(m_forceWhiteCheck);
     meshOpsGroup->addWidget(m_mergeByBitmapCheck);
     meshOpsGroup->addWidget(m_cullInvisibleCheck);
+    meshOpsGroup->addWidget(m_standardizeTexture0Check);
+    meshOpsGroup->addWidget(m_stripEEExtrasCheck);
     meshOpsGroup->addWidget(m_placeableTransCheck);
     auto *transKeyWidget = new QWidget;
     auto *transKeyRow = new QHBoxLayout(transKeyWidget);
@@ -872,6 +897,20 @@ MainWindow::MainWindow(QWidget *parent) :
     {
         appendDebugHtml("Clean Models:EE ready.<br>");
         appendDebugHtml("CLI: " + m_sBinaryPath.toHtmlEscaped() + "<br>");
+
+        // Populate the validation check tree from CLI metadata
+        auto *listProc = new QProcess(this);
+        connect(listProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, listProc](int exitCode, QProcess::ExitStatus) {
+            listProc->deleteLater();
+            if (exitCode != 0) return;
+            QByteArray output = listProc->readAllStandardOutput();
+            QJsonParseError err;
+            QJsonDocument doc = QJsonDocument::fromJson(output, &err);
+            if (err.error != QJsonParseError::NoError || !doc.isArray()) return;
+            populateCheckTree(doc.array());
+        });
+        listProc->start(m_sBinaryPath, {"check", "--list"});
     }
     else
     {
@@ -996,7 +1035,7 @@ void MainWindow::loadSettings()
 
     // Fixes
     m_allFixesCheck->setChecked(s.value(Setting::AllFixes, true).toBool());
-    m_checkValidate->setChecked(s.value(Setting::FixValidate, true).toBool());
+    m_checkValidateAll->setChecked(s.value(Setting::FixValidate, true).toBool());
     m_checkStripDegen->setChecked(s.value(Setting::FixStripDegen, true).toBool());
     m_checkFixAnims->setChecked(s.value(Setting::FixAnimations, true).toBool());
     m_checkRepairPivots->setChecked(s.value(Setting::FixPivots, true).toBool());
@@ -1018,6 +1057,8 @@ void MainWindow::loadSettings()
     m_forceWhiteCheck->setChecked(s.value(Setting::ForceWhite, false).toBool());
     m_mergeByBitmapCheck->setChecked(s.value(Setting::MergeByBitmap, false).toBool());
     m_cullInvisibleCheck->setChecked(s.value(Setting::InvisibleMeshCull, false).toBool());
+    m_standardizeTexture0Check->setChecked(s.value(Setting::StandardizeTexture0, false).toBool());
+    m_stripEEExtrasCheck->setChecked(s.value(Setting::StripEEExtras, false).toBool());
     m_placeableTransCheck->setChecked(s.value(Setting::PlaceableTrans, false).toBool());
     m_transparencyKeyEdit->setText(s.value(Setting::TransparencyKey, "glass").toString());
 
@@ -1082,7 +1123,7 @@ void MainWindow::saveSettings()
     s.setValue(Setting::Classification, m_classificationCombo->currentIndex());
 
     s.setValue(Setting::AllFixes, m_allFixesCheck->isChecked());
-    s.setValue(Setting::FixValidate, m_checkValidate->isChecked());
+    s.setValue(Setting::FixValidate, m_checkValidateAll->isChecked());
     s.setValue(Setting::FixStripDegen, m_checkStripDegen->isChecked());
     s.setValue(Setting::FixAnimations, m_checkFixAnims->isChecked());
     s.setValue(Setting::FixPivots, m_checkRepairPivots->isChecked());
@@ -1103,6 +1144,8 @@ void MainWindow::saveSettings()
     s.setValue(Setting::ForceWhite, m_forceWhiteCheck->isChecked());
     s.setValue(Setting::MergeByBitmap, m_mergeByBitmapCheck->isChecked());
     s.setValue(Setting::InvisibleMeshCull, m_cullInvisibleCheck->isChecked());
+    s.setValue(Setting::StandardizeTexture0, m_standardizeTexture0Check->isChecked());
+    s.setValue(Setting::StripEEExtras, m_stripEEExtrasCheck->isChecked());
     s.setValue(Setting::PlaceableTrans, m_placeableTransCheck->isChecked());
     s.setValue(Setting::TransparencyKey, m_transparencyKeyEdit->text());
 
@@ -1368,6 +1411,109 @@ void MainWindow::reportIssueInteractive(const QStringList &files)
         description = "User-reported issue (no specific error — model may produce incorrect output)";
 
     reportIssue(validFiles, description, m_lastCommand);
+}
+
+void MainWindow::populateCheckTree(const QJsonArray &checks)
+{
+    // Clear any previous dynamic content
+    m_categoryChecks.clear();
+    m_categoryWidgets.clear();
+    m_individualChecks.clear();
+
+    QLayoutItem *child;
+    while ((child = m_checksDetailWidget->layout()->takeAt(0)) != nullptr) {
+        delete child->widget();
+        delete child;
+    }
+
+    // Group checks by category preserving insertion order
+    QStringList categoryOrder;
+    QMap<QString, QJsonArray> byCategory;
+    for (const auto &val : checks) {
+        QJsonObject obj = val.toObject();
+        QString cat = obj["category"].toString();
+        if (!byCategory.contains(cat))
+            categoryOrder << cat;
+        byCategory[cat].append(obj);
+    }
+
+    auto *layout = qobject_cast<QVBoxLayout*>(m_checksDetailWidget->layout());
+
+    for (const QString &cat : categoryOrder) {
+        const QJsonArray &catChecks = byCategory[cat];
+        QString label = cat.at(0).toUpper() + cat.mid(1)
+                        + QString(" (%1 checks)").arg(catChecks.size());
+
+        auto *catCheck = new QCheckBox(label);
+        catCheck->setChecked(true);
+        catCheck->setToolTip(QString("Enable/disable all %1 checks").arg(cat));
+        QFont f = catCheck->font();
+        f.setBold(true);
+        catCheck->setFont(f);
+        layout->addWidget(catCheck);
+        m_categoryChecks[cat] = catCheck;
+
+        auto *catContent = new QWidget;
+        auto *catLayout = new QVBoxLayout(catContent);
+        catLayout->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+        catLayout->setSpacing(2);
+        catContent->setVisible(false);
+        layout->addWidget(catContent);
+        m_categoryWidgets[cat] = catContent;
+
+        for (const auto &c : catChecks) {
+            QJsonObject obj = c.toObject();
+            QString name = obj["name"].toString();
+            QString desc = obj["description"].toString();
+            bool fixable = obj["fixable"].toBool();
+
+            QString checkLabel = name;
+            if (!desc.isEmpty())
+                checkLabel += QString::fromUtf8(" \xe2\x80\x94 ") + desc;
+
+            auto *cb = new QCheckBox(checkLabel);
+            cb->setChecked(true);
+            cb->setProperty("checkName", name);
+            cb->setProperty("checkCategory", cat);
+            QString tip = desc;
+            if (fixable)
+                tip += " (auto-fixable)";
+            cb->setToolTip(tip);
+            catLayout->addWidget(cb);
+            m_individualChecks[name] = cb;
+        }
+
+        // Category unchecked → show individual checks
+        connect(catCheck, &QCheckBox::toggled, this, [catContent, catCheck, cat, this](bool allOn) {
+            catContent->setVisible(!allOn);
+            if (allOn) {
+                for (auto it = m_individualChecks.begin(); it != m_individualChecks.end(); ++it) {
+                    if (it.value()->property("checkCategory").toString() == cat)
+                        it.value()->setChecked(true);
+                }
+            }
+        });
+    }
+}
+
+QStringList MainWindow::selectedCheckNames() const
+{
+    QStringList selected;
+    for (auto it = m_individualChecks.constBegin(); it != m_individualChecks.constEnd(); ++it) {
+        QString cat = it.value()->property("checkCategory").toString();
+        auto catIt = m_categoryChecks.find(cat);
+        if (catIt != m_categoryChecks.end() && catIt.value()->isChecked()) {
+            selected << it.key();
+        } else if (it.value()->isChecked()) {
+            selected << it.key();
+        }
+    }
+    return selected;
+}
+
+int MainWindow::totalCheckCount() const
+{
+    return m_individualChecks.size();
 }
 
 void MainWindow::onQuitTriggered()

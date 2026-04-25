@@ -77,7 +77,11 @@ private:
     // --- Fixes ---
     QCheckBox *m_allFixesCheck;
     QWidget *m_fixesDetailWidget;
-    QCheckBox *m_checkValidate;
+    QCheckBox *m_checkValidateAll;
+    QWidget *m_checksDetailWidget;
+    QMap<QString, QCheckBox*> m_categoryChecks;
+    QMap<QString, QWidget*> m_categoryWidgets;
+    QMap<QString, QCheckBox*> m_individualChecks;
     QCheckBox *m_checkStripDegen;
     QCheckBox *m_checkFixAnims;
     QCheckBox *m_checkRepairPivots;
@@ -133,6 +137,10 @@ private:
     QComboBox *m_pivotSmoothingCombo;
     QSpinBox *m_pivotMinFacesSpin;
     QComboBox *m_pivotSplitFirstCombo;
+
+    // --- EE cleanup ---
+    QCheckBox *m_standardizeTexture0Check;
+    QCheckBox *m_stripEEExtrasCheck;
 
     // --- Placeable transparency ---
     QCheckBox *m_placeableTransCheck;
@@ -221,6 +229,9 @@ private:
     QStringList collectTableFilePaths(bool allRows) const;
     void reportIssue(const QStringList &files, const QString &errorOutput, const QString &command);
     void reportIssueInteractive(const QStringList &files);
+    void populateCheckTree(const QJsonArray &checks);
+    QStringList selectedCheckNames() const;
+    int totalCheckCount() const;
     static QString humanFileSize(qint64 bytes);
 };
 

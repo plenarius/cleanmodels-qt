@@ -231,9 +231,30 @@ QStringList MainWindow::buildCliArgs()
     else
     {
         args << CliCommand::Repair << CliFlag::JsonLines;
+
         // Validation checks
-        if (m_checkValidate->isChecked())
+        if (m_checkValidateAll->isChecked()) {
             args << CliFlag::Check;
+        } else if (!m_individualChecks.isEmpty()) {
+            QStringList selected = selectedCheckNames();
+            int total = totalCheckCount();
+            if (!selected.isEmpty() && selected.size() < total) {
+                args << CliFlag::Check;
+                int unselected = total - selected.size();
+                if (unselected < selected.size()) {
+                    QStringList excluded;
+                    for (auto it = m_individualChecks.constBegin(); it != m_individualChecks.constEnd(); ++it) {
+                        if (!selected.contains(it.key()))
+                            excluded << it.key();
+                    }
+                    args << CliFlag::ExcludeChecks << excluded.join(",");
+                } else {
+                    args << CliFlag::IncludeChecks << selected.join(",");
+                }
+            } else if (selected.size() == total) {
+                args << CliFlag::Check;
+            }
+        }
 
         // Individual fix flags
         if (m_checkStripDegen->isChecked())
@@ -309,6 +330,10 @@ QStringList MainWindow::buildCliArgs()
             args << CliFlag::MergeByBitmap;
         if (m_cullInvisibleCheck->isChecked())
             args << CliFlag::CullInvisible;
+        if (m_standardizeTexture0Check->isChecked())
+            args << CliFlag::StandardizeTexture0;
+        if (m_stripEEExtrasCheck->isChecked())
+            args << CliFlag::StripEEExtras;
 
         // Placeable transparency
         if (m_placeableTransCheck->isChecked())
