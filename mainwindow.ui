@@ -61,6 +61,7 @@
   </action>
   <action name="actionHelp">
    <property name="text"><string>Help</string></property>
+   <property name="shortcut"><string>F1</string></property>
   </action>
   <action name="actionAbout">
    <property name="text"><string>About</string></property>

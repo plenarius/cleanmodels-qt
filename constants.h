@@ -19,6 +19,7 @@ namespace LogColor {
     constexpr const char *SevInfo     = "#7f8c8d";
 
     constexpr const char *InvalidPath = "#FF0000";
+    constexpr const char *Placeholder = "gray";
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +260,7 @@ namespace Layout {
     constexpr int RootMargin       = 8;
     constexpr int DefaultSpacing   = 6;
     constexpr int CompactSpacing   = 4;
+    constexpr int TightSpacing     = 2;
     constexpr int SectionGap       = 14;
     constexpr int IndentLeft       = 16;
 
@@ -270,8 +272,38 @@ namespace Layout {
     constexpr int SidebarMinWidth     = 320;
     constexpr int SidebarMaxWidth     = 480;
     constexpr int SidebarDefaultWidth = 380;
-    constexpr int CleanButtonHeight   = 36;
-    constexpr int TableRowHeight      = 24;
+
+    // ── Font-relative chrome (em multipliers) ──────────────────────────────
+    // All sizes that frame *text* are expressed as multiples of the widget's
+    // own line height (`fontMetrics().height()`) or a "0" advance, not in
+    // pixels. The point: a user who bumps the system font from 12pt to 16pt,
+    // or runs at 200% scale, gets buttons / table cells / drawers that grow
+    // proportionally instead of clipping at 96-DPI defaults.
+    //
+    // Use Layout::emH(fm, X) for vertical (line-height-based) sizing and
+    // Layout::emW(fm, N) for horizontal (zero-advance-based) sizing.
+    constexpr double CleanButtonHeightEm    = 2.0;   // ~36px at 12pt
+    constexpr double TableRowHeightEm       = 1.4;   // ~24px at 12pt
+    constexpr double SidebarToggleHeightEm  = 1.2;
+    constexpr double DrawerTitleHeightEm    = 1.5;
+    constexpr double DrawerCloseSizeEm      = 1.2;
+    constexpr double DetailPanelMinHeightEm = 5.0;   // ≈5 body lines
+    constexpr double StatusProgressHeightEm = 0.7;   // sliver in status bar
+
+    // Horizontal em (multiplied by zero-advance, so they read as "N digits"):
+    constexpr double TableColumnSizeChars     = 9.0;   // "1234.56 KB"
+    constexpr double TableColumnStatusChars   = 11.0;  // "Processing"
+    constexpr double TableColumnFixesChars    = 9.0;   // "12 (3 info)"
+    constexpr double TableColumnTimeChars     = 9.0;   // "00:00.000"
+    constexpr double RefModelComboWidthChars  = 14.0;
+    constexpr double StatusProgressWidthChars = 11.0;
+
+    // Legacy pixel aliases (computed from the em multipliers at startup-time
+    // when only an approximate value is needed and a QFontMetrics isn't
+    // immediately available). Real widgets should call emH/emW with their
+    // own font metrics via the helpers in metrics.h.
+    constexpr int CleanButtonHeight = 36;
+    constexpr int TableRowHeight    = 24;
 }
 
 // ---------------------------------------------------------------------------

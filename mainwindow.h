@@ -54,6 +54,8 @@ private slots:
     void onDirectoryContentsChanged();
     void updateFileListing();
     void onCaptureCleanModelsOutput();
+    void onCleanStarted();
+    void onCleanProcessError(QProcess::ProcessError err);
     void onCleanFinished(int, QProcess::ExitStatus);
     void copyToClipboard();
     void onReportIssueTriggered();

@@ -9,6 +9,7 @@
 #include <QWheelEvent>
 #include <QProcess>
 #include <QString>
+#include <functional>
 
 class ModelViewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
 {
@@ -51,7 +52,14 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
 private:
-    QString readMdlToAscii(const QString &mdlPath, QString *errorOut = nullptr);
+    // Reads `mdlPath` and asynchronously delivers the ASCII representation to
+    // `onSuccess`, or a human-readable failure message to `onError`. ASCII
+    // sources resolve synchronously inside this call; binary sources spawn a
+    // `cleanmodels decompile` subprocess and resolve when it finishes. A
+    // watchdog timer kills runaway processes after CliDefaults::ProcessTimeoutMs.
+    void decompileAsync(const QString &mdlPath,
+                        std::function<void(const QString &)> onSuccess,
+                        std::function<void(const QString &)> onError);
 
     Renderer m_renderer;
     Camera m_camera;

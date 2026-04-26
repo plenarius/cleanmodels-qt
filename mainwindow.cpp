@@ -1,6 +1,8 @@
 ﻿#include "constants.h"
 #include "fsmodel.h"
+#include "loghtml.h"
 #include "mainwindow.h"
+#include "metrics.h"
 #include "modelviewport.h"
 #include "ui_mainwindow.h"
 #include <QApplication>
@@ -32,6 +34,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSettings>
+#include <QShortcut>
 #include <QStandardPaths>
 #include <QStringBuilder>
 #include <QTextStream>
@@ -169,14 +172,22 @@ void MainWindow::buildUi()
     ioForm->setContentsMargins(0, 0, 0, 0);
 
     m_indirButton = new QPushButton(style()->standardIcon(QStyle::SP_DirOpenIcon), "");
+    m_indirButton->setAccessibleName(tr("Browse for input directory"));
+    m_indirButton->setToolTip(tr("Browse for input directory"));
     m_outdirButton = new QPushButton(style()->standardIcon(QStyle::SP_DirOpenIcon), "");
+    m_outdirButton->setAccessibleName(tr("Browse for output directory"));
+    m_outdirButton->setToolTip(tr("Browse for output directory"));
     m_inDirectory = new QLineEdit;
+    m_inDirectory->setAccessibleName(tr("Input directory"));
     m_inDirectory->setToolTip("Directory containing MDL files to process");
     m_outDirectory = new QLineEdit;
+    m_outDirectory->setAccessibleName(tr("Output directory"));
     m_outDirectory->setToolTip("Output directory for processed files (leave empty to overwrite originals)");
     m_filePattern = new QLineEdit("*.mdl");
+    m_filePattern->setAccessibleName(tr("File pattern"));
     m_filePattern->setToolTip("Glob pattern to filter files (e.g. *.mdl)");
     m_classificationCombo = new QComboBox;
+    m_classificationCombo->setAccessibleName(tr("Model classification"));
     fillCombo(m_classificationCombo, Options::Classification);
     m_classificationCombo->setToolTip("Override model classification (Automatic detects from file)");
 
@@ -317,8 +328,9 @@ void MainWindow::buildUi()
     m_scaleLockBtn = new QPushButton(QString::fromUtf8("🔒"));
     m_scaleLockBtn->setCheckable(true);
     m_scaleLockBtn->setChecked(true);
-    m_scaleLockBtn->setStyleSheet("QPushButton { background: transparent; border: none; }");
-    m_scaleLockBtn->setToolTip("Lock/unlock uniform scaling");
+    m_scaleLockBtn->setFlat(true);
+    m_scaleLockBtn->setAccessibleName(tr("Lock uniform scaling"));
+    m_scaleLockBtn->setToolTip(tr("Lock/unlock uniform scaling"));
     m_scaleYSpin->setEnabled(false);
     m_scaleZSpin->setEnabled(false);
 
@@ -557,17 +569,24 @@ void MainWindow::buildUi()
 
     m_cleanButton = new QPushButton("Clean");
     m_cleanButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
-    m_cleanButton->setMinimumHeight(Layout::CleanButtonHeight);
-    m_cleanButton->setToolTip("Run cleanmodels on all files (F5)");
+    m_cleanButton->setAccessibleName(tr("Run cleanmodels"));
+    m_cleanButton->setToolTip(tr("Run cleanmodels on all files (F5, ⌘↵)"));
     m_cleanButton->setEnabled(false);
     QFont cleanFont = m_cleanButton->font();
     cleanFont.setBold(true);
     m_cleanButton->setFont(cleanFont);
+    // Set min height after the bold font is applied so metrics reflect the
+    // actual line height of the rendered label, not the default UI font.
+    m_cleanButton->setMinimumHeight(Layout::emH(QFontMetrics(m_cleanButton->font()),
+                                                Layout::CleanButtonHeightEm));
     sidebarLayout->addWidget(m_cleanButton);
 
-    m_sidebarToggleBtn = new QPushButton("Hide Sidebar");
+    m_sidebarToggleBtn = new QPushButton(tr("Hide Sidebar"));
     m_sidebarToggleBtn->setFlat(true);
-    m_sidebarToggleBtn->setFixedHeight(20);
+    m_sidebarToggleBtn->setFixedHeight(Layout::emH(QFontMetrics(m_sidebarToggleBtn->font()),
+                                                   Layout::SidebarToggleHeightEm));
+    m_sidebarToggleBtn->setAccessibleName(tr("Toggle sidebar visibility"));
+    m_sidebarToggleBtn->setToolTip(tr("Show or hide the options sidebar (Ctrl+Shift+S)"));
     sidebarLayout->addWidget(m_sidebarToggleBtn);
 
     // ====================================================================
@@ -593,19 +612,24 @@ void MainWindow::buildUi()
 
     // ── File table ────────────────────────────────────────────────────
     m_filesTable = new QTableWidget;
+    m_filesTable->setAccessibleName(tr("Files table"));
     m_filesTable->setColumnCount(5);
     m_filesTable->setHorizontalHeaderLabels({"File", "Size", "Status", "Fixes", "Time"});
     m_filesTable->setAlternatingRowColors(true);
     m_filesTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_filesTable->setColumnWidth(1, 80);
-    m_filesTable->setColumnWidth(2, 100);
-    m_filesTable->setColumnWidth(3, 80);
-    m_filesTable->setColumnWidth(4, 80);
+    {
+        const QFontMetrics fm(m_filesTable->font());
+        m_filesTable->setColumnWidth(1, Layout::emW(fm, Layout::TableColumnSizeChars));
+        m_filesTable->setColumnWidth(2, Layout::emW(fm, Layout::TableColumnStatusChars));
+        m_filesTable->setColumnWidth(3, Layout::emW(fm, Layout::TableColumnFixesChars));
+        m_filesTable->setColumnWidth(4, Layout::emW(fm, Layout::TableColumnTimeChars));
+        m_filesTable->verticalHeader()->setDefaultSectionSize(
+            Layout::emH(fm, Layout::TableRowHeightEm));
+    }
     QFont headerFont = m_filesTable->horizontalHeader()->font();
     headerFont.setBold(true);
     m_filesTable->horizontalHeader()->setFont(headerFont);
     m_filesTable->horizontalHeader()->setVisible(true);
-    m_filesTable->verticalHeader()->setDefaultSectionSize(Layout::TableRowHeight);
     m_filesTable->verticalHeader()->setVisible(false);
     m_filesTable->setContextMenuPolicy(Qt::CustomContextMenu);
     m_filesTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -614,9 +638,12 @@ void MainWindow::buildUi()
 
     // ── Detail panel ─────────────────────────────────────────────────
     m_detailPanel = new QTextBrowser;
+    m_detailPanel->setAccessibleName(tr("File details"));
     m_detailPanel->setReadOnly(true);
-    m_detailPanel->setHtml("<p style='color:gray; font-style:italic;'>Click a file to see details</p>");
-    m_detailPanel->setMinimumHeight(80);
+    m_detailPanel->setHtml(QStringLiteral("<p style='color:") % QLatin1String(LogColor::Placeholder)
+                           % QStringLiteral("; font-style:italic;'>Click a file to see details</p>"));
+    m_detailPanel->setMinimumHeight(Layout::emH(QFontMetrics(m_detailPanel->font()),
+                                                Layout::DetailPanelMinHeightEm));
 
     // ── Table + detail splitter ──────────────────────────────────────
     m_tableDetailSplitter = new QSplitter(Qt::Vertical);
@@ -627,6 +654,7 @@ void MainWindow::buildUi()
 
     // ── Raw log drawer (uses existing m_debugTextBrowser) ────────────
     m_debugTextBrowser = new QTextBrowser;
+    m_debugTextBrowser->setAccessibleName(tr("Raw cleanmodels log"));
     m_debugTextBrowser->setPlaceholderText("Output from cleanmodels will appear here.\nClick Clean to begin processing.");
     QFont logFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     logFont.setPointSizeF(logFont.pointSizeF() * 0.9);
@@ -638,17 +666,23 @@ void MainWindow::buildUi()
     drawerLayout->setSpacing(0);
 
     auto *drawerTitleBar = new QWidget;
-    drawerTitleBar->setFixedHeight(24);
     auto *drawerTitleLayout = new QHBoxLayout(drawerTitleBar);
-    drawerTitleLayout->setContentsMargins(6, 0, 4, 0);
-    drawerTitleLayout->setSpacing(4);
+    drawerTitleLayout->setContentsMargins(Layout::DefaultSpacing, 0,
+                                          Layout::CompactSpacing, 0);
+    drawerTitleLayout->setSpacing(Layout::CompactSpacing);
     auto *drawerLabel = new QLabel("Raw Log");
     QFont drawerFont = drawerLabel->font();
     drawerFont.setBold(true);
     drawerFont.setPointSizeF(drawerFont.pointSizeF() * 0.85);
     drawerLabel->setFont(drawerFont);
+    drawerTitleBar->setFixedHeight(Layout::emH(QFontMetrics(drawerFont),
+                                               Layout::DrawerTitleHeightEm));
     auto *drawerCloseBtn = new QPushButton(QString::fromUtf8("\xc3\x97"));
-    drawerCloseBtn->setFixedSize(20, 20);
+    {
+        const int s = Layout::emH(QFontMetrics(drawerCloseBtn->font()),
+                                  Layout::DrawerCloseSizeEm);
+        drawerCloseBtn->setFixedSize(s, s);
+    }
     drawerCloseBtn->setFlat(true);
     drawerTitleLayout->addWidget(drawerLabel);
     drawerTitleLayout->addStretch();
@@ -664,6 +698,8 @@ void MainWindow::buildUi()
 
     // ── Viewport with toolbar ────────────────────────────────────────
     m_viewport = new ModelViewport(this);
+    m_viewport->setAccessibleName(tr("3D model viewport"));
+    m_viewport->setAccessibleDescription(tr("Live preview of the selected MDL. Drag to orbit, right-drag to pan, scroll to zoom."));
     m_viewport->setMinimumSize(200, 150);
 
     auto *viewportContainer = new QWidget;
@@ -673,15 +709,21 @@ void MainWindow::buildUi()
 
     auto *viewToolbar = new QHBoxLayout;
     m_wireframeCheck = new QCheckBox("Wireframe");
+    m_wireframeCheck->setAccessibleName(tr("Wireframe rendering"));
     m_gridCheck = new QCheckBox("Grid");
+    m_gridCheck->setAccessibleName(tr("Show ground grid"));
     m_gridCheck->setChecked(true);
     m_refModelCheck = new QCheckBox("Reference:");
+    m_refModelCheck->setAccessibleName(tr("Show reference model overlay"));
     m_refModelCombo = new QComboBox;
-    m_refModelCombo->setMinimumWidth(120);
+    m_refModelCombo->setAccessibleName(tr("Reference model"));
+    m_refModelCombo->setMinimumWidth(Layout::emW(QFontMetrics(m_refModelCombo->font()),
+                                                 Layout::RefModelComboWidthChars));
     m_refModelCombo->setEditable(false);
     m_refModelCombo->addItem("(none)");
     m_refModelCombo->setEnabled(false);
     m_refBrowseBtn = new QPushButton("Browse…");
+    m_refBrowseBtn->setAccessibleName(tr("Browse for reference model file"));
     m_refBrowseBtn->setEnabled(false);
 
     viewToolbar->setSpacing(Layout::RootMargin);
@@ -845,6 +887,29 @@ void MainWindow::buildUi()
     m_cleanButton->setShortcut(QKeySequence(Qt::Key_F5));
     connect(m_cleanButton, &QPushButton::clicked, this, [this] { doClean(); });
 
+    // Ctrl+Return alternate trigger — F5 isn't reachable on laptops with
+    // function-locked keyboards (Apple notebooks, many ultrabooks). Mirrors
+    // the macOS convention of ⌘↵ for "primary action in this window".
+    auto *cleanReturnShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this);
+    cleanReturnShortcut->setContext(Qt::WindowShortcut);
+    connect(cleanReturnShortcut, &QShortcut::activated, this, [this] {
+        if (m_cleanButton->isEnabled()) doClean();
+    });
+    auto *cleanEnterShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Enter), this);
+    cleanEnterShortcut->setContext(Qt::WindowShortcut);
+    connect(cleanEnterShortcut, &QShortcut::activated, this, [this] {
+        if (m_cleanButton->isEnabled()) doClean();
+    });
+
+    // Esc aborts an in-flight run. No-op when nothing is running, so it
+    // doesn't steal focus from dialogs or text fields with their own Esc
+    // handling (Qt::WindowShortcut respects modal dialogs above this window).
+    auto *abortShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+    abortShortcut->setContext(Qt::WindowShortcut);
+    connect(abortShortcut, &QShortcut::activated, this, [this] {
+        if (m_bCleanRunning) doClean();
+    });
+
     // ── Detail panel / sidebar / raw log connections ─────────────────
     connect(m_filesTable, &QTableWidget::currentCellChanged, this, [this](int row, int, int, int) {
         if (row >= 0 && row < m_filesTable->rowCount()) {
@@ -916,13 +981,13 @@ MainWindow::MainWindow(QWidget *parent) :
     {
         QString errorMsg = "Could not find the " % m_sBinaryName % " executable in the current directory or in your path!";
         QMessageBox::critical(this, "No cleanmodels CLI", errorMsg);
-        appendDebugHtml("<span style=\"color:" + QLatin1String(LogColor::Error) + ";\">" + errorMsg.toHtmlEscaped() + "</span><br>");
+        appendDebugHtml(LogHtml::span(LogColor::Error, errorMsg.toHtmlEscaped()) % QStringLiteral("<br>"));
     }
 
     m_viewport->setCliBinaryPath(m_sBinaryPath);
 
     connect(m_viewport, &ModelViewport::previewError, this, [this](const QString &msg) {
-        appendDebugHtml("<p><span style=\"color:" + QLatin1String(LogColor::Warning) + ";\">Preview: " + msg.toHtmlEscaped() + "</span></p><br>");
+        appendDebugHtml(LogHtml::logLine(LogColor::Warning, QStringLiteral("Preview: ") % msg.toHtmlEscaped()));
     });
 
     // Process
@@ -936,8 +1001,11 @@ MainWindow::MainWindow(QWidget *parent) :
     m_pStatusProgress->setRange(0, 0);
     m_pStatusProgress->setTextVisible(false);
     m_pStatusProgress->setVisible(false);
-    m_pStatusProgress->setMaximumHeight(12);
-    m_pStatusProgress->setMaximumWidth(100);
+    {
+        const QFontMetrics fm(m_pStatusProgress->font());
+        m_pStatusProgress->setMaximumHeight(Layout::emH(fm, Layout::StatusProgressHeightEm));
+        m_pStatusProgress->setMaximumWidth(Layout::emW(fm, Layout::StatusProgressWidthChars));
+    }
     statusBar()->addPermanentWidget(sStatusLabel);
     statusBar()->addPermanentWidget(m_pCleanStatus);
     statusBar()->addPermanentWidget(m_pStatusProgress);
@@ -958,6 +1026,8 @@ MainWindow::MainWindow(QWidget *parent) :
     m_bUpdateFilesAfterClean = false;
 
     // Signals
+    connect(m_pCleanProcess, &QProcess::started, this, &MainWindow::onCleanStarted);
+    connect(m_pCleanProcess, &QProcess::errorOccurred, this, &MainWindow::onCleanProcessError);
     connect(m_pCleanProcess, &QProcess::finished, this, &MainWindow::onCleanFinished);
     connect(ui->actionHelp, &QAction::triggered, this, &MainWindow::onHelpTriggered);
     connect(ui->actionReportIssue, &QAction::triggered, this, &MainWindow::onReportIssueTriggered);
@@ -1103,7 +1173,7 @@ void MainWindow::loadSettings()
     // Layout visibility
     bool sidebarVis = s.value(Setting::SidebarVisible, true).toBool();
     m_sidebarWidget->setVisible(sidebarVis);
-    m_sidebarToggleBtn->setText(sidebarVis ? "Hide Sidebar" : "Show Sidebar");
+    m_sidebarToggleBtn->setText(sidebarVis ? tr("Hide Sidebar") : tr("Show Sidebar"));
     m_sidebarToggleBtn->setVisible(!sidebarVis);
 
     m_rawLogVisible = s.value(Setting::RawLogVisible, false).toBool();
@@ -1332,7 +1402,7 @@ void MainWindow::reportIssue(const QStringList &files, const QString &errorOutpu
     if (confirm != QMessageBox::Yes)
         return;
 
-    appendDebugHtml("<span style=\"color:" % QLatin1String(LogColor::Info) % ";\">Submitting bug report...</span><br>");
+    appendDebugHtml(LogHtml::span(LogColor::Info, QStringLiteral("Submitting bug report...")) % QStringLiteral("<br>"));
 
     auto *proc = new QProcess(this);
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -1343,17 +1413,18 @@ void MainWindow::reportIssue(const QStringList &files, const QString &errorOutpu
 
         if (exitCode == 0 && !output.isEmpty()) {
             QString issueUrl = output.split('\n').last().trimmed();
-            appendDebugHtml("<span style=\"color:" % QLatin1String(LogColor::Success)
-                % ";\">Report submitted: <a href=\"" % issueUrl.toHtmlEscaped()
-                % "\">" % issueUrl.toHtmlEscaped() % "</a></span><br>");
+            appendDebugHtml(LogHtml::span(LogColor::Success,
+                QStringLiteral("Report submitted: <a href=\"") % issueUrl.toHtmlEscaped()
+                % QStringLiteral("\">") % issueUrl.toHtmlEscaped() % QStringLiteral("</a>"))
+                % QStringLiteral("<br>"));
             m_detailPanel->setHtml(
-                "<p style='color:" + QLatin1String(LogColor::FixApplied) + ";'>"
-                "<b>Report submitted successfully!</b></p>"
-                "<p><a href='" + issueUrl.toHtmlEscaped() + "'>" + issueUrl.toHtmlEscaped() + "</a></p>");
+                LogHtml::detailLine(LogColor::FixApplied, QStringLiteral("<b>Report submitted successfully!</b>"))
+                % QStringLiteral("<p><a href='") % issueUrl.toHtmlEscaped() % QStringLiteral("'>")
+                % issueUrl.toHtmlEscaped() % QStringLiteral("</a></p>"));
         } else {
             QString msg = errors.isEmpty() ? "Unknown error" : errors;
-            appendDebugHtml("<span style=\"color:" % QLatin1String(LogColor::Error)
-                % ";\">Report failed: " % msg.toHtmlEscaped() % "</span><br>");
+            appendDebugHtml(LogHtml::span(LogColor::Error,
+                QStringLiteral("Report failed: ") % msg.toHtmlEscaped()) % QStringLiteral("<br>"));
             QMessageBox::warning(this, "Report Failed",
                 "Failed to submit the bug report:\n\n" + msg);
         }
@@ -1456,7 +1527,7 @@ void MainWindow::populateCheckTree(const QJsonArray &checks)
         auto *catContent = new QWidget;
         auto *catLayout = new QVBoxLayout(catContent);
         catLayout->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
-        catLayout->setSpacing(2);
+        catLayout->setSpacing(Layout::TightSpacing);
         catContent->setVisible(false);
         layout->addWidget(catContent);
         m_categoryWidgets[cat] = catContent;
@@ -1643,7 +1714,7 @@ void MainWindow::toggleSidebar()
 {
     bool visible = m_sidebarWidget->isVisible();
     m_sidebarWidget->setVisible(!visible);
-    m_sidebarToggleBtn->setText(visible ? "Show Sidebar" : "Hide Sidebar");
+    m_sidebarToggleBtn->setText(visible ? tr("Show Sidebar") : tr("Hide Sidebar"));
     m_sidebarToggleBtn->setVisible(visible);
 }
 
@@ -1658,7 +1729,8 @@ void MainWindow::showFileDetails(const QString &fileName)
     if (m_fileResults.contains(fileName)) {
         m_detailPanel->setHtml(m_fileResults[fileName].join(""));
     } else {
-        m_detailPanel->setHtml("<p style='color:gray;'>No results yet for this file.</p>");
+        m_detailPanel->setHtml(LogHtml::detailLine(LogColor::Placeholder,
+                                                   QStringLiteral("No results yet for this file.")));
     }
 }
 

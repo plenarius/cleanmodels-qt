@@ -3,7 +3,8 @@
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
-#include <QGuiApplication>
+#include <QPointer>
+#include <QTimer>
 
 ModelViewport::ModelViewport(QWidget *parent)
     : QOpenGLWidget(parent)
@@ -65,45 +66,66 @@ bool ModelViewport::fileIsBinaryMdl(const QString &path)
     return hdr.size() == 4 && hdr[0] == 0 && hdr[1] == 0 && hdr[2] == 0 && hdr[3] == 0;
 }
 
-QString ModelViewport::readMdlToAscii(const QString &mdlPath, QString *errorOut)
+void ModelViewport::decompileAsync(const QString &mdlPath,
+                                   std::function<void(const QString &)> onSuccess,
+                                   std::function<void(const QString &)> onError)
 {
-    if (fileIsBinaryMdl(mdlPath))
-    {
-        if (m_cliBinaryPath.isEmpty()) {
-            if (errorOut) *errorOut = "CLI binary path not set";
-            return {};
+    if (!fileIsBinaryMdl(mdlPath)) {
+        QFile f(mdlPath);
+        if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            onError("Cannot open " + mdlPath);
+            return;
         }
-
-        QProcess proc;
-        proc.setProgram(m_cliBinaryPath);
-        proc.setArguments({CliCommand::Decompile, mdlPath});
-        proc.start(QIODevice::ReadOnly);
-
-        QGuiApplication::setOverrideCursor(Qt::WaitCursor);
-        bool finished = proc.waitForFinished(CliDefaults::ProcessTimeoutMs);
-        QGuiApplication::restoreOverrideCursor();
-
-        if (!finished) {
-            proc.kill();
-            proc.waitForFinished(1000);
-            if (errorOut) *errorOut = "CLI timed out decompiling " + mdlPath;
-            return {};
-        }
-
-        if (proc.exitCode() != 0) {
-            if (errorOut) *errorOut = "CLI error: " + proc.readAllStandardError();
-            return {};
-        }
-
-        return QString::fromUtf8(proc.readAllStandardOutput());
+        onSuccess(QString::fromUtf8(f.readAll()));
+        return;
     }
 
-    QFile f(mdlPath);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (errorOut) *errorOut = "Cannot open " + mdlPath;
-        return {};
+    if (m_cliBinaryPath.isEmpty()) {
+        onError("CLI binary path not set");
+        return;
     }
-    return QString::fromUtf8(f.readAll());
+
+    auto *proc = new QProcess(this);
+    proc->setProgram(m_cliBinaryPath);
+    proc->setArguments({CliCommand::Decompile, mdlPath});
+
+    // Watchdog: bound the runtime so a stuck decompile cannot leak forever.
+    // `proc` parents the timer, so destroying the process tears down the timer.
+    auto *watchdog = new QTimer(proc);
+    watchdog->setSingleShot(true);
+    QObject::connect(watchdog, &QTimer::timeout, proc, [proc, mdlPath, onError]() {
+        if (proc->state() == QProcess::NotRunning)
+            return;
+        proc->kill();
+        onError("CLI timed out decompiling " + mdlPath);
+    });
+
+    QObject::connect(proc, &QProcess::errorOccurred, this,
+                     [proc, mdlPath, onError](QProcess::ProcessError err) {
+        if (err == QProcess::FailedToStart) {
+            onError("CLI failed to start for " + mdlPath + ": " + proc->errorString());
+            proc->deleteLater();
+        }
+    });
+
+    QObject::connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                     [proc, watchdog, mdlPath, onSuccess, onError](int exitCode, QProcess::ExitStatus status) {
+        watchdog->stop();
+        if (status == QProcess::CrashExit) {
+            onError("CLI crashed while decompiling " + mdlPath);
+        } else if (exitCode != 0) {
+            const QByteArray err = proc->readAllStandardError();
+            onError("CLI error decompiling " + mdlPath + ": " +
+                    (err.isEmpty() ? QStringLiteral("exit code %1").arg(exitCode)
+                                   : QString::fromUtf8(err)));
+        } else {
+            onSuccess(QString::fromUtf8(proc->readAllStandardOutput()));
+        }
+        proc->deleteLater();
+    });
+
+    proc->start(QIODevice::ReadOnly);
+    watchdog->start(CliDefaults::ProcessTimeoutMs);
 }
 
 void ModelViewport::previewFile(const QString &mdlPath)
@@ -113,14 +135,20 @@ void ModelViewport::previewFile(const QString &mdlPath)
         return;
     }
 
-    QString error;
-    QString ascii = readMdlToAscii(mdlPath, &error);
-    if (ascii.isEmpty()) {
-        emit previewError(error.isEmpty() ? "Empty MDL content for " + mdlPath : error);
-        return;
-    }
-
-    loadModel(ascii, QFileInfo(mdlPath).absolutePath());
+    QPointer<ModelViewport> self(this);
+    decompileAsync(mdlPath,
+        [self, mdlPath](const QString &ascii) {
+            if (!self) return;
+            if (ascii.isEmpty()) {
+                emit self->previewError("Empty MDL content for " + mdlPath);
+                return;
+            }
+            self->loadModel(ascii, QFileInfo(mdlPath).absolutePath());
+        },
+        [self](const QString &err) {
+            if (!self) return;
+            emit self->previewError(err);
+        });
 }
 
 void ModelViewport::loadModel(const QString &asciiMdl, const QString &textureDir)
@@ -177,16 +205,21 @@ void ModelViewport::loadReferenceFile(const QString &mdlPath)
 {
     if (!m_initialized) return;
 
-    QString ascii = readMdlToAscii(mdlPath);
-    if (ascii.isEmpty()) return;
-
-    MdlScene scene;
-    if (!scene.loadFromString(ascii)) return;
-
-    makeCurrent();
-    m_renderer.prepareReferenceModel(this, scene, QFileInfo(mdlPath).absolutePath());
-    doneCurrent();
-    update();
+    QPointer<ModelViewport> self(this);
+    decompileAsync(mdlPath,
+        [self, mdlPath](const QString &ascii) {
+            if (!self || ascii.isEmpty()) return;
+            MdlScene scene;
+            if (!scene.loadFromString(ascii)) return;
+            self->makeCurrent();
+            self->m_renderer.prepareReferenceModel(self, scene, QFileInfo(mdlPath).absolutePath());
+            self->doneCurrent();
+            self->update();
+        },
+        [](const QString &) {
+            // Reference loads are best-effort; failures stay silent here so
+            // they don't interrupt a decompile preview already on screen.
+        });
 }
 
 void ModelViewport::clearReference()
