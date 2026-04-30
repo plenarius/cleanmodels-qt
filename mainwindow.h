@@ -154,6 +154,8 @@ private:
     QCheckBox *m_refModelCheck;
     QComboBox *m_refModelCombo;
     QPushButton *m_refBrowseBtn;
+    QLabel    *m_animLabel = nullptr;
+    QComboBox *m_animCombo = nullptr;
 
     // --- Layout structure ---
     QWidget *m_sidebarWidget = nullptr;

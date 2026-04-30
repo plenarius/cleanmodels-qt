@@ -726,9 +726,20 @@ void MainWindow::buildUi()
     m_refBrowseBtn->setAccessibleName(tr("Browse for reference model file"));
     m_refBrowseBtn->setEnabled(false);
 
+    m_animLabel = new QLabel("Anim:");
+    m_animCombo = new QComboBox;
+    m_animCombo->setAccessibleName(tr("Animation"));
+    m_animCombo->setMinimumWidth(Layout::emW(QFontMetrics(m_animCombo->font()),
+                                              Layout::RefModelComboWidthChars));
+    m_animCombo->addItem("(bind pose)");
+    m_animCombo->setEnabled(false);
+
     viewToolbar->setSpacing(Layout::RootMargin);
     viewToolbar->addWidget(m_wireframeCheck);
     viewToolbar->addWidget(m_gridCheck);
+    viewToolbar->addSpacing(Layout::SectionGap);
+    viewToolbar->addWidget(m_animLabel);
+    viewToolbar->addWidget(m_animCombo);
     viewToolbar->addSpacing(Layout::SectionGap);
     viewToolbar->addWidget(m_refModelCheck);
     viewToolbar->addWidget(m_refModelCombo);
@@ -803,6 +814,29 @@ void MainWindow::buildUi()
             QString path = m_refModelCombo->currentData().toString();
             if (!path.isEmpty())
                 m_viewport->loadReferenceFile(path);
+        }
+    });
+
+    connect(m_animCombo, QOverload<int>::of(&QComboBox::activated), this, [this](int idx) {
+        QString name = (idx <= 0) ? QString() : m_animCombo->itemText(idx);
+        m_viewport->playAnimation(name);
+    });
+    connect(m_viewport, &ModelViewport::animationsAvailable, this,
+            [this](const QStringList &names, const QString &nowPlaying) {
+        // Block signals while we rebuild — the combo's activated signal is
+        // intentional ("user picked one") and shouldn't fire from setup.
+        QSignalBlocker block(m_animCombo);
+        m_animCombo->clear();
+        m_animCombo->addItem("(bind pose)");
+        for (const QString &n : names)
+            m_animCombo->addItem(n);
+        m_animCombo->setEnabled(!names.isEmpty());
+        if (!nowPlaying.isEmpty()) {
+            int idx = m_animCombo->findText(nowPlaying);
+            if (idx >= 0)
+                m_animCombo->setCurrentIndex(idx);
+        } else {
+            m_animCombo->setCurrentIndex(0);
         }
     });
 

@@ -11,6 +11,26 @@ ModelViewport::ModelViewport(QWidget *parent)
 {
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
+
+    // ~60Hz animation tick. Only runs while a model with active animation
+    // is loaded; otherwise we keep the GPU idle. Connection is queued
+    // through the Qt event loop to stay safe against re-entrancy from
+    // paint events.
+    m_animTimer.setInterval(16);
+    m_animTimer.setTimerType(Qt::PreciseTimer);
+    QObject::connect(&m_animTimer, &QTimer::timeout, this, [this]() {
+        if (!m_initialized || !m_hasModel)
+            return;
+        const float dt = m_clock.isValid()
+            ? static_cast<float>(m_clock.restart()) / 1000.0f
+            : 0.016f;
+        if (m_player.update(dt)) {
+            makeCurrent();
+            m_renderer.updateAnimatedMeshes(this, m_scene, m_player.boneWorldMatrices());
+            doneCurrent();
+            update();
+        }
+    });
 }
 
 ModelViewport::~ModelViewport()
@@ -156,33 +176,103 @@ void ModelViewport::loadModel(const QString &asciiMdl, const QString &textureDir
     if (!m_initialized)
         return;
 
-    MdlScene scene;
-    if (!scene.loadFromString(asciiMdl)) {
+    m_animTimer.stop();
+    m_clock.invalidate();
+
+    MdlScene fresh;
+    if (!fresh.loadFromString(asciiMdl)) {
         emit previewError("Failed to parse MDL scene");
         return;
     }
+    m_scene = std::move(fresh);
 
     makeCurrent();
-    m_renderer.prepareScene(this, scene, textureDir);
+    m_renderer.prepareScene(this, m_scene, textureDir);
     doneCurrent();
 
+    // Wire the player to the new scene and try to start an idle pose. The
+    // standard NWN creature idle names are tried in order; the first match
+    // wins. If none exist we leave the preview at bind pose (some
+    // non-creature models legitimately have no animations).
+    m_player.setScene(&m_scene);
+    QString playing = m_player.playPreferred({
+        "cpause1", "cstand", "pause1", "stand", "cpause", "cwalk", "default"
+    });
+    if (!playing.isEmpty()) {
+        // Apply the player's first frame so bind-pose rendering doesn't
+        // flash on screen for a tick before the timer kicks in.
+        makeCurrent();
+        m_renderer.updateAnimatedMeshes(this, m_scene, m_player.boneWorldMatrices());
+        doneCurrent();
+        m_clock.start();
+        m_animTimer.start();
+    }
+
     QVector3D bmin, bmax;
-    scene.computeBounds(bmin, bmax);
+    m_scene.computeBounds(bmin, bmax);
     m_camera.focusOnBounds(bmin, bmax);
 
     m_hasModel = true;
     update();
+
+    emit animationsAvailable(m_scene.animationNames(), playing);
+}
+
+QStringList ModelViewport::animationNames() const
+{
+    return m_scene.animationNames();
+}
+
+QString ModelViewport::currentAnimation() const
+{
+    return m_player.currentName();
+}
+
+void ModelViewport::playAnimation(const QString &name)
+{
+    if (!m_initialized || !m_hasModel)
+        return;
+    if (name.isEmpty()) {
+        m_player.stop();
+        m_animTimer.stop();
+        m_clock.invalidate();
+        // One last update so the mesh snaps back to bind pose.
+        makeCurrent();
+        m_renderer.updateAnimatedMeshes(this, m_scene, m_player.boneWorldMatrices());
+        doneCurrent();
+        update();
+        return;
+    }
+    if (!m_player.play(name))
+        return;
+    makeCurrent();
+    m_renderer.updateAnimatedMeshes(this, m_scene, m_player.boneWorldMatrices());
+    doneCurrent();
+    m_clock.start();
+    m_animTimer.start();
+    update();
+}
+
+bool ModelViewport::isPlayingAnimation() const
+{
+    return m_player.state() == MdlAnimationPlayer::State::Playing;
 }
 
 void ModelViewport::clearModel()
 {
     if (!m_initialized)
         return;
+    m_animTimer.stop();
+    m_clock.invalidate();
+    m_player.stop();
+    m_player.setScene(nullptr);
+    m_scene = MdlScene();
     makeCurrent();
-    m_renderer.prepareScene(this, MdlScene());
+    m_renderer.prepareScene(this, m_scene);
     doneCurrent();
     m_hasModel = false;
     update();
+    emit animationsAvailable({}, {});
 }
 
 void ModelViewport::setWireframe(bool on)
@@ -211,6 +301,8 @@ void ModelViewport::loadReferenceFile(const QString &mdlPath)
             if (!self || ascii.isEmpty()) return;
             MdlScene scene;
             if (!scene.loadFromString(ascii)) return;
+            scene.applyPreferredPose({"cpause1", "cstand", "pause1", "stand",
+                                      "cpause", "cwalk", "default"});
             self->makeCurrent();
             self->m_renderer.prepareReferenceModel(self, scene, QFileInfo(mdlPath).absolutePath());
             self->doneCurrent();

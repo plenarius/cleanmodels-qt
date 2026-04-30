@@ -1,4 +1,6 @@
 #include "mdlscene.h"
+#include <QDebug>
+#include <QHash>
 #include <QRegularExpression>
 #include <QStringList>
 #include <QTextStream>
@@ -15,22 +17,37 @@ bool MdlNode::hasMesh() const
 bool MdlScene::loadFromString(const QString &ascii)
 {
     m_nodes.clear();
+    m_animations.clear();
     QStringList lines = ascii.split('\n');
     int pos = 0;
+    bool inGeom = true;
     while (pos < lines.size())
     {
         QString line = lines[pos].trimmed();
-        if (line.startsWith("node "))
+        if (inGeom)
         {
-            parseNodeBlock(lines, pos);
-        }
-        else if (line.startsWith("endmodelgeom"))
-        {
-            break;
+            if (line.startsWith("node "))
+            {
+                parseNodeBlock(lines, pos);
+            }
+            else if (line.startsWith("endmodelgeom"))
+            {
+                inGeom = false;
+                pos++;
+            }
+            else
+            {
+                pos++;
+            }
         }
         else
         {
-            pos++;
+            if (line.startsWith("newanim "))
+                parseAnimBlock(lines, pos);
+            else if (line.startsWith("donemodel"))
+                break;
+            else
+                pos++;
         }
     }
     return !m_nodes.isEmpty();
@@ -55,7 +72,7 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
     pos++;
 
     constexpr int kMaxArraySize = 10'000'000;
-    enum class ArrayMode { None, Verts, Faces, TVerts, Normals };
+    enum class ArrayMode { None, Verts, Faces, TVerts, Normals, Weights };
     ArrayMode mode = ArrayMode::None;
     int remaining = 0;
 
@@ -105,6 +122,19 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
                     f.material = tokens[7].toInt();
                     node.faces.append(f);
                 }
+                break;
+            }
+            case ArrayMode::Weights: {
+                // Format: bone_name weight [bone_name weight ...]
+                // Up to 4 bone influences per vertex in practice.
+                QVector<MdlVertWeight> wlist;
+                for (int i = 0; i + 1 < tokens.size(); i += 2) {
+                    bool ok = false;
+                    float w = tokens[i + 1].toFloat(&ok);
+                    if (ok)
+                        wlist.append({tokens[i], w});
+                }
+                node.weights.append(wlist);
                 break;
             }
             default:
@@ -206,9 +236,333 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
                 node.normals.reserve(count);
             }
         }
+        else if (key == "weights" && tokens.size() >= 2)
+        {
+            int count = tokens[1].toInt();
+            if (count > 0 && count <= kMaxArraySize)
+            {
+                mode = ArrayMode::Weights;
+                remaining = count;
+                node.weights.reserve(count);
+            }
+        }
     }
 
+    // Snapshot bind pose. applyPose* will mutate position/orientation in
+    // place; skinning needs the originals to invert.
+    node.bindPosition = node.position;
+    node.bindOrientation = node.orientation;
+
     m_nodes.append(node);
+}
+
+int MdlScene::findNodeByName(const QString &name) const
+{
+    for (int i = 0; i < m_nodes.size(); ++i)
+        if (m_nodes[i].name == name)
+            return i;
+    return -1;
+}
+
+QMatrix4x4 MdlScene::worldTransformOf(int idx) const
+{
+    if (idx < 0 || idx >= m_nodes.size())
+        return {};
+    const MdlNode &n = m_nodes[idx];
+    QMatrix4x4 local;
+    local.translate(n.position);
+    local.rotate(n.orientation);
+    if (n.scale != 1.0f)
+        local.scale(n.scale);
+    int parentIdx = findNodeByName(n.parent);
+    if (parentIdx < 0 || parentIdx == idx)
+        return local;
+    return worldTransformOf(parentIdx) * local;
+}
+
+QMatrix4x4 MdlScene::bindWorldTransformOf(int idx) const
+{
+    if (idx < 0 || idx >= m_nodes.size())
+        return {};
+    const MdlNode &n = m_nodes[idx];
+    QMatrix4x4 local;
+    local.translate(n.bindPosition);
+    local.rotate(n.bindOrientation);
+    if (n.scale != 1.0f)
+        local.scale(n.scale);
+    int parentIdx = findNodeByName(n.parent);
+    if (parentIdx < 0 || parentIdx == idx)
+        return local;
+    return bindWorldTransformOf(parentIdx) * local;
+}
+
+void MdlScene::parseAnimBlock(const QStringList &lines, int &pos)
+{
+    QStringList header = lines[pos].trimmed().split(QRegularExpression("\\s+"));
+    pos++;
+    if (header.size() < 2)
+        return;
+
+    MdlAnimation anim;
+    anim.name = header[1];
+
+    while (pos < lines.size())
+    {
+        QString line = lines[pos].trimmed();
+        if (line.startsWith("doneanim"))
+        {
+            pos++;
+            break;
+        }
+        if (line.startsWith("node "))
+        {
+            parseAnimNodeBlock(lines, pos, anim);
+            continue;
+        }
+
+        QStringList tokens = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (tokens.size() >= 2) {
+            const QString &k = tokens[0];
+            if (k == "length") anim.length = tokens[1].toFloat();
+            else if (k == "transtime") anim.transTime = tokens[1].toFloat();
+            else if (k == "animroot") anim.animRoot = tokens[1];
+        }
+        pos++;
+    }
+
+    m_animations.append(anim);
+}
+
+void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimation &anim)
+{
+    // First line is "node TYPE NAME". Capture name only.
+    QStringList header = lines[pos].trimmed().split(QRegularExpression("\\s+"));
+    pos++;
+    if (header.size() < 3)
+        return;
+
+    QString nodeName = header[2];
+    MdlAnimNodeChannels ch;
+
+    enum class KeyMode { None, Position, Orientation, Scale };
+    KeyMode mode = KeyMode::None;
+
+    while (pos < lines.size())
+    {
+        QString line = lines[pos].trimmed();
+        pos++;
+
+        if (line.isEmpty() || line.startsWith('#'))
+            continue;
+        if (line == "endnode")
+            break;
+
+        QStringList tokens = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (tokens.isEmpty())
+            continue;
+
+        // Controller list openers — may have an optional count after them
+        // ("positionkey 5"), or just stand alone. Switch mode and continue.
+        const QString &k0 = tokens[0];
+        if (k0 == "positionkey") { mode = KeyMode::Position;    continue; }
+        if (k0 == "orientationkey") { mode = KeyMode::Orientation; continue; }
+        if (k0 == "scalekey")    { mode = KeyMode::Scale;       continue; }
+        if (k0 == "endlist")     { mode = KeyMode::None;        continue; }
+
+        // Static (single-keyframe) controllers: the value applies for the
+        // whole animation. Encode as a single keyframe at t=0.
+        if (mode == KeyMode::None) {
+            if (k0 == "position" && tokens.size() >= 4) {
+                ch.posTimes.append(0.0f);
+                ch.posValues.append(QVector3D(tokens[1].toFloat(),
+                                              tokens[2].toFloat(),
+                                              tokens[3].toFloat()));
+            } else if (k0 == "orientation" && tokens.size() >= 5) {
+                float ax = tokens[1].toFloat();
+                float ay = tokens[2].toFloat();
+                float az = tokens[3].toFloat();
+                float ang = tokens[4].toFloat();
+                ch.oriTimes.append(0.0f);
+                ch.oriValues.append(QQuaternion::fromAxisAndAngle(
+                    QVector3D(ax, ay, az), qRadiansToDegrees(ang)));
+            } else if (k0 == "scale" && tokens.size() >= 2) {
+                ch.sclTimes.append(0.0f);
+                ch.sclValues.append(tokens[1].toFloat());
+            }
+            continue;
+        }
+
+        // Inside a *key block: each line is "time <value...>".
+        bool ok = false;
+        float t = tokens[0].toFloat(&ok);
+        if (!ok) continue;
+
+        if (mode == KeyMode::Position && tokens.size() >= 4) {
+            ch.posTimes.append(t);
+            ch.posValues.append(QVector3D(tokens[1].toFloat(),
+                                          tokens[2].toFloat(),
+                                          tokens[3].toFloat()));
+        } else if (mode == KeyMode::Orientation && tokens.size() >= 5) {
+            float ax = tokens[1].toFloat();
+            float ay = tokens[2].toFloat();
+            float az = tokens[3].toFloat();
+            float ang = tokens[4].toFloat();
+            ch.oriTimes.append(t);
+            ch.oriValues.append(QQuaternion::fromAxisAndAngle(
+                QVector3D(ax, ay, az), qRadiansToDegrees(ang)));
+        } else if (mode == KeyMode::Scale && tokens.size() >= 2) {
+            ch.sclTimes.append(t);
+            ch.sclValues.append(tokens[1].toFloat());
+        }
+    }
+
+    if (!ch.isEmpty())
+        anim.channels.insert(nodeName, ch);
+}
+
+QStringList MdlScene::animationNames() const
+{
+    QStringList out;
+    out.reserve(m_animations.size());
+    for (const auto &a : m_animations)
+        out.append(a.name);
+    return out;
+}
+
+const MdlAnimation *MdlScene::findAnimation(const QString &name) const
+{
+    for (const auto &a : m_animations)
+        if (a.name.compare(name, Qt::CaseInsensitive) == 0)
+            return &a;
+    return nullptr;
+}
+
+bool MdlScene::applyPoseFrame0(const QString &animName)
+{
+    const MdlAnimation *anim = findAnimation(animName);
+    if (!anim)
+        return false;
+    for (auto &node : m_nodes)
+    {
+        auto it = anim->channels.constFind(node.name);
+        if (it == anim->channels.constEnd())
+            continue;
+        const MdlAnimNodeChannels &ch = it.value();
+        if (!ch.posValues.isEmpty())
+            node.position = ch.posValues.first();
+        if (!ch.oriValues.isEmpty())
+            node.orientation = ch.oriValues.first();
+    }
+    return true;
+}
+
+QString MdlScene::applyPreferredPose(const QStringList &preferred)
+{
+    for (const QString &name : preferred)
+    {
+        if (applyPoseFrame0(name))
+            return name;
+    }
+    return {};
+}
+
+QVector<QVector3D> MdlScene::skinnedVerts(int idx) const
+{
+    // Legacy entry point: derive bone "current" matrices from the current
+    // (possibly applyPose*-mutated) node positions. Used by the reference
+    // model loader, which stamps a static idle pose into the scene rather
+    // than running an animation player. With no mutation this is identical
+    // to skinnedVertsWith({}, ...) so callers can use either form.
+    if (idx < 0 || idx >= m_nodes.size())
+        return {};
+    const MdlNode &n = m_nodes[idx];
+    if (n.nodeType != "skin" || n.weights.isEmpty())
+        return n.verts;
+
+    QHash<QString, QMatrix4x4> boneWorld;
+    for (const auto &w : n.weights) {
+        for (const auto &bw : w) {
+            if (boneWorld.contains(bw.boneName))
+                continue;
+            int bi = findNodeByName(bw.boneName);
+            if (bi >= 0)
+                boneWorld.insert(bw.boneName, worldTransformOf(bi));
+        }
+    }
+    return skinnedVertsWith(idx, boneWorld);
+}
+
+QVector<QVector3D> MdlScene::skinnedVertsWith(int idx,
+    const QHash<QString, QMatrix4x4> &boneWorld) const
+{
+    if (idx < 0 || idx >= m_nodes.size())
+        return {};
+    const MdlNode &n = m_nodes[idx];
+    if (n.nodeType != "skin" || n.weights.isEmpty())
+        return n.verts;
+
+    // Verts in a skin node are authored in the skin node's local space; lift
+    // them into model space at bind first, since linear-blend skinning is
+    // defined on the rest-pose world position of each vertex.
+    const QMatrix4x4 skinBindWorld = bindWorldTransformOf(idx);
+
+    // Resolve each unique bone once. Animated world transform comes from
+    // boneWorld when supplied (driven by an MdlAnimationPlayer); otherwise
+    // we fall back to the bind world transform, in which case deform =
+    // identity and the result is the bind-pose model-space verts.
+    struct BoneXform {
+        QMatrix4x4 deform; // currentWorld * bindWorld^-1
+        bool valid;
+    };
+    QHash<QString, BoneXform> bones;
+    auto boneOf = [&](const QString &name) -> BoneXform {
+        auto it = bones.find(name);
+        if (it != bones.end())
+            return it.value();
+        BoneXform bx{};
+        int bi = findNodeByName(name);
+        if (bi >= 0) {
+            bool invertible = false;
+            QMatrix4x4 bindWorld = bindWorldTransformOf(bi);
+            QMatrix4x4 bindInv = bindWorld.inverted(&invertible);
+            if (invertible) {
+                auto bw = boneWorld.constFind(name);
+                const QMatrix4x4 &cur = (bw != boneWorld.constEnd())
+                                        ? bw.value() : bindWorld;
+                bx.deform = cur * bindInv;
+                bx.valid = true;
+            }
+        }
+        bones.insert(name, bx);
+        return bx;
+    };
+
+    QVector<QVector3D> out;
+    out.reserve(n.verts.size());
+    for (int i = 0; i < n.verts.size(); ++i) {
+        const QVector3D vModel = skinBindWorld.map(n.verts[i]);
+        if (i >= n.weights.size() || n.weights[i].isEmpty()) {
+            out.append(vModel);
+            continue;
+        }
+        QVector3D acc(0, 0, 0);
+        float total = 0.0f;
+        for (const auto &w : n.weights[i]) {
+            BoneXform bx = boneOf(w.boneName);
+            if (!bx.valid)
+                continue;
+            acc += w.weight * bx.deform.map(vModel);
+            total += w.weight;
+        }
+        if (total <= 0.0f) {
+            out.append(vModel);
+        } else {
+            if (std::abs(total - 1.0f) > 0.001f)
+                acc /= total;
+            out.append(acc);
+        }
+    }
+    return out;
 }
 
 int MdlScene::rootIndex() const

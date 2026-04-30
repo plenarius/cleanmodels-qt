@@ -197,7 +197,7 @@ bool GpuTexture::loadFromFile(QOpenGLFunctions_3_3_Core *gl, const QString &path
         qWarning() << "GpuTexture: cannot load" << path;
         return false;
     }
-    img = img.convertToFormat(QImage::Format_RGBA8888).mirrored(false, true);
+    img = img.convertToFormat(QImage::Format_RGBA8888);
     return uploadRGBA(gl, img.constBits(), img.width(), img.height(), true);
 }
 
@@ -300,10 +300,11 @@ bool GpuTexture::loadTGA(QOpenGLFunctions_3_3_Core *gl, const QString &path)
         }
     }
 
-    // Converge on bottom-up memory before upload (matches the QImage fallback's
-    // .mirrored(false, true) and loadBioDDS). Default TGAs are bottom-origin
-    // already and need no flip; explicitly top-origin TGAs need to be flipped.
-    if (topOrigin)
+    // Converge on TOP-origin memory (matches NWN/D3D MDL UV convention used
+    // by reference renderers like borealis and dunahan/nwn_mdl_webviewer).
+    // Default TGAs are bottom-origin so flip them; explicitly top-origin TGAs
+    // need no flip.
+    if (!topOrigin)
         flipRowsRGBA(dst, width, height);
 
     return uploadRGBA(gl, dst, width, height, hasAlpha);
@@ -393,8 +394,6 @@ bool GpuTexture::loadBioDDS(QOpenGLFunctions_3_3_Core *gl, const QString &path)
             }
         }
     }
-
-    flipRowsRGBA(dst, width, height);
 
     return uploadRGBA(gl, dst, width, height, channelCount == 4);
 }

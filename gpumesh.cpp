@@ -4,10 +4,12 @@
 GpuMesh::~GpuMesh() = default;
 
 GpuMesh::GpuMesh(GpuMesh &&other) noexcept
-    : m_vao(other.m_vao), m_vbo(other.m_vbo), m_ebo(other.m_ebo), m_indexCount(other.m_indexCount)
+    : m_vao(other.m_vao), m_vbo(other.m_vbo), m_ebo(other.m_ebo),
+      m_indexCount(other.m_indexCount), m_vertexCount(other.m_vertexCount)
 {
     other.m_vao = other.m_vbo = other.m_ebo = 0;
     other.m_indexCount = 0;
+    other.m_vertexCount = 0;
 }
 
 GpuMesh &GpuMesh::operator=(GpuMesh &&other) noexcept
@@ -18,8 +20,10 @@ GpuMesh &GpuMesh::operator=(GpuMesh &&other) noexcept
         m_vbo = other.m_vbo;
         m_ebo = other.m_ebo;
         m_indexCount = other.m_indexCount;
+        m_vertexCount = other.m_vertexCount;
         other.m_vao = other.m_vbo = other.m_ebo = 0;
         other.m_indexCount = 0;
+        other.m_vertexCount = 0;
     }
     return *this;
 }
@@ -29,6 +33,7 @@ void GpuMesh::upload(QOpenGLFunctions_3_3_Core *gl,
                      const QVector<uint32_t> &indices)
 {
     m_indexCount = indices.size();
+    m_vertexCount = vertices.size();
 
     gl->glGenVertexArrays(1, &m_vao);
     gl->glGenBuffers(1, &m_vbo);
@@ -39,7 +44,7 @@ void GpuMesh::upload(QOpenGLFunctions_3_3_Core *gl,
     gl->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
     gl->glBufferData(GL_ARRAY_BUFFER,
                      vertices.size() * static_cast<int>(sizeof(Vertex)),
-                     vertices.constData(), GL_STATIC_DRAW);
+                     vertices.constData(), GL_DYNAMIC_DRAW);
 
     gl->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ebo);
     gl->glBufferData(GL_ELEMENT_ARRAY_BUFFER,
@@ -62,6 +67,18 @@ void GpuMesh::upload(QOpenGLFunctions_3_3_Core *gl,
                               reinterpret_cast<void *>(offsetof(Vertex, uv)));
 
     gl->glBindVertexArray(0);
+}
+
+void GpuMesh::updateVertices(QOpenGLFunctions_3_3_Core *gl,
+                             const QVector<Vertex> &vertices)
+{
+    if (!gl || !m_vbo || vertices.size() != m_vertexCount)
+        return;
+    gl->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+    gl->glBufferSubData(GL_ARRAY_BUFFER, 0,
+                        vertices.size() * static_cast<int>(sizeof(Vertex)),
+                        vertices.constData());
+    gl->glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void GpuMesh::draw(QOpenGLFunctions_3_3_Core *gl) const

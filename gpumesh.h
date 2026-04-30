@@ -27,6 +27,15 @@ public:
                 const QVector<Vertex> &vertices,
                 const QVector<uint32_t> &indices);
 
+    // In-place vertex data update for animated meshes. Vertex count must
+    // match the count from the most recent upload(); only the per-vertex
+    // data (positions/normals/uvs) is rewritten. No-op if `gl` is null,
+    // the mesh isn't valid, or the vertex count differs.
+    void updateVertices(QOpenGLFunctions_3_3_Core *gl,
+                        const QVector<Vertex> &vertices);
+
+    int vertexCount() const { return m_vertexCount; }
+
     void draw(QOpenGLFunctions_3_3_Core *gl) const;
     void drawWireframe(QOpenGLFunctions_3_3_Core *gl) const;
     void destroy(QOpenGLFunctions_3_3_Core *gl);
@@ -40,6 +49,7 @@ private:
     GLuint m_vbo = 0;
     GLuint m_ebo = 0;
     int m_indexCount = 0;
+    int m_vertexCount = 0;
 };
 
 #endif

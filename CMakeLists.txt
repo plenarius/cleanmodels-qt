@@ -18,6 +18,7 @@ add_executable(${PROJECT_NAME}
     fsmodel.cpp
     camera.cpp
     mdlscene.cpp
+    mdlanimationplayer.cpp
     gpumesh.cpp
     gputexture.cpp
     renderer.cpp
