@@ -21,6 +21,31 @@ constexpr int kMaxArraySize = 10'000'000;
 
 // Cap on number of animations + per-animation channels. Same rationale.
 constexpr int kMaxAnimations = 10'000;
+
+// Hard cap on total input size to loadFromString. QString uses 16-bit
+// QChar internally, so 32M chars = 64 MB of QString memory ≈ 32 MB of
+// ASCII source on disk. Real ASCII MDLs are 1–5 MB; the largest
+// legitimate tile model I've measured is ~20 MB. 32 MB ASCII is
+// generous for a single MDL and keeps a 2 GB attacker file from
+// becoming a 4 GB QString plus a 4 GB+ QStringList just to be told
+// it's malformed. Hits feed a loadWarning and loadFromString returns
+// false (parsed scene is empty).
+constexpr qsizetype kMaxInputChars = 32 * 1024 * 1024;
+
+// Scene-wide aggregate caps on geometry. The per-array cap above
+// (kMaxArraySize) bounds any single `verts N` / `faces N`
+// declaration, but their product across all nodes is unbounded:
+// kMaxNodes * kMaxArraySize verts ≈ 4·10^10 entries ≈ 491 TB. A
+// crafted MDL with, say, 50 trimesh nodes each declaring 1M verts
+// passes every per-node check and still claims 600 MB+ of vert
+// storage alone. These caps bound the running scene total. 16M is
+// ~256× the largest legitimate BioWare tile model; budget cost at
+// the cap is ~192 MB verts + ~512 MB faces, which is generous but
+// still survivable on every developer machine cleanmodels-qt
+// targets. Hits feed a coalesced loadWarning so the user can tell
+// a partial scene from a clean load.
+constexpr qint64 kMaxTotalVerts = 16'000'000;
+constexpr qint64 kMaxTotalFaces = 16'000'000;
 constexpr int kMaxChannelsPerAnim = 100'000;
 
 // Cap on parser node-nesting depth. NWN's real hierarchies bottom out
@@ -192,6 +217,28 @@ bool MdlScene::loadFromString(const QString &ascii)
     m_loadWarnings.clear();
     m_nodesDroppedByCap = 0;
     m_nodesDroppedByDepth = 0;
+    m_totalVerts = 0;
+    m_totalFaces = 0;
+    m_vertsDroppedByCap = 0;
+    m_facesDroppedByCap = 0;
+
+    // Refuse oversized input before split('\n'), which would amplify
+    // an attacker's bytes by 3-5x (UTF-16 expansion + per-line
+    // QString allocations). Caller still gets the empty scene and
+    // can show the loadWarning to the user.
+    if (ascii.size() > kMaxInputChars) {
+        const QString msg = QStringLiteral(
+            "MDL too large: %1 MB source, max %2 MB. File rejected "
+            "before parse to avoid OOM. (Real ASCII MDLs are 1-20 MB; "
+            "anything larger is almost certainly a binary file with "
+            "the wrong extension or a malformed/crafted input.)")
+            .arg(ascii.size() / (1024 * 1024))
+            .arg(kMaxInputChars / (1024 * 1024));
+        m_loadWarnings.append(msg);
+        qWarning().noquote() << msg;
+        return false;
+    }
+
     QStringList lines = ascii.split('\n');
     int pos = 0;
     bool inGeom = true;
@@ -295,6 +342,24 @@ bool MdlScene::loadFromString(const QString &ascii)
         m_loadWarnings.append(msg);
         qWarning().noquote() << msg;
     }
+    if (m_vertsDroppedByCap > 0) {
+        const QString msg = QStringLiteral(
+            "MDL exceeds %1-vert scene cap: %2 verts array(s) dropped "
+            "during load (current scene total %3). Affected meshes "
+            "render as bind-pose skeletons or empty geometry.")
+            .arg(kMaxTotalVerts).arg(m_vertsDroppedByCap).arg(m_totalVerts);
+        m_loadWarnings.append(msg);
+        qWarning().noquote() << msg;
+    }
+    if (m_facesDroppedByCap > 0) {
+        const QString msg = QStringLiteral(
+            "MDL exceeds %1-face scene cap: %2 faces array(s) dropped "
+            "during load (current scene total %3). Affected meshes "
+            "have no triangles and will not render.")
+            .arg(kMaxTotalFaces).arg(m_facesDroppedByCap).arg(m_totalFaces);
+        m_loadWarnings.append(msg);
+        qWarning().noquote() << msg;
+    }
 
     return !m_nodes.isEmpty();
 }
@@ -352,7 +417,17 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos, int depth)
     }
     pos++;
 
-    enum class ArrayMode { None, Verts, Faces, TVerts, Normals, Weights };
+    // `Discard` is used when a verts/faces declaration would push the
+    // scene past kMaxTotalVerts / kMaxTotalFaces. We can't simply
+    // ignore the declaration: the next `count` non-blank lines are
+    // raw float/int tuples authored as data, not keywords. If we leave
+    // mode = None they'd flow into the keyword dispatch below and
+    // either silently mis-parse or trigger weird side effects (e.g. a
+    // float-prefixed line tokenised as a `position` directive on
+    // `node`). Discard consumes exactly `remaining` lines without
+    // touching the node, keeping the parser cursor aligned with where
+    // the file says the array ends.
+    enum class ArrayMode { None, Verts, Faces, TVerts, Normals, Weights, Discard };
     ArrayMode mode = ArrayMode::None;
     int remaining = 0;
 
@@ -417,6 +492,10 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos, int depth)
                 node.weights.append(wlist);
                 break;
             }
+            case ArrayMode::Discard:
+                // Aggregate cap hit upstream — drop the line on the
+                // floor, just keep the cursor advancing.
+                break;
             default:
                 break;
             }
@@ -477,9 +556,21 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos, int depth)
             int count = tokens[1].toInt();
             if (count > 0 && count <= kMaxArraySize)
             {
-                mode = ArrayMode::Verts;
-                remaining = count;
-                node.verts.reserve(count);
+                if (m_totalVerts + count > kMaxTotalVerts) {
+                    // Per-array cap accepted this on its own, but
+                    // adding it would push the scene past the
+                    // aggregate budget. Discard the array (keeping the
+                    // cursor aligned via Discard mode) and bump a
+                    // counter that becomes a coalesced loadWarning.
+                    ++m_vertsDroppedByCap;
+                    mode = ArrayMode::Discard;
+                    remaining = count;
+                } else {
+                    mode = ArrayMode::Verts;
+                    remaining = count;
+                    node.verts.reserve(count);
+                    m_totalVerts += count;
+                }
             }
         }
         else if (key == "faces" && tokens.size() >= 2)
@@ -487,9 +578,16 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos, int depth)
             int count = tokens[1].toInt();
             if (count > 0 && count <= kMaxArraySize)
             {
-                mode = ArrayMode::Faces;
-                remaining = count;
-                node.faces.reserve(count);
+                if (m_totalFaces + count > kMaxTotalFaces) {
+                    ++m_facesDroppedByCap;
+                    mode = ArrayMode::Discard;
+                    remaining = count;
+                } else {
+                    mode = ArrayMode::Faces;
+                    remaining = count;
+                    node.faces.reserve(count);
+                    m_totalFaces += count;
+                }
             }
         }
         else if (key == "tverts" && tokens.size() >= 2)

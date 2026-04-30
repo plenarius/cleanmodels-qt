@@ -237,17 +237,18 @@ void ModelViewport::loadModel(const QString &asciiMdl, const QString &textureDir
     stopAnimationTick();
 
     MdlScene fresh;
-    if (!fresh.loadFromString(asciiMdl)) {
+    const bool ok = fresh.loadFromString(asciiMdl);
+    // Relay loadFromString's accumulated warnings on both success and
+    // failure paths. Some hard-fail conditions (e.g. input-size cap)
+    // populate loadWarnings before returning false, and a bare
+    // "Failed to parse MDL scene" error message hides the actual
+    // reason from the user.
+    for (const QString &w : fresh.loadWarnings())
+        emit previewWarning(w);
+    if (!ok) {
         emit previewError("Failed to parse MDL scene");
         return;
     }
-    // Surface non-fatal load warnings (parser cap hits, etc.) before
-    // moving the scene out of `fresh`. The model still loads — the
-    // user just sees a status-log entry telling them the scene is
-    // partial, which is the difference between "this looks wrong"
-    // and "this looks wrong and the viewer is hiding why."
-    for (const QString &w : fresh.loadWarnings())
-        emit previewWarning(w);
     m_scene = std::move(fresh);
 
     // Wire the player to the new scene first so its boneWorldMatrices()
@@ -351,11 +352,14 @@ void ModelViewport::loadReferenceFile(const QString &mdlPath)
         [self, mdlPath](const QString &ascii) {
             if (!self || ascii.isEmpty()) return;
             MdlScene scene;
-            if (!scene.loadFromString(ascii)) return;
-            // Same warning relay as loadModel: a reference model that
-            // hits a parser cap is still uploaded, just incomplete.
+            const bool ok = scene.loadFromString(ascii);
+            // Same warning relay as loadModel: relay before checking
+            // the return value so input-size-cap (and other hard-fail)
+            // warnings reach the user even when the reference scene
+            // is empty.
             for (const QString &w : scene.loadWarnings())
                 emit self->previewWarning(w);
+            if (!ok) return;
 
             // Use a temporary animation player to evaluate frame 0 of the
             // first available idle animation. The renderer uploads the

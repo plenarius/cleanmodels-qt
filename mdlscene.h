@@ -194,6 +194,19 @@ private:
     QStringList m_loadWarnings;
     int m_nodesDroppedByCap = 0;
     int m_nodesDroppedByDepth = 0;
+    // Scene-wide running totals across all node geometry. The per-node
+    // / per-array caps in mdlscene.cpp's anonymous namespace bound any
+    // *single* declaration, but their product (kMaxNodes * kMaxArraySize
+    // ≈ 4·10^10 verts) is unbounded in aggregate. These counters let
+    // parseNodeBlock skip any verts/faces declaration that would push
+    // the scene past kMaxTotalVerts / kMaxTotalFaces, so a fan of 50
+    // nodes each declaring 1M verts can't sneak past the per-node cap
+    // and OOM the process. Counters drop hits feed a coalesced warning
+    // surfaced via loadWarnings().
+    qint64 m_totalVerts = 0;
+    qint64 m_totalFaces = 0;
+    int m_vertsDroppedByCap = 0;
+    int m_facesDroppedByCap = 0;
 
     // `depth` bounds nested-`node` recursion. NWN's deepest legitimate
     // hierarchy is well under 100 levels; we cap conservatively to keep

@@ -367,9 +367,17 @@ QVector<QVector3D> computeSmoothNormals(const MdlNode &node,
         return out;
     out.resize(verts.size(), QVector3D(0, 0, 0));
     for (const auto &face : node.faces) {
-        if (face.verts[0] >= verts.size() ||
-            face.verts[1] >= verts.size() ||
-            face.verts[2] >= verts.size())
+        // Reject negative indices as well as past-the-end ones. A
+        // crafted MDL can author `face.verts[i] = -1`, which passes a
+        // bare `>= verts.size()` check (e.g. -1 >= N is false) and
+        // then becomes both an OOB read in `verts[-1]` and an OOB
+        // write in `out[-1]` — the second is a genuine memory-
+        // corruption primitive against Qt's heap. The expanded-vert
+        // path (appendExpandedVerts) already guards both bounds; this
+        // site is matched to the same contract.
+        if (face.verts[0] < 0 || face.verts[0] >= verts.size() ||
+            face.verts[1] < 0 || face.verts[1] >= verts.size() ||
+            face.verts[2] < 0 || face.verts[2] >= verts.size())
             continue;
         QVector3D e1 = verts[face.verts[1]] - verts[face.verts[0]];
         QVector3D e2 = verts[face.verts[2]] - verts[face.verts[0]];
