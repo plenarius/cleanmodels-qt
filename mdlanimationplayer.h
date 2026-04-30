@@ -52,11 +52,12 @@ public:
     // playing; false while stopped/paused).
     bool update(float dt);
 
-    // World-space animated transform for `boneName`. Falls back to the
-    // scene's bind world transform when no animation is playing or the
-    // bone has no channels in the current animation. Empty hash if no
-    // scene is set.
-    const QHash<QString, QMatrix4x4> &boneWorldMatrices() const { return m_boneWorld; }
+    // World-space animated transform per node, keyed by node index in
+    // MdlScene::nodes(). Index keys (rather than names) avoid duplicate-
+    // name aliasing in malformed MDLs and are O(1) for the renderer to
+    // look up. Falls back to identity for nodes the player never visited
+    // (no scene set, or a node unreachable from the parent walk).
+    const QHash<int, QMatrix4x4> &boneWorldMatrices() const { return m_boneWorld; }
 
 private:
     void recomputeAnimatedTransforms();
@@ -84,8 +85,8 @@ private:
 
     // World-space transform per node, computed by walking the bind
     // hierarchy with animated locals overriding bind values. Keyed by
-    // node name (every named node ends up here, not just bones).
-    QHash<QString, QMatrix4x4> m_boneWorld;
+    // node index (stable, unique even with duplicate node names).
+    QHash<int, QMatrix4x4> m_boneWorld;
 };
 
 #endif

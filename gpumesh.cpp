@@ -1,29 +1,33 @@
 #include "gpumesh.h"
+#include <QDebug>
 #include <utility>
 
 GpuMesh::~GpuMesh() = default;
 
+// Member-wise std::swap on every field. This shape lets adding a new GPU
+// handle (or counter) be a one-line edit to the field list and has the
+// move ops pick it up automatically — previously each new field required
+// manual edits to the move-ctor, move-assign, and destroy() in lockstep,
+// and m_vertexCount was missed in destroy() the first time it was added.
 GpuMesh::GpuMesh(GpuMesh &&other) noexcept
-    : m_vao(other.m_vao), m_vbo(other.m_vbo), m_ebo(other.m_ebo),
-      m_indexCount(other.m_indexCount), m_vertexCount(other.m_vertexCount)
 {
-    other.m_vao = other.m_vbo = other.m_ebo = 0;
-    other.m_indexCount = 0;
-    other.m_vertexCount = 0;
+    std::swap(m_vao, other.m_vao);
+    std::swap(m_vbo, other.m_vbo);
+    std::swap(m_ebo, other.m_ebo);
+    std::swap(m_indexCount, other.m_indexCount);
+    std::swap(m_vertexCount, other.m_vertexCount);
+    std::swap(m_warnedSizeMismatch, other.m_warnedSizeMismatch);
 }
 
 GpuMesh &GpuMesh::operator=(GpuMesh &&other) noexcept
 {
-    if (this != &other)
-    {
-        m_vao = other.m_vao;
-        m_vbo = other.m_vbo;
-        m_ebo = other.m_ebo;
-        m_indexCount = other.m_indexCount;
-        m_vertexCount = other.m_vertexCount;
-        other.m_vao = other.m_vbo = other.m_ebo = 0;
-        other.m_indexCount = 0;
-        other.m_vertexCount = 0;
+    if (this != &other) {
+        std::swap(m_vao, other.m_vao);
+        std::swap(m_vbo, other.m_vbo);
+        std::swap(m_ebo, other.m_ebo);
+        std::swap(m_indexCount, other.m_indexCount);
+        std::swap(m_vertexCount, other.m_vertexCount);
+        std::swap(m_warnedSizeMismatch, other.m_warnedSizeMismatch);
     }
     return *this;
 }
@@ -34,6 +38,7 @@ void GpuMesh::upload(QOpenGLFunctions_3_3_Core *gl,
 {
     m_indexCount = indices.size();
     m_vertexCount = vertices.size();
+    m_warnedSizeMismatch = false;
 
     gl->glGenVertexArrays(1, &m_vao);
     gl->glGenBuffers(1, &m_vbo);
@@ -72,8 +77,22 @@ void GpuMesh::upload(QOpenGLFunctions_3_3_Core *gl,
 void GpuMesh::updateVertices(QOpenGLFunctions_3_3_Core *gl,
                              const QVector<Vertex> &vertices)
 {
-    if (!gl || !m_vbo || vertices.size() != m_vertexCount)
+    if (!gl || !m_vbo)
         return;
+    if (vertices.size() != m_vertexCount) {
+        // A count mismatch means the caller's per-frame topology has
+        // drifted from the upload-time topology. Surface it once per
+        // mesh so the symptom ("the mesh stops animating") doesn't
+        // masquerade as a different bug, but stay quiet thereafter so
+        // a wedged mesh doesn't spam stderr at 60 Hz.
+        if (!m_warnedSizeMismatch) {
+            qWarning() << "GpuMesh::updateVertices count mismatch:"
+                       << vertices.size() << "vs upload" << m_vertexCount
+                       << "— suppressing further warnings for this mesh";
+            m_warnedSizeMismatch = true;
+        }
+        return;
+    }
     gl->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
     gl->glBufferSubData(GL_ARRAY_BUFFER, 0,
                         vertices.size() * static_cast<int>(sizeof(Vertex)),
@@ -107,4 +126,5 @@ void GpuMesh::destroy(QOpenGLFunctions_3_3_Core *gl)
     if (m_vbo) { gl->glDeleteBuffers(1, &m_vbo); m_vbo = 0; }
     if (m_ebo) { gl->glDeleteBuffers(1, &m_ebo); m_ebo = 0; }
     m_indexCount = 0;
+    m_vertexCount = 0;
 }

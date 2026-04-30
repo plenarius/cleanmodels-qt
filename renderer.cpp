@@ -3,7 +3,10 @@
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
+#include <QPair>
+#include <QStack>
 #include <cmath>
+#include <numeric>
 
 static const char *kVertexShader = R"glsl(
 #version 330 core
@@ -202,35 +205,70 @@ void Renderer::buildGrid(QOpenGLFunctions_3_3_Core *gl)
     m_gridMesh->upload(gl, verts, indices);
 }
 
-void Renderer::prepareScene(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
-                            const QString &textureDir)
+void Renderer::prepareNodeList(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
+                               const QHash<int, QMatrix4x4> &boneWorld,
+                               const QString &textureDir,
+                               std::vector<RenderNode> &target)
 {
-    destroyRenderNodes(gl, m_renderNodes);
-    m_textureDir = textureDir;
-
     int root = scene.rootIndex();
     if (root < 0)
         return;
 
+    // RAII swap m_textureDir for the duration of the upload so callers
+    // can't leak a reference scene's texture directory into subsequent
+    // main-scene operations (and vice versa). resolveTexturePath
+    // inside uploadNodeMesh consults m_textureDir; once the upload
+    // completes, RenderNode owns the GpuTexture handles directly and
+    // m_textureDir is no longer needed for these nodes. The guard's
+    // destructor restores the previous value even on exception unwind
+    // (e.g. allocation failure deep in GpuMesh::upload), so a failed
+    // upload can't quietly leave the renderer resolving every later
+    // texture against the wrong directory.
+    struct TexDirGuard {
+        QString *target;
+        QString saved;
+        ~TexDirGuard() { *target = std::move(saved); }
+        // Non-copyable / non-movable: a single scope owns the
+        // restore. Two guards over the same target would both restore
+        // on destruction and clobber each other; transferring
+        // ownership across scopes would defeat the RAII contract.
+        TexDirGuard(const TexDirGuard &) = delete;
+        TexDirGuard &operator=(const TexDirGuard &) = delete;
+        TexDirGuard(TexDirGuard &&) = delete;
+        TexDirGuard &operator=(TexDirGuard &&) = delete;
+    };
+    TexDirGuard guard{&m_textureDir, m_textureDir};
+    m_textureDir = textureDir;
+
     QMatrix4x4 identity;
-    buildRenderNodes(gl, scene, root, identity, m_renderNodes);
+    QSet<int> visited;
+    buildRenderNodes(gl, scene, root, identity, boneWorld, target, visited);
+}
+
+void Renderer::prepareScene(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
+                            const QHash<int, QMatrix4x4> &boneWorld,
+                            const QString &textureDir)
+{
+    destroyRenderNodes(gl, m_renderNodes);
+    prepareNodeList(gl, scene, boneWorld, textureDir, m_renderNodes);
 }
 
 void Renderer::prepareReferenceModel(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
+                                      const QHash<int, QMatrix4x4> &boneWorld,
                                       const QString &textureDir)
 {
     destroyRenderNodes(gl, m_referenceNodes);
+    prepareNodeList(gl, scene, boneWorld, textureDir, m_referenceNodes);
 
-    QString savedTexDir = m_textureDir;
-    m_textureDir = textureDir;
-
-    int root = scene.rootIndex();
-    if (root >= 0) {
-        QMatrix4x4 identity;
-        buildRenderNodes(gl, scene, root, identity, m_referenceNodes);
+    // Reference nodes are uploaded once and never re-animated. Clear
+    // sceneNodeIdx so updateAnimatedMeshes (and any future code that
+    // dereferences scene.nodes()[rn.sceneNodeIdx]) can't accidentally
+    // index into the now-out-of-scope reference MdlScene.
+    for (auto &rn : m_referenceNodes) {
+        rn.sceneNodeIdx = -1;
+        rn.isSkin = false;
     }
 
-    m_textureDir = savedTexDir;
     m_showReference = true;
 }
 
@@ -241,78 +279,136 @@ void Renderer::clearReferenceModel(QOpenGLFunctions_3_3_Core *gl)
 }
 
 void Renderer::buildRenderNodes(QOpenGLFunctions_3_3_Core *gl, const MdlScene &scene,
-                                int nodeIdx, const QMatrix4x4 &parentWorld,
-                                std::vector<RenderNode> &target)
+                                int rootIdx, const QMatrix4x4 &rootParentWorld,
+                                const QHash<int, QMatrix4x4> &boneWorld,
+                                std::vector<RenderNode> &target,
+                                QSet<int> &visited)
 {
-    const MdlNode &node = scene.nodes()[nodeIdx];
+    // Iterative DFS on a heap-allocated worklist of (nodeIdx,
+    // parentWorld) pairs. Recursion blew the stack on flat MDLs whose
+    // parent-child graph chains thousands of nodes (each parented to
+    // the previous): a cycle guard prevents infinite recursion but
+    // does nothing about deep linear chains. Bounded now by heap
+    // size, not thread stack.
+    //
+    // Trade-off: classic recursion peaks at O(depth) frames on the
+    // native stack, while iterative-with-eager-child-push peaks at
+    // O(depth + max_sibling_fanout) entries on the heap (each entry
+    // is a `QPair<int, QMatrix4x4>`, ~72 bytes). For the typical NWN
+    // creature (~50 nodes, fanout < 10) peak heap is sub-kilobyte;
+    // for a pathological MDL with one parent of N children the
+    // worklist briefly holds N entries. We accept that — the
+    // alternative was leaving the stack-overflow DoS open. Eliminating
+    // the wide-fanout cost would mean precomputing a flat preorder
+    // visit array at parse time, which is a bigger refactor with no
+    // current evidence of harm on real content.
+    QStack<QPair<int, QMatrix4x4>> stack;
+    stack.push({rootIdx, rootParentWorld});
 
-    QMatrix4x4 local;
-    local.translate(node.position);
-    local.rotate(node.orientation);
-    if (node.scale != 1.0f)
-        local.scale(node.scale);
+    while (!stack.isEmpty()) {
+        const auto [nodeIdx, parentWorld] = stack.pop();
+        if (visited.contains(nodeIdx))
+            continue;
+        visited.insert(nodeIdx);
 
-    QMatrix4x4 world = parentWorld * local;
+        const MdlNode &node = scene.nodes()[nodeIdx];
 
-    if (node.hasMesh() && node.render) {
-        bool isSkin = (node.nodeType == "skin" && !node.weights.isEmpty());
-        // CLEANMODELS_SKIN=0 falls back to drawing skin nodes the same as
-        // trimeshes. Useful for A/B comparison against the pre-skinning code.
-        bool useSkinning = isSkin && (qgetenv("CLEANMODELS_SKIN") != "0");
+        // Prefer the animation player's world transform when available;
+        // fall back to the parent-walk product for nodes the player
+        // doesn't know about (e.g. when boneWorld is empty for tests).
+        QMatrix4x4 world;
+        auto bw = boneWorld.constFind(nodeIdx);
+        if (bw != boneWorld.constEnd())
+            world = bw.value();
+        else
+            world = parentWorld * makeLocalTransform(node);
 
-        if (useSkinning) {
-            // Initial upload uses the bind pose (no animation). Per-frame
-            // animation updates land in updateAnimatedMeshes() against the
-            // sceneNodeIdx we record here.
-            const QVector<QVector3D> skinned = scene.skinnedVerts(nodeIdx);
-            uploadNodeMesh(gl, node, QMatrix4x4(), target, &skinned, nodeIdx);
-        } else {
-            // Always record sceneNodeIdx for non-skin meshes too; this lets
-            // updateAnimatedMeshes() refresh their worldTransform from the
-            // animation player's bone-world matrices each frame, so things
-            // like danglymesh tails follow their (animated) parent bones.
-            uploadNodeMesh(gl, node, world, target, nullptr, nodeIdx);
+        if (node.hasMesh() && node.render) {
+            // CLEANMODELS_SKIN=0 falls back to drawing skin nodes the
+            // same as trimeshes. Useful for A/B comparison against the
+            // pre-skinning code.
+            bool useSkinning = node.isSkin() && (qgetenv("CLEANMODELS_SKIN") != "0");
+
+            if (useSkinning) {
+                // Initial upload uses boneWorld (current animation
+                // frame at load time). Per-frame animation updates
+                // land in updateAnimatedMeshes() against sceneNodeIdx.
+                const QVector<QVector3D> skinned = scene.skinnedVertsWith(nodeIdx, boneWorld);
+                uploadNodeMesh(gl, node, QMatrix4x4(), target, &skinned, nodeIdx);
+            } else {
+                // Record sceneNodeIdx for non-skin meshes too so
+                // updateAnimatedMeshes() can refresh their
+                // worldTransform each frame and danglymesh tails
+                // follow their parent bones.
+                uploadNodeMesh(gl, node, world, target, nullptr, nodeIdx);
+            }
         }
-    }
 
-    for (int childIdx : scene.childrenOf(nodeIdx))
-        buildRenderNodes(gl, scene, childIdx, world, target);
+        // Push children in reverse so DFS visits in declaration order
+        // (matches the previous recursive form's render order, which
+        // affects translucent-blend ordering).
+        const QVector<int> &children = scene.childrenOf(nodeIdx);
+        for (int i = children.size() - 1; i >= 0; --i)
+            stack.push({children[i], world});
+    }
 }
 
-void Renderer::buildExpandedVertices(const MdlNode &node,
-                                     const QVector<QVector3D> *vertsOverride,
-                                     QVector<Vertex> &vertices,
-                                     QVector<uint32_t> &indices)
+namespace {
+
+// Build smooth per-vertex normals when authored normals are unavailable
+// (or were invalidated by overriding the vertex positions, e.g. by CPU
+// skinning). Lives at file scope so both the upload-time topology
+// builder and the per-frame position recompute share one definition.
+QVector<QVector3D> computeSmoothNormals(const MdlNode &node,
+                                        const QVector<QVector3D> &verts)
+{
+    QVector<QVector3D> out;
+    if (verts.isEmpty())
+        return out;
+    out.resize(verts.size(), QVector3D(0, 0, 0));
+    for (const auto &face : node.faces) {
+        if (face.verts[0] >= verts.size() ||
+            face.verts[1] >= verts.size() ||
+            face.verts[2] >= verts.size())
+            continue;
+        QVector3D e1 = verts[face.verts[1]] - verts[face.verts[0]];
+        QVector3D e2 = verts[face.verts[2]] - verts[face.verts[0]];
+        QVector3D fn = QVector3D::crossProduct(e1, e2);
+        out[face.verts[0]] += fn;
+        out[face.verts[1]] += fn;
+        out[face.verts[2]] += fn;
+    }
+    for (auto &n : out)
+        n.normalize();
+    return out;
+}
+
+// Shared per-face vertex builder for both buildUploadMesh and
+// rebuildExpandedVerts. Splits responsibility cleanly: callers decide
+// whether they also need a fresh index buffer, this function is purely
+// "give me the per-face Vertex stream".
+void appendExpandedVerts(const MdlNode &node,
+                         const QVector<QVector3D> *vertsOverride,
+                         QVector<Vertex> &vertices)
 {
     vertices.clear();
-    indices.clear();
 
     const QVector<QVector3D> &verts = vertsOverride ? *vertsOverride : node.verts;
 
-    // Authored normals only line up with authored verts. When verts are
-    // overridden (e.g. CPU-skinned), regenerate smooth normals from the
-    // overridden positions instead.
+    // Authored normals are only trustworthy when the vertex positions
+    // they were exported against are still in use. With vertsOverride
+    // we've already morphed the mesh (CPU skinning, danglymesh, etc.);
+    // the authored normals would be referencing the bind-pose
+    // positions, so we throw them out and recompute from the new
+    // verts. Without an override the per-vertex count match is the
+    // authoring tool's signal that authored normals belong to these
+    // verts.
     bool hasNormals = !vertsOverride && (node.normals.size() == verts.size());
+    QVector<QVector3D> smoothNormals = hasNormals
+        ? QVector<QVector3D>{}
+        : computeSmoothNormals(node, verts);
 
-    QVector<QVector3D> smoothNormals;
-    if (!hasNormals && !verts.isEmpty()) {
-        smoothNormals.resize(verts.size(), QVector3D(0, 0, 0));
-        for (const auto &face : node.faces) {
-            if (face.verts[0] >= verts.size() ||
-                face.verts[1] >= verts.size() ||
-                face.verts[2] >= verts.size())
-                continue;
-
-            QVector3D e1 = verts[face.verts[1]] - verts[face.verts[0]];
-            QVector3D e2 = verts[face.verts[2]] - verts[face.verts[0]];
-            QVector3D fn = QVector3D::crossProduct(e1, e2);
-            smoothNormals[face.verts[0]] += fn;
-            smoothNormals[face.verts[1]] += fn;
-            smoothNormals[face.verts[2]] += fn;
-        }
-        for (auto &n : smoothNormals)
-            n.normalize();
-    }
+    vertices.reserve(static_cast<int>(node.faces.size()) * 3);
 
     for (const auto &face : node.faces)
     {
@@ -349,10 +445,30 @@ void Renderer::buildExpandedVertices(const MdlNode &node,
                 v.uv[1] = t.y();
             }
 
-            indices.append(static_cast<uint32_t>(vertices.size()));
             vertices.append(v);
         }
     }
+}
+
+} // namespace
+
+void Renderer::buildUploadMesh(const MdlNode &node,
+                               const QVector<QVector3D> *vertsOverride,
+                               QVector<Vertex> &vertices,
+                               QVector<uint32_t> &indices)
+{
+    appendExpandedVerts(node, vertsOverride, vertices);
+    indices.resize(vertices.size());
+    // Sequential 0..N-1: every face-corner vertex is unique because we
+    // emit them one-per-corner above (no welding by position/UV).
+    std::iota(indices.begin(), indices.end(), uint32_t{0});
+}
+
+void Renderer::rebuildExpandedVerts(const MdlNode &node,
+                                    const QVector<QVector3D> &verts,
+                                    QVector<Vertex> &vertices)
+{
+    appendExpandedVerts(node, &verts, vertices);
 }
 
 void Renderer::uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node,
@@ -363,7 +479,7 @@ void Renderer::uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node
 {
     QVector<Vertex> vertices;
     QVector<uint32_t> indices;
-    buildExpandedVertices(node, vertsOverride, vertices, indices);
+    buildUploadMesh(node, vertsOverride, vertices, indices);
     if (vertices.isEmpty())
         return;
 
@@ -374,8 +490,7 @@ void Renderer::uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node
     rn.specular = node.specular;
     rn.shininess = node.shininess;
     rn.sceneNodeIdx = sceneNodeIdx;
-    rn.isSkin = (node.nodeType == "skin" && !node.weights.isEmpty()
-                 && vertsOverride != nullptr);
+    rn.isSkin = (node.isSkin() && vertsOverride != nullptr);
     rn.mesh = std::make_unique<GpuMesh>();
     rn.mesh->upload(gl, vertices, indices);
 
@@ -395,15 +510,17 @@ void Renderer::uploadNodeMesh(QOpenGLFunctions_3_3_Core *gl, const MdlNode &node
 
 void Renderer::updateAnimatedMeshes(QOpenGLFunctions_3_3_Core *gl,
                                     const MdlScene &scene,
-                                    const QHash<QString, QMatrix4x4> &boneWorld)
+                                    const QHash<int, QMatrix4x4> &boneWorld)
 {
     if (!gl)
         return;
+    const QVector<MdlNode> &sceneNodes = scene.nodes();
     QVector<Vertex> vertices;
-    QVector<uint32_t> indices;
     for (auto &rn : m_renderNodes) {
-        if (rn.sceneNodeIdx < 0 || !rn.mesh)
+        if (rn.sceneNodeIdx < 0 || rn.sceneNodeIdx >= sceneNodes.size() || !rn.mesh)
             continue;
+
+        const MdlNode &node = sceneNodes[rn.sceneNodeIdx];
 
         if (rn.isSkin) {
             // Skin meshes: re-skin verts in place. Their world transform
@@ -412,8 +529,9 @@ void Renderer::updateAnimatedMeshes(QOpenGLFunctions_3_3_Core *gl,
                 scene.skinnedVertsWith(rn.sceneNodeIdx, boneWorld);
             if (skinned.isEmpty())
                 continue;
-            const MdlNode &node = scene.nodes()[rn.sceneNodeIdx];
-            buildExpandedVertices(node, &skinned, vertices, indices);
+            // Per-frame fast path: rebuilds verts only — index buffer
+            // already lives on the GPU from upload time.
+            rebuildExpandedVerts(node, skinned, vertices);
             if (vertices.isEmpty())
                 continue;
             rn.mesh->updateVertices(gl, vertices);
@@ -424,8 +542,7 @@ void Renderer::updateAnimatedMeshes(QOpenGLFunctions_3_3_Core *gl,
             // separate parts like the squirrel's danglymesh tail stay
             // pinned to their bind-pose world position even when their
             // parent bone is animating.
-            const MdlNode &node = scene.nodes()[rn.sceneNodeIdx];
-            auto it = boneWorld.constFind(node.name);
+            auto it = boneWorld.constFind(rn.sceneNodeIdx);
             if (it != boneWorld.constEnd())
                 rn.worldTransform = it.value();
         }

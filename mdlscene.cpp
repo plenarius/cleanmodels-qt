@@ -1,10 +1,179 @@
 #include "mdlscene.h"
 #include <QDebug>
 #include <QHash>
+#include <QPair>
 #include <QRegularExpression>
+#include <QSet>
+#include <QStack>
 #include <QStringList>
 #include <QTextStream>
+#include <QtMath>
 #include <cfloat>
+
+namespace {
+
+// Cap on parser arrays — applies uniformly to verts/faces/normals/tverts/
+// weights and to every per-channel keyframe list. Without this a small
+// crafted MDL can OOM the process by claiming millions of keyframes per
+// channel; 10M keys per channel is ~4 orders of magnitude above NWN's
+// realistic worst case (~50 keys/channel) so this only ever rejects abuse.
+constexpr int kMaxArraySize = 10'000'000;
+
+// Cap on number of animations + per-animation channels. Same rationale.
+constexpr int kMaxAnimations = 10'000;
+constexpr int kMaxChannelsPerAnim = 100'000;
+
+// Cap on parser node-nesting depth. NWN's real hierarchies bottom out
+// around 20 levels; 256 leaves plenty of headroom while keeping a small
+// crafted MDL from blowing the parser's recursion stack.
+constexpr int kMaxNodeDepth = 256;
+
+// Cap on total node count per scene. Real BioWare content tops out
+// well under 1000 nodes per MDL (creatures ~30-100, tiles ~200-500,
+// items <20). 4096 is comfortably above any realistic case while
+// bounding the worst-case cost of the m_childrenByParent build at
+// load time: a duplicate-name attack is still O(N²) entries inside
+// the cap (16M ints, ~64 MB — slow, but not catastrophic), and a
+// pathological MDL claiming millions of nodes is rejected outright
+// rather than spending the load consuming memory before any render
+// can happen.
+constexpr int kMaxNodes = 4096;
+
+// Decode the `axis_x axis_y axis_z angle_radians` quad starting at
+// `tokens[offset]` into a Qt quaternion. Returns identity on bad input.
+// Centralizes the "NWN stores radians, Qt wants degrees" conversion that
+// was duplicated across the static and keyframe orientation parsers.
+QQuaternion parseAxisAngleQuat(const QStringList &tokens, int offset)
+{
+    if (tokens.size() < offset + 4)
+        return {};
+    return QQuaternion::fromAxisAndAngle(
+        QVector3D(tokens[offset].toFloat(),
+                  tokens[offset + 1].toFloat(),
+                  tokens[offset + 2].toFloat()),
+        qRadiansToDegrees(tokens[offset + 3].toFloat()));
+}
+
+// Append a position keyframe `(t, x, y, z)` parsed from `tokens` starting
+// at `offset`. Drops silently on undersized input or when the channel has
+// already hit the per-channel cap (parser DoS guard).
+void appendPosKey(MdlAnimNodeChannels &ch, float t,
+                  const QStringList &tokens, int offset)
+{
+    if (tokens.size() < offset + 3)
+        return;
+    if (ch.posTimes.size() >= kMaxArraySize)
+        return;
+    ch.posTimes.append(t);
+    ch.posValues.append(QVector3D(tokens[offset].toFloat(),
+                                  tokens[offset + 1].toFloat(),
+                                  tokens[offset + 2].toFloat()));
+}
+
+void appendOriKey(MdlAnimNodeChannels &ch, float t,
+                  const QStringList &tokens, int offset)
+{
+    if (tokens.size() < offset + 4)
+        return;
+    if (ch.oriTimes.size() >= kMaxArraySize)
+        return;
+    ch.oriTimes.append(t);
+    ch.oriValues.append(parseAxisAngleQuat(tokens, offset));
+}
+
+void appendSclKey(MdlAnimNodeChannels &ch, float t,
+                  const QStringList &tokens, int offset)
+{
+    if (tokens.size() < offset + 1)
+        return;
+    if (ch.sclTimes.size() >= kMaxArraySize)
+        return;
+    ch.sclTimes.append(t);
+    ch.sclValues.append(tokens[offset].toFloat());
+}
+
+// Advance `pos` past the next line whose trimmed form is exactly
+// `terminator`. Used by the parser short-circuit paths to fast-forward
+// out of a block whose contents we've decided not to keep. Strict
+// equality (not startsWith) is intentional: a corrupted line like
+// "endnode_garbage" must not be treated as a real `endnode` or the
+// parser desyncs and starts consuming the next block as data.
+//
+// IMPORTANT: this is a flat, first-match skipper. It does NOT track
+// nested block structure. Use it only when the block being skipped
+// cannot legitimately contain a nested `terminator` line (e.g. the
+// `doneanim` skip in parseAnimBlock — anim blocks don't nest). For
+// node-block skips use skipNodeBlock instead, which balances
+// node/endnode pairs to defeat parser-desync attacks where an
+// adversarial MDL injects an early fake `endnode` inside a deeper
+// child to bleed remaining lines into the parent context.
+//
+// Behavior on malformed input: if `terminator` is missing entirely
+// from the rest of the file, this consumes the remainder (up to
+// `lines.size()`) and returns with `pos == lines.size()`. The outer
+// parser loop then exits cleanly (its `while (pos < lines.size())`
+// guard handles it). The result on a truncated/malformed MDL is "we
+// load whatever was parseable before the corrupt block and silently
+// drop everything after it" — preferable to a parser desync that
+// would either crash or load garbage as real data.
+//
+// Always terminates: `pos` is incremented unconditionally each
+// iteration so the loop is bounded by `lines.size()` even if
+// `terminator` never appears.
+void skipToTerminator(const QStringList &lines, int &pos,
+                      const QString &terminator)
+{
+    while (pos < lines.size()) {
+        const QString line = lines[pos].trimmed();
+        pos++;
+        if (line == terminator)
+            break;
+    }
+}
+
+// Advance `pos` past the matching `endnode` for the `node` block
+// whose opening line is currently at `lines[pos]`. Tracks nested
+// `node`/`endnode` pairs so a fake `endnode` line appearing inside a
+// deeper child block does not close the outer block prematurely.
+//
+// Why this exists: skipToTerminator(..., "endnode") is a flat first-
+// match skipper. After a parser cap fires (depth or node count) the
+// flat skipper used to bleed adversarial lines into the parent
+// context — an attacker could craft an MDL where the would-be-
+// skipped block contains a nested `node ...` then a fake `endnode`
+// early; the flat skipper stops at the fake `endnode`, the parent's
+// parseNodeBlock loop then interprets the remaining nested-block
+// lines as parent geometry (`verts`, `faces`, ...) and re-incurs
+// the very memory pressure the cap was meant to prevent. The
+// balanced skipper closes that desync by counting opens and closes.
+//
+// Caller invariant: when invoked, `lines[pos]` must start with
+// "node ". The function consumes that opening line first (depth
+// rises to 1) and then scans until depth returns to 0.
+//
+// Behavior on missing terminator: same as skipToTerminator —
+// consumes to lines.size() and the outer parser exits cleanly on
+// its bounds check.
+//
+// Always terminates: `pos` is incremented unconditionally each
+// iteration.
+void skipNodeBlock(const QStringList &lines, int &pos)
+{
+    if (pos >= lines.size())
+        return;
+    pos++;            // consume the opening `node ...` line
+    int depth = 1;
+    while (pos < lines.size() && depth > 0) {
+        const QString line = lines[pos].trimmed();
+        pos++;
+        if (line.startsWith("node "))
+            ++depth;
+        else if (line == "endnode")
+            --depth;
+    }
+}
+
+} // namespace
 
 bool MdlNode::hasMesh() const
 {
@@ -17,7 +186,12 @@ bool MdlNode::hasMesh() const
 bool MdlScene::loadFromString(const QString &ascii)
 {
     m_nodes.clear();
+    m_nodeIndexByName.clear();
+    m_childrenByParent.clear();
     m_animations.clear();
+    m_loadWarnings.clear();
+    m_nodesDroppedByCap = 0;
+    m_nodesDroppedByDepth = 0;
     QStringList lines = ascii.split('\n');
     int pos = 0;
     bool inGeom = true;
@@ -50,6 +224,78 @@ bool MdlScene::loadFromString(const QString &ascii)
                 pos++;
         }
     }
+
+    // Build the name -> first-occurrence-index map. Walking backward so
+    // QHash::insert leaves the lowest matching index for duplicate names,
+    // matching the legacy linear-scan-from-zero behavior of findNodeByName.
+    m_nodeIndexByName.reserve(m_nodes.size());
+    for (int i = m_nodes.size() - 1; i >= 0; --i)
+        m_nodeIndexByName.insert(m_nodes[i].name, i);
+
+    // Build the parent->children index. For each child, group it under
+    // every node sharing its parent name (matches the old
+    // O(N)-per-call linear-scan childrenOf semantics — important
+    // because malformed MDLs with duplicate names would otherwise
+    // produce a different scene graph after this refactor). For
+    // typical scenes the inner lookup is O(1) via the temporary
+    // multi-map and the build cost is negligible (~50 hash ops + ~50
+    // appends for a creature MDL).
+    //
+    // Worst-case load cost: a duplicate-name attack (every node
+    // shares the same name and parent name) does O(N²) appends here
+    // — N=4096 (kMaxNodes) gives 16M ints / ~64 MB. Slow but bounded;
+    // unlike the old per-call linear scan, this cost is now incurred
+    // unconditionally at load before any render, so the kMaxNodes cap
+    // applied during parse is the load-bearing defense against this
+    // amplification.
+    {
+        QHash<QString, QVector<int>> nodesByName;
+        nodesByName.reserve(m_nodes.size());
+        for (int i = 0; i < m_nodes.size(); ++i)
+            nodesByName[m_nodes[i].name].append(i);
+
+        m_childrenByParent.resize(m_nodes.size());
+        for (int childIdx = 0; childIdx < m_nodes.size(); ++childIdx) {
+            const QString &parentName = m_nodes[childIdx].parent;
+            if (parentName.isEmpty() || parentName.toLower() == "null")
+                continue;
+            auto it = nodesByName.constFind(parentName);
+            if (it == nodesByName.constEnd())
+                continue;
+            for (int parentIdx : it.value()) {
+                if (parentIdx != childIdx)
+                    m_childrenByParent[parentIdx].append(childIdx);
+            }
+        }
+    }
+
+    // Surface coalesced parser-cap warnings to anyone who polls
+    // loadWarnings() (the viewport relays them as previewWarning
+    // signals so the UI can tell a partial scene from a successful
+    // one). qWarning() too so headless tests / CLI uses see them
+    // even when no UI is attached. Coalescing per category keeps the
+    // log readable when an attacker MDL claims thousands of nodes.
+    if (m_nodesDroppedByCap > 0) {
+        const QString msg = QStringLiteral(
+            "MDL exceeds %1-node cap: %2 node block(s) dropped during "
+            "load. Scene rendered with first %3 nodes; rest of the "
+            "model is missing. (Increase kMaxNodes if real content "
+            "is hitting this — currently sized for largest BioWare "
+            "tiles plus headroom.)")
+            .arg(kMaxNodes).arg(m_nodesDroppedByCap).arg(m_nodes.size());
+        m_loadWarnings.append(msg);
+        qWarning().noquote() << msg;
+    }
+    if (m_nodesDroppedByDepth > 0) {
+        const QString msg = QStringLiteral(
+            "MDL exceeds %1-level node-nesting cap: %2 node block(s) "
+            "dropped during load. The most deeply nested geometry "
+            "in this model is missing.")
+            .arg(kMaxNodeDepth).arg(m_nodesDroppedByDepth);
+        m_loadWarnings.append(msg);
+        qWarning().noquote() << msg;
+    }
+
     return !m_nodes.isEmpty();
 }
 
@@ -60,8 +306,43 @@ static QVector3D parseVec3(const QStringList &tokens, int offset = 0)
     return {tokens[offset].toFloat(), tokens[offset + 1].toFloat(), tokens[offset + 2].toFloat()};
 }
 
-void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
+void MdlScene::parseNodeBlock(const QStringList &lines, int &pos, int depth)
 {
+    if (depth >= kMaxNodeDepth) {
+        // Skip the rest of this (and only this) `node` block instead
+        // of recursing further. Without this an attacker-controlled
+        // MDL can chain thousands of `node trimesh n0` lines (no
+        // `endnode`) and overflow the parser's recursion stack at
+        // load time. Use the balanced skipper so a deeper child
+        // block's fake `endnode` can't desync the parent parse.
+        ++m_nodesDroppedByDepth;
+        skipNodeBlock(lines, pos);
+        return;
+    }
+    if (m_nodes.size() >= kMaxNodes) {
+        // Cap on total nodes per scene. Without this, an attacker-
+        // controlled MDL claiming millions of `node` blocks at depth
+        // 0 can OOM the process during parse and amplify the
+        // m_childrenByParent build (O(N²) in the duplicate-name case)
+        // into a multi-second load hang. Skip past the rest of this
+        // block (balanced skip so nested fake-`endnode` injection
+        // can't desync); subsequent `node` blocks (siblings or
+        // top-level) will hit the same cap and skip too.
+        //
+        // Note: this is checked before adding a new node, but a
+        // parent whose recursive children all hit the cap still gets
+        // appended once at the bottom of the function. So the actual
+        // ceiling is kMaxNodes ancestors-of-the-cap-line plus one
+        // for the parent that owns the over-budget subtree —
+        // effectively kMaxNodes + small constant. Treating kMaxNodes
+        // as a soft target rather than a hard ceiling is fine
+        // because the worst-case post-parse cost (m_childrenByParent
+        // ~64 MB at 4096²) doesn't materially change at 4097.
+        ++m_nodesDroppedByCap;
+        skipNodeBlock(lines, pos);
+        return;
+    }
+
     MdlNode node;
     QStringList header = lines[pos].trimmed().split(QRegularExpression("\\s+"));
     if (header.size() >= 3)
@@ -71,7 +352,6 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
     }
     pos++;
 
-    constexpr int kMaxArraySize = 10'000'000;
     enum class ArrayMode { None, Verts, Faces, TVerts, Normals, Weights };
     ArrayMode mode = ArrayMode::None;
     int remaining = 0;
@@ -90,7 +370,7 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
         if (line.startsWith("node "))
         {
             pos--;
-            parseNodeBlock(lines, pos);
+            parseNodeBlock(lines, pos, depth + 1);
             continue;
         }
 
@@ -162,11 +442,7 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
         }
         else if (key == "orientation" && tokens.size() >= 5)
         {
-            float x = tokens[1].toFloat();
-            float y = tokens[2].toFloat();
-            float z = tokens[3].toFloat();
-            float w = tokens[4].toFloat();
-            node.orientation = QQuaternion::fromAxisAndAngle(QVector3D(x, y, z), qRadiansToDegrees(w));
+            node.orientation = parseAxisAngleQuat(tokens, 1);
         }
         else if (key == "scale" && tokens.size() >= 2)
         {
@@ -248,56 +524,61 @@ void MdlScene::parseNodeBlock(const QStringList &lines, int &pos)
         }
     }
 
-    // Snapshot bind pose. applyPose* will mutate position/orientation in
-    // place; skinning needs the originals to invert.
-    node.bindPosition = node.position;
-    node.bindOrientation = node.orientation;
-
     m_nodes.append(node);
 }
 
 int MdlScene::findNodeByName(const QString &name) const
 {
-    for (int i = 0; i < m_nodes.size(); ++i)
-        if (m_nodes[i].name == name)
-            return i;
-    return -1;
-}
-
-QMatrix4x4 MdlScene::worldTransformOf(int idx) const
-{
-    if (idx < 0 || idx >= m_nodes.size())
-        return {};
-    const MdlNode &n = m_nodes[idx];
-    QMatrix4x4 local;
-    local.translate(n.position);
-    local.rotate(n.orientation);
-    if (n.scale != 1.0f)
-        local.scale(n.scale);
-    int parentIdx = findNodeByName(n.parent);
-    if (parentIdx < 0 || parentIdx == idx)
-        return local;
-    return worldTransformOf(parentIdx) * local;
+    auto it = m_nodeIndexByName.constFind(name);
+    return it != m_nodeIndexByName.constEnd() ? it.value() : -1;
 }
 
 QMatrix4x4 MdlScene::bindWorldTransformOf(int idx) const
 {
     if (idx < 0 || idx >= m_nodes.size())
         return {};
-    const MdlNode &n = m_nodes[idx];
-    QMatrix4x4 local;
-    local.translate(n.bindPosition);
-    local.rotate(n.bindOrientation);
-    if (n.scale != 1.0f)
-        local.scale(n.scale);
-    int parentIdx = findNodeByName(n.parent);
-    if (parentIdx < 0 || parentIdx == idx)
-        return local;
-    return bindWorldTransformOf(parentIdx) * local;
+
+    // Iterative parent walk with a visited-set cycle guard. A malformed MDL
+    // with cyclic node.parent links (or two nodes that share a name and
+    // mutually parent into each other via findNodeByName) used to recurse
+    // until the stack overflowed; we now break the cycle and return what
+    // we've accumulated so far instead of crashing. Same chain-then-
+    // compose shape as MdlAnimationPlayer::recomputeBoneMatrices, which
+    // is the every-node / animated variant of this single-target walk.
+    QVector<QMatrix4x4> chain;
+    chain.reserve(16);
+    QSet<int> visited;
+    int cur = idx;
+    while (cur >= 0 && cur < m_nodes.size() && !visited.contains(cur))
+    {
+        visited.insert(cur);
+        const MdlNode &n = m_nodes[cur];
+        chain.append(makeLocalTransform(n));
+        int parentIdx = findNodeByName(n.parent);
+        if (parentIdx == cur)
+            break;
+        cur = parentIdx;
+    }
+
+    // Compose top-down: world = root_local * ... * parent_local * self_local
+    // chain[size-1] is the root, chain[0] is `idx` itself.
+    QMatrix4x4 world;
+    for (int i = chain.size() - 1; i >= 0; --i)
+        world = world * chain[i];
+    return world;
 }
 
 void MdlScene::parseAnimBlock(const QStringList &lines, int &pos)
 {
+    // Short-circuit when the per-scene animation cap is already hit: skip
+    // straight past `doneanim` without building any keyframe arrays. A
+    // crafted MDL with millions of `newanim` blocks otherwise burns O(N)
+    // parser time per additional animation just to discard it later.
+    if (m_animations.size() >= kMaxAnimations) {
+        skipToTerminator(lines, pos, "doneanim");
+        return;
+    }
+
     QStringList header = lines[pos].trimmed().split(QRegularExpression("\\s+"));
     pos++;
     if (header.size() < 2)
@@ -341,6 +622,14 @@ void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimati
     if (header.size() < 3)
         return;
 
+    // Short-circuit when the per-animation channel cap is already hit:
+    // walk to `endnode` without parsing keyframe lines. Avoids the same
+    // wasted-parse-then-discard pattern as parseAnimBlock above.
+    if (anim.channels.size() >= kMaxChannelsPerAnim) {
+        skipToTerminator(lines, pos, "endnode");
+        return;
+    }
+
     QString nodeName = header[2];
     MdlAnimNodeChannels ch;
 
@@ -370,25 +659,11 @@ void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimati
         if (k0 == "endlist")     { mode = KeyMode::None;        continue; }
 
         // Static (single-keyframe) controllers: the value applies for the
-        // whole animation. Encode as a single keyframe at t=0.
+        // whole animation. Encoded as a single keyframe at t=0.
         if (mode == KeyMode::None) {
-            if (k0 == "position" && tokens.size() >= 4) {
-                ch.posTimes.append(0.0f);
-                ch.posValues.append(QVector3D(tokens[1].toFloat(),
-                                              tokens[2].toFloat(),
-                                              tokens[3].toFloat()));
-            } else if (k0 == "orientation" && tokens.size() >= 5) {
-                float ax = tokens[1].toFloat();
-                float ay = tokens[2].toFloat();
-                float az = tokens[3].toFloat();
-                float ang = tokens[4].toFloat();
-                ch.oriTimes.append(0.0f);
-                ch.oriValues.append(QQuaternion::fromAxisAndAngle(
-                    QVector3D(ax, ay, az), qRadiansToDegrees(ang)));
-            } else if (k0 == "scale" && tokens.size() >= 2) {
-                ch.sclTimes.append(0.0f);
-                ch.sclValues.append(tokens[1].toFloat());
-            }
+            if (k0 == "position")    appendPosKey(ch, 0.0f, tokens, 1);
+            else if (k0 == "orientation") appendOriKey(ch, 0.0f, tokens, 1);
+            else if (k0 == "scale")  appendSclKey(ch, 0.0f, tokens, 1);
             continue;
         }
 
@@ -397,22 +672,11 @@ void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimati
         float t = tokens[0].toFloat(&ok);
         if (!ok) continue;
 
-        if (mode == KeyMode::Position && tokens.size() >= 4) {
-            ch.posTimes.append(t);
-            ch.posValues.append(QVector3D(tokens[1].toFloat(),
-                                          tokens[2].toFloat(),
-                                          tokens[3].toFloat()));
-        } else if (mode == KeyMode::Orientation && tokens.size() >= 5) {
-            float ax = tokens[1].toFloat();
-            float ay = tokens[2].toFloat();
-            float az = tokens[3].toFloat();
-            float ang = tokens[4].toFloat();
-            ch.oriTimes.append(t);
-            ch.oriValues.append(QQuaternion::fromAxisAndAngle(
-                QVector3D(ax, ay, az), qRadiansToDegrees(ang)));
-        } else if (mode == KeyMode::Scale && tokens.size() >= 2) {
-            ch.sclTimes.append(t);
-            ch.sclValues.append(tokens[1].toFloat());
+        switch (mode) {
+        case KeyMode::Position:    appendPosKey(ch, t, tokens, 1); break;
+        case KeyMode::Orientation: appendOriKey(ch, t, tokens, 1); break;
+        case KeyMode::Scale:       appendSclKey(ch, t, tokens, 1); break;
+        case KeyMode::None: break;
         }
     }
 
@@ -437,68 +701,13 @@ const MdlAnimation *MdlScene::findAnimation(const QString &name) const
     return nullptr;
 }
 
-bool MdlScene::applyPoseFrame0(const QString &animName)
-{
-    const MdlAnimation *anim = findAnimation(animName);
-    if (!anim)
-        return false;
-    for (auto &node : m_nodes)
-    {
-        auto it = anim->channels.constFind(node.name);
-        if (it == anim->channels.constEnd())
-            continue;
-        const MdlAnimNodeChannels &ch = it.value();
-        if (!ch.posValues.isEmpty())
-            node.position = ch.posValues.first();
-        if (!ch.oriValues.isEmpty())
-            node.orientation = ch.oriValues.first();
-    }
-    return true;
-}
-
-QString MdlScene::applyPreferredPose(const QStringList &preferred)
-{
-    for (const QString &name : preferred)
-    {
-        if (applyPoseFrame0(name))
-            return name;
-    }
-    return {};
-}
-
-QVector<QVector3D> MdlScene::skinnedVerts(int idx) const
-{
-    // Legacy entry point: derive bone "current" matrices from the current
-    // (possibly applyPose*-mutated) node positions. Used by the reference
-    // model loader, which stamps a static idle pose into the scene rather
-    // than running an animation player. With no mutation this is identical
-    // to skinnedVertsWith({}, ...) so callers can use either form.
-    if (idx < 0 || idx >= m_nodes.size())
-        return {};
-    const MdlNode &n = m_nodes[idx];
-    if (n.nodeType != "skin" || n.weights.isEmpty())
-        return n.verts;
-
-    QHash<QString, QMatrix4x4> boneWorld;
-    for (const auto &w : n.weights) {
-        for (const auto &bw : w) {
-            if (boneWorld.contains(bw.boneName))
-                continue;
-            int bi = findNodeByName(bw.boneName);
-            if (bi >= 0)
-                boneWorld.insert(bw.boneName, worldTransformOf(bi));
-        }
-    }
-    return skinnedVertsWith(idx, boneWorld);
-}
-
 QVector<QVector3D> MdlScene::skinnedVertsWith(int idx,
-    const QHash<QString, QMatrix4x4> &boneWorld) const
+    const QHash<int, QMatrix4x4> &boneWorld) const
 {
     if (idx < 0 || idx >= m_nodes.size())
         return {};
     const MdlNode &n = m_nodes[idx];
-    if (n.nodeType != "skin" || n.weights.isEmpty())
+    if (!n.isSkin())
         return n.verts;
 
     // Verts in a skin node are authored in the skin node's local space; lift
@@ -510,6 +719,9 @@ QVector<QVector3D> MdlScene::skinnedVertsWith(int idx,
     // boneWorld when supplied (driven by an MdlAnimationPlayer); otherwise
     // we fall back to the bind world transform, in which case deform =
     // identity and the result is the bind-pose model-space verts.
+    // Cache keyed by bone name (the weight list addresses bones by name)
+    // but the boneWorld lookup itself uses the node index — names can
+    // alias in malformed MDLs, indices cannot.
     struct BoneXform {
         QMatrix4x4 deform; // currentWorld * bindWorld^-1
         bool valid;
@@ -526,7 +738,13 @@ QVector<QVector3D> MdlScene::skinnedVertsWith(int idx,
             QMatrix4x4 bindWorld = bindWorldTransformOf(bi);
             QMatrix4x4 bindInv = bindWorld.inverted(&invertible);
             if (invertible) {
-                auto bw = boneWorld.constFind(name);
+                // boneWorld constFind / fallback-to-bindWorld pattern.
+                // Same shape appears in Renderer::buildRenderNodes
+                // (fallback: parentWorld * makeLocalTransform) and
+                // Renderer::updateAnimatedMeshes (fallback: skip). The
+                // three fallback bodies differ enough that extraction
+                // would obscure intent.
+                auto bw = boneWorld.constFind(bi);
                 const QMatrix4x4 &cur = (bw != boneWorld.constEnd())
                                         ? bw.value() : bindWorld;
                 bx.deform = cur * bindInv;
@@ -575,18 +793,12 @@ int MdlScene::rootIndex() const
     return m_nodes.isEmpty() ? -1 : 0;
 }
 
-QVector<int> MdlScene::childrenOf(int idx) const
+const QVector<int> &MdlScene::childrenOf(int idx) const
 {
-    QVector<int> out;
-    if (idx < 0 || idx >= m_nodes.size())
-        return out;
-    const QString &name = m_nodes[idx].name;
-    for (int i = 0; i < m_nodes.size(); ++i)
-    {
-        if (i != idx && m_nodes[i].parent == name)
-            out.append(i);
-    }
-    return out;
+    static const QVector<int> empty;
+    if (idx < 0 || idx >= m_childrenByParent.size())
+        return empty;
+    return m_childrenByParent[idx];
 }
 
 void MdlScene::computeBounds(QVector3D &bmin, QVector3D &bmax) const
@@ -603,7 +815,8 @@ void MdlScene::computeBounds(QVector3D &bmin, QVector3D &bmax) const
 
     QMatrix4x4 identity;
     bool any = false;
-    computeBoundsRecursive(root, identity, bmin, bmax, any);
+    QSet<int> visited;
+    accumulateBoundsFromRoot(root, identity, bmin, bmax, any, visited);
 
     if (!any) {
         bmin = QVector3D(-1, -1, -1);
@@ -611,30 +824,53 @@ void MdlScene::computeBounds(QVector3D &bmin, QVector3D &bmax) const
     }
 }
 
-void MdlScene::computeBoundsRecursive(int idx, const QMatrix4x4 &parentWorld,
-                                       QVector3D &bmin, QVector3D &bmax, bool &any) const
+void MdlScene::accumulateBoundsFromRoot(int rootIdx, const QMatrix4x4 &rootParentWorld,
+                                        QVector3D &bmin, QVector3D &bmax, bool &any,
+                                        QSet<int> &visited) const
 {
-    const MdlNode &node = m_nodes[idx];
+    // Iterative DFS on a heap-allocated worklist. Shares its graph-
+    // walk shape with Renderer::buildRenderNodes (same childrenOf
+    // walk, same cycle guard, same reverse-child push for declaration
+    // order) but the per-node math is different: bounds always use
+    // the bind-pose hierarchy (`parentWorld * makeLocalTransform`),
+    // whereas the renderer prefers `boneWorld[idx]` when the
+    // animation player has it. Bounds are therefore the bind-pose
+    // AABB and will not track an animated frame's reach — callers
+    // wanting an animation-aware bounding box need to walk the
+    // renderer's RenderNode list, not this function. The explicit
+    // stack keeps deep linear chains bounded by heap size instead of
+    // thread stack size; the visited set short-circuits cycles
+    // introduced by malformed MDLs. See the matching comment on
+    // Renderer::buildRenderNodes for the heap vs stack trade-off
+    // (peak worklist is O(depth + max_sibling_fanout) per node).
+    QStack<QPair<int, QMatrix4x4>> stack;
+    stack.push({rootIdx, rootParentWorld});
 
-    QMatrix4x4 local;
-    local.translate(node.position);
-    local.rotate(node.orientation);
-    if (node.scale != 1.0f)
-        local.scale(node.scale);
-    QMatrix4x4 world = parentWorld * local;
+    while (!stack.isEmpty()) {
+        const auto [idx, parentWorld] = stack.pop();
+        if (visited.contains(idx))
+            continue;
+        visited.insert(idx);
 
-    for (const auto &v : node.verts)
-    {
-        QVector3D wp = world.map(v);
-        bmin.setX(std::min(bmin.x(), wp.x()));
-        bmin.setY(std::min(bmin.y(), wp.y()));
-        bmin.setZ(std::min(bmin.z(), wp.z()));
-        bmax.setX(std::max(bmax.x(), wp.x()));
-        bmax.setY(std::max(bmax.y(), wp.y()));
-        bmax.setZ(std::max(bmax.z(), wp.z()));
-        any = true;
+        const MdlNode &node = m_nodes[idx];
+        QMatrix4x4 world = parentWorld * makeLocalTransform(node);
+
+        for (const auto &v : node.verts) {
+            QVector3D wp = world.map(v);
+            bmin.setX(std::min(bmin.x(), wp.x()));
+            bmin.setY(std::min(bmin.y(), wp.y()));
+            bmin.setZ(std::min(bmin.z(), wp.z()));
+            bmax.setX(std::max(bmax.x(), wp.x()));
+            bmax.setY(std::max(bmax.y(), wp.y()));
+            bmax.setZ(std::max(bmax.z(), wp.z()));
+            any = true;
+        }
+
+        // Reverse-push children so DFS visits in declaration order
+        // (no visible effect on bounds; mirrors buildRenderNodes for
+        // consistency).
+        const QVector<int> &children = childrenOf(idx);
+        for (int i = children.size() - 1; i >= 0; --i)
+            stack.push({children[i], world});
     }
-
-    for (int c : childrenOf(idx))
-        computeBoundsRecursive(c, world, bmin, bmax, any);
 }

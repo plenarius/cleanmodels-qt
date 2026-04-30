@@ -1023,6 +1023,13 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_viewport, &ModelViewport::previewError, this, [this](const QString &msg) {
         appendDebugHtml(LogHtml::logLine(LogColor::Warning, QStringLiteral("Preview: ") % msg.toHtmlEscaped()));
     });
+    connect(m_viewport, &ModelViewport::previewWarning, this, [this](const QString &msg) {
+        // Distinct from previewError: model loaded successfully, but the
+        // parser hit a defensive cap and dropped content. Surface it so
+        // the user knows their scene is partial rather than guessing
+        // why limbs/props are missing.
+        appendDebugHtml(LogHtml::logLine(LogColor::Warning, QStringLiteral("Preview warning: ") % msg.toHtmlEscaped()));
+    });
 
     // Process
     m_pCleanProcess = new QProcess(this);

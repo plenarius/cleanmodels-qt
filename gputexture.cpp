@@ -314,8 +314,9 @@ bool GpuTexture::loadTGA(QOpenGLFunctions_3_3_Core *gl, const QString &path)
 // Surface). It has no magic bytes and a 20-byte header: width, height,
 // channelCount, pitchOrLinearSize, alphaPremultiplier (all little-endian).
 // Pixel data is BCn-compressed: BC1 when channelCount==3, BC3 when ==4.
-// The image is encoded top-row-first; we flip on upload to match the
-// rest of the renderer's bottom-origin convention.
+// Decoded pixels are uploaded top-origin to match NWN's D3D-convention UV
+// coordinates (V=0 at the top of the texture); see also loadTGA, which
+// converges on the same orientation.
 //
 // Spec: https://nwn.wiki/spaces/NWN1/pages/3473496/DDS
 bool GpuTexture::loadBioDDS(QOpenGLFunctions_3_3_Core *gl, const QString &path)

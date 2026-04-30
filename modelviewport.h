@@ -2,6 +2,7 @@
 #define MODELVIEWPORT_H
 
 #include "camera.h"
+#include "glcontextguard.h"
 #include "mdlanimationplayer.h"
 #include "mdlscene.h"
 #include "renderer.h"
@@ -52,6 +53,12 @@ public:
 
 signals:
     void previewError(const QString &msg);
+    // Non-fatal load warnings (parser hit a cap, dropped nodes, etc.).
+    // Distinct from previewError because the model DID load and is
+    // visible — the warning just tells the user the scene is partial.
+    // The main window relays these to the debug log so end users can
+    // tell a "looks wrong" model apart from a "looks right" one.
+    void previewWarning(const QString &msg);
     // Fires after a model loads with the freshly-parsed animation list.
     // Receivers (e.g. the toolbar combobox) should rebuild their UI.
     void animationsAvailable(const QStringList &names, const QString &nowPlaying);
@@ -66,6 +73,13 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
 
+    // Pause the 60Hz animation tick when the widget is invisible (tab
+    // switched away, dock hidden, window minimised) and resume on show.
+    // Without this, hidden viewports keep CPU-skinning + uploading +
+    // scheduling repaints they'll never actually paint.
+    void hideEvent(QHideEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+
 private:
     // Reads `mdlPath` and asynchronously delivers the ASCII representation to
     // `onSuccess`, or a human-readable failure message to `onError`. ASCII
@@ -75,6 +89,30 @@ private:
     void decompileAsync(const QString &mdlPath,
                         std::function<void(const QString &)> onSuccess,
                         std::function<void(const QString &)> onError);
+
+    // Wrap (GlContextGuard → updateAnimatedMeshes → update()) in a
+    // single helper. Multiple call sites (timer tick, loadModel post-
+    // play, playAnimation) need to push exactly the same animated-
+    // frame sequence: re-skin every mesh against the player's current
+    // bone-world matrices and request a repaint. GlContextGuard
+    // handles the makeCurrent/doneCurrent pairing; this function
+    // exists to keep the rest of the sequence in one place so the
+    // updateAnimatedMeshes/update() pair can't drift apart.
+    void pushAnimatedFrame();
+
+    // Restart the 60Hz animation tick if (and only if) the widget is
+    // visible AND a model is loaded AND the player is in Playing state.
+    // No-op otherwise. Single source of truth for the (m_clock.start();
+    // m_animTimer.start()) pair — without it the precondition check was
+    // open-coded at three call sites (loadModel, playAnimation,
+    // showEvent) with subtly different conditions.
+    void startAnimationTickIfVisible();
+
+    // Symmetric counterpart to startAnimationTickIfVisible: stop the
+    // 60Hz tick and invalidate the dt clock so the next start gets a
+    // fresh baseline. Open-coded at four sites before extraction
+    // (hideEvent, loadModel, playAnimation, clearModel).
+    void stopAnimationTick();
 
     Renderer m_renderer;
     Camera m_camera;

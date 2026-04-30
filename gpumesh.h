@@ -50,6 +50,11 @@ private:
     GLuint m_ebo = 0;
     int m_indexCount = 0;
     int m_vertexCount = 0;
+    // Per-mesh latch: a count-mismatch in updateVertices() once-per-mesh
+    // warns and then stays silent so a wedged animated mesh doesn't spam
+    // the log at 60 Hz. Reset on upload() so a re-upload of the same
+    // GpuMesh handle gets a fresh diagnostic chance.
+    bool m_warnedSizeMismatch = false;
 };
 
 #endif
