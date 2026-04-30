@@ -20,6 +20,7 @@ private:
     GLuint m_texture = 0;
 
     bool loadTGA(QOpenGLFunctions_3_3_Core *gl, const QString &path);
+    bool loadBioDDS(QOpenGLFunctions_3_3_Core *gl, const QString &path);
     bool uploadRGBA(QOpenGLFunctions_3_3_Core *gl, const unsigned char *data,
                     int w, int h, bool hasAlpha);
 };
