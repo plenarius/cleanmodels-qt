@@ -128,7 +128,9 @@ jobs:
               ;;
           esac
 
-          ls -la cli-bundle
+          # The case arms each `cd cli-bundle`, so list with a relative
+          # path that works whether or not we're already inside it.
+          ls -la "${GITHUB_WORKSPACE}/cli-bundle"
 
       - name: Deploy AppImage (Linux)
         if: runner.os == 'Linux'
