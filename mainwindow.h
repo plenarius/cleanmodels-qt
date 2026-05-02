@@ -1,17 +1,31 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
+#include <QCheckBox>
+#include <QComboBox>
 #include <QCompleter>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QFileSystemWatcher>
+#include <QGroupBox>
 #include <QIcon>
 #include <QLabel>
+#include <QLineEdit>
+#include <QMainWindow>
+#include <QMap>
+#include <QSet>
 #include <QProcess>
 #include <QProgressBar>
-#include <QTableWidgetItem>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QSpinBox>
+#include <QSplitter>
+#include <QTableWidget>
+#include <QTextBrowser>
+#include <QFormLayout>
 #include <QTimer>
-#include <QMainWindow>
 
 class FileSystemModel;
+class ModelViewport;
 
 namespace Ui {
 class MainWindow;
@@ -27,12 +41,10 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 private slots:
-    void on_indirButton_released();
-    void on_outdirButton_released();
-    void on_cleanButton_released();
-    void on_decompileCheck_stateChanged(int arg1);
     void onHelpTriggered();
     void onSaveConfigTriggered();
     void onLoadConfigTriggered();
@@ -41,103 +53,190 @@ private slots:
     void handleDirWatcherTimer();
     void onDirectoryContentsChanged();
     void updateFileListing();
-    void on_cullInvisibleCheck_toggled(bool checked);
-    void on_meshMergeCheck_toggled(bool checked);
-    void on_forceWhiteCheck_toggled(bool checked);
-    void on_placeableWithTransparencyCheck_toggled(bool checked);
-    void on_animateSplotchesCheck_toggled(bool checked);
-    void on_transparentBitmapKeys_editingFinished();
-    void on_allowSplittingCheck_toggled(bool checked);
-    void on_subObjectSpin_editingFinished();
-    void on_modelClassCombo_currentIndexChanged(int index);
-    void on_foliageCombo_currentIndexChanged(int index);
-    void on_groundRotateTextureCombo_currentIndexChanged(int index);
-    void on_tileEdgeChamfersCombo_currentIndexChanged(int index);
-    void on_retileGroundPlanesCombo_currentIndexChanged(int index);
-    void on_snapCombo_currentIndexChanged(int index);
-    void on_snapTVertsCombo_currentIndexChanged(int index);
-    void on_inDirectory_textChanged(const QString &arg1);
-    void on_inDirectory_editingFinished();
-    void on_outDirectory_editingFinished();
-    void on_smoothingGroupsCombo_currentIndexChanged(int index);
-    void on_splitFirstCombo_currentIndexChanged(int index);
-    void on_repairAABBCombo_currentIndexChanged(int index);
-    void on_raiseLowerCombo_currentIndexChanged(int index);
-    void on_raiseLowerAmountSpin_editingFinished();
-    void on_sliceForTileFadeCombo_currentIndexChanged(int index);
-    void on_changeWokMatCheck_toggled(bool checked);
-    void on_changeWokMatFromSpin_editingFinished();
-    void on_changeWokMatToSpin_editingFinished();
-    void on_moveBadPivotsCombo_currentIndexChanged(int index);
-    void on_pivotsBelowZeroZCombo_currentIndexChanged(int index);
-    void on_renderTrimeshCombo_currentIndexChanged(int index);
-    void on_renderShadowsCombo_currentIndexChanged(int index);
-    void on_repivotCombo_currentIndexChanged(int index);
-    void on_waterFixupsCheck_toggled(bool checked);
-    void on_waterBitmapKeys_editingFinished();
-    void on_foliageBitmapKeys_editingFinished();
-    void on_splotchBitmapKeys_editingFinished();
-    void on_groundBitmapKeys_editingFinished();
-    void on_dynamicWaterCombo_currentIndexChanged(int index);
-    void on_waveHeightSpin_editingFinished();
-    void on_waterRotateTextureCombo_currentIndexChanged(int index);
-    void on_retileWaterCombo_currentIndexChanged(int index);
-    void on_outDirectory_textChanged(const QString &arg1);
-    void on_filePattern_textChanged(const QString &arg1);
-    void on_filesTable_customContextMenuRequested(const QPoint &pos);
-    void on_filesTable_doubleClicked(const QModelIndex &index);
-    void on_rescaleLockBtn_clicked(bool checked);
-    void on_rescaleXSpin_valueChanged(double arg1);
-    void on_rescaleYSpin_valueChanged(double arg1);
-    void on_rescaleZSpin_valueChanged(double arg1);
-
     void onCaptureCleanModelsOutput();
+    void onCleanStarted();
+    void onCleanProcessError(QProcess::ProcessError err);
     void onCleanFinished(int, QProcess::ExitStatus);
     void copyToClipboard();
+    void onReportIssueTriggered();
 
 private:
     Ui::MainWindow *ui;
+
+    // --- I/O widgets ---
+    QLineEdit *m_inDirectory;
+    QLineEdit *m_outDirectory;
+    QPushButton *m_indirButton;
+    QPushButton *m_outdirButton;
+    QLineEdit *m_filePattern;
+    QComboBox *m_classificationCombo;
+
+    // --- Mode ---
+    QRadioButton *m_radioClean;
+    QRadioButton *m_radioDecompile;
+    QRadioButton *m_radioCompile;
+
+    // --- Fixes ---
+    QCheckBox *m_allFixesCheck;
+    QWidget *m_fixesDetailWidget;
+    QCheckBox *m_checkValidateAll;
+    QWidget *m_checksDetailWidget;
+    QMap<QString, QCheckBox*> m_categoryChecks;
+    QMap<QString, QWidget*> m_categoryWidgets;
+    QMap<QString, QCheckBox*> m_individualChecks;
+    QCheckBox *m_checkStripDegen;
+    QCheckBox *m_checkFixAnims;
+    QCheckBox *m_checkRepairPivots;
+    QCheckBox *m_checkFixTilefade;
+    QCheckBox *m_checkTilefadeUndo;
+    QCheckBox *m_checkRebuildAABB;
+    QCheckBox *m_checkReparentChildren;
+    QCheckBox *m_checkWrapRoot;
+    QCheckBox *m_checkSplitMultiEdge;
+
+    // --- Advanced section ---
+    QWidget *m_advancedGroup;
+    QDoubleSpinBox *m_scaleXSpin;
+    QDoubleSpinBox *m_scaleYSpin;
+    QDoubleSpinBox *m_scaleZSpin;
+    QPushButton *m_scaleLockBtn;
+    QComboBox *m_snapCombo;
+    QComboBox *m_tvertSnapCombo;
+    QComboBox *m_renderCombo;
+    QComboBox *m_shadowCombo;
+    QCheckBox *m_forceWhiteCheck;
+    QCheckBox *m_mergeByBitmapCheck;
+    QCheckBox *m_cullInvisibleCheck;
+
+    // --- Tile section ---
+    QWidget *m_tileGroup;
+    QDoubleSpinBox *m_sliceHeightSpin;
+    QCheckBox *m_waterEnableCheck;
+    QComboBox *m_dynamicWaterCombo;
+    QDoubleSpinBox *m_waveHeightSpin;
+    QLineEdit *m_waterKeyEdit;
+    QComboBox *m_rotateWaterCombo;
+    QComboBox *m_retileWaterCombo;
+    QComboBox *m_foliageCombo;
+    QLineEdit *m_foliageKeyEdit;
+    QCheckBox *m_animateSplotchesCheck;
+    QLineEdit *m_splotchKeyEdit;
+    QComboBox *m_rotateGroundCombo;
+    QComboBox *m_chamferCombo;
+    QComboBox *m_retileGroundCombo;
+    QLineEdit *m_groundKeyEdit;
+    QComboBox *m_raiseLowerCombo;
+    QDoubleSpinBox *m_raiseAmountSpin;
+    QCheckBox *m_remapWokMatCheck;
+    QSpinBox *m_wokMatFromSpin;
+    QSpinBox *m_wokMatToSpin;
+
+    // --- Pivot section ---
+    QWidget *m_pivotGroup;
+    QCheckBox *m_pivotAllowSplitCheck;
+    QComboBox *m_pivotBelowZ0Combo;
+    QComboBox *m_pivotMoveBadCombo;
+    QComboBox *m_pivotSmoothingCombo;
+    QSpinBox *m_pivotMinFacesSpin;
+    QComboBox *m_pivotSplitFirstCombo;
+
+    // --- EE cleanup ---
+    QCheckBox *m_standardizeTexture0Check;
+    QCheckBox *m_stripEEExtrasCheck;
+
+    // --- Placeable transparency ---
+    QCheckBox *m_placeableTransCheck;
+    QLineEdit *m_transparencyKeyEdit;
+
+    // --- Viewport controls ---
+    QCheckBox *m_wireframeCheck;
+    QCheckBox *m_gridCheck;
+    QCheckBox *m_refModelCheck;
+    QComboBox *m_refModelCombo;
+    QPushButton *m_refBrowseBtn;
+    QLabel    *m_animLabel = nullptr;
+    QComboBox *m_animCombo = nullptr;
+
+    // --- Layout structure ---
+    QWidget *m_sidebarWidget = nullptr;
+    QSplitter *m_mainSplitter = nullptr;
+    QTextBrowser *m_detailPanel = nullptr;
+    QPushButton *m_sidebarToggleBtn = nullptr;
+    QSplitter *m_tableDetailSplitter = nullptr;
+
+    // --- Action / table / log ---
+    QPushButton *m_cleanButton;
+    QTableWidget *m_filesTable;
+    QTextBrowser *m_debugTextBrowser;
+    QLabel *m_mdlsDetectedLabel;
+    QLabel *m_mdlsCleanedLabel;
+    QLabel *m_mdlsFailedLabel;
+
+    // --- Raw log drawer ---
+    QWidget *m_rawLogDrawer = nullptr;
+    bool m_rawLogVisible = false;
+    QString m_batchSummary;
+
+    // --- Per-file detail results ---
+    QMap<QString, QStringList> m_fileResults;
+
+    // --- Infrastructure ---
     FileSystemModel *m_pFileSystemModel = nullptr;
     QCompleter *m_pDirCompleter = nullptr;
-    QLabel* m_pCleanStatus;
-    QProcess* m_pCleanProcess;
-    QProgressBar* m_pStatusProgress;
+    QLabel *m_pCleanStatus;
+    QProcess *m_pCleanProcess;
+    QProgressBar *m_pStatusProgress;
     QString m_sBinaryName;
     QString m_sBinaryPath;
     QString m_sCurrentModel;
     QString m_sInDir;
     QString m_sOutDir;
-    QString m_sLastDirsPath;
-    QIcon m_iconReadingMDL;
-    QIcon m_iconDecompilingMDL;
-    QIcon m_iconCleaningMDL;
-    QIcon m_iconCleanError;
-    QIcon m_iconCleanSuccess;
     QIcon m_iconCleanButton;
     QIcon m_iconAbortButton;
     QIcon m_iconDecompileButton;
-    QIcon m_iconASCIIMdl;
-    QIcon m_iconBinaryMdl;
-    QIcon m_iconLockRescaleBtn;
-    QIcon m_iconUnlockRescaleBtn;
     QElapsedTimer m_cleanTimer;
     QFileSystemWatcher m_fsWatcher;
     QTimer *m_dirWatcherTimer;
-    bool m_bFilesHaveChanged;
-    bool m_bUpdateFilesAfterClean;
-    bool m_bCleanRunning;
+    QByteArray m_stdoutBuffer;
+    bool m_bFilesHaveChanged = false;
+    bool m_bUpdateFilesAfterClean = false;
+    bool m_bCleanRunning = false;
     int m_nMdlsCleaned = 0;
     int m_nMdlsFailed = 0;
 
-    void onUpdateInDir(const QString& newInDir);
-    void setRescaleOption();
-    void replaceUserOption(const QString& str, const QString& rpl, bool coreValue = false);
-    void readInLastDirs(const QString& fileLoc);
+    ModelViewport *m_viewport = nullptr;
+
+    // --- Report issue state ---
+    QStringList m_lastFailedFiles;
+    QString m_lastErrorOutput;
+    QString m_lastCommand;
+
+    // --- Methods ---
+    void buildUi();
+    void updateModeUI();
+    static QFormLayout *makeStandardForm(int spacing = 4);
+    QWidget *createCollapsibleGroup(const QString &title, QWidget **contentOut, bool startCollapsed = true);
+    void onUpdateInDir(const QString &newInDir);
+    void populateRefModelCombo();
     void readSettings();
     void writeSettings();
-
+    void saveSettings();
+    void loadSettings();
     void doClean();
-    int findModelRow(const QString& mdlFile);
+    QStringList buildCliArgs();
+    int findModelRow(const QString &mdlFile);
+    void appendDebugHtml(const QString &html);
+    void toggleSidebar();
+    void toggleRawLog();
+    void showFileDetails(const QString &fileName);
+    void showBatchSummary();
+    QStringList collectTableFilePaths(bool allRows) const;
+    void reportIssue(const QStringList &files, const QString &errorOutput, const QString &command);
+    void reportIssueInteractive(const QStringList &files);
+    void populateCheckTree(const QJsonArray &checks);
+    QStringList selectedCheckNames() const;
+    int totalCheckCount() const;
+    static QString humanFileSize(qint64 bytes);
 };
 
 #endif // MAINWINDOW_H
