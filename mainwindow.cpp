@@ -312,6 +312,57 @@ void MainWindow::buildUi()
         }
     });
 
+    // ── Game Resources (collapsible) ───────────────────────────────────
+    // Used when compiling: stock supermodels and materials come from the
+    // game install, patch haks and custom content from the extra locations.
+    QWidget *resContent;
+    auto *resGroup = createCollapsibleGroup("Game Resources", &resContent, true);
+    auto *resLayout = new QVBoxLayout;
+    resLayout->setContentsMargins(Layout::GroupMarginH, Layout::GroupMarginTop, Layout::GroupMarginH, Layout::GroupMarginBottom);
+    resLayout->setSpacing(Layout::DefaultSpacing);
+
+    m_gameDirEdit = new QLineEdit;
+    m_gameDirEdit->setPlaceholderText("NWN install folder (holds data/nwn_base.key)");
+    m_gameDirEdit->setToolTip("Read stock supermodels (pmh0, pfh0, ...) and materials from the game's data files,\n"
+                              "so compiled models get the same node numbers and tangents as the engine's.\n"
+                              "Leave empty to use only the folders below.");
+    m_gameDirEdit->setAccessibleName(tr("Game install folder"));
+    auto *gameDirBrowse = new QPushButton("Browse…");
+    gameDirBrowse->setAccessibleName(tr("Browse for game install folder"));
+    auto *gameDirRow = new QHBoxLayout;
+    gameDirRow->addWidget(m_gameDirEdit, 1);
+    gameDirRow->addWidget(gameDirBrowse);
+    resLayout->addWidget(new QLabel("Game install:"));
+    resLayout->addLayout(gameDirRow);
+    connect(gameDirBrowse, &QPushButton::clicked, this, [this] {
+        QString dir = QFileDialog::getExistingDirectory(this, "Game install folder", m_gameDirEdit->text());
+        if (!dir.isEmpty())
+            m_gameDirEdit->setText(dir);
+    });
+
+    m_resourceDirsEdit = new QLineEdit;
+    m_resourceDirsEdit->setPlaceholderText("Folders or .hak files, separated by " + QString(QDir::listSeparator()));
+    m_resourceDirsEdit->setToolTip("Extra places to look for supermodels and materials: folders (searched\n"
+                                   "recursively for materials) or .hak files, e.g. a PBR patch hak.");
+    m_resourceDirsEdit->setAccessibleName(tr("Extra resource folders"));
+    auto *resDirsBrowse = new QPushButton("Add folder…");
+    resDirsBrowse->setAccessibleName(tr("Add a resource folder"));
+    auto *resDirsRow = new QHBoxLayout;
+    resDirsRow->addWidget(m_resourceDirsEdit, 1);
+    resDirsRow->addWidget(resDirsBrowse);
+    resLayout->addWidget(new QLabel("Extra locations:"));
+    resLayout->addLayout(resDirsRow);
+    connect(resDirsBrowse, &QPushButton::clicked, this, [this] {
+        QString dir = QFileDialog::getExistingDirectory(this, "Resource folder");
+        if (dir.isEmpty())
+            return;
+        QString cur = m_resourceDirsEdit->text();
+        m_resourceDirsEdit->setText(cur.isEmpty() ? dir : cur + QDir::listSeparator() + dir);
+    });
+
+    resContent->setLayout(resLayout);
+    optionsLayout->addWidget(resGroup);
+
     // ── Advanced Options (collapsible) ─────────────────────────────────
     QWidget *advContent;
     m_advancedGroup = createCollapsibleGroup("Advanced Options", &advContent, true);
@@ -1170,6 +1221,8 @@ void MainWindow::loadSettings()
     m_cullInvisibleCheck->setChecked(s.value(Setting::InvisibleMeshCull, false).toBool());
     m_standardizeTexture0Check->setChecked(s.value(Setting::StandardizeTexture0, false).toBool());
     m_stripEEExtrasCheck->setChecked(s.value(Setting::StripEEExtras, false).toBool());
+    m_gameDirEdit->setText(s.value(Setting::GameDir).toString());
+    m_resourceDirsEdit->setText(s.value(Setting::ResourceDirs).toString());
     m_placeableTransCheck->setChecked(s.value(Setting::PlaceableTrans, false).toBool());
     m_transparencyKeyEdit->setText(s.value(Setting::TransparencyKey, "glass").toString());
 
@@ -1257,6 +1310,8 @@ void MainWindow::saveSettings()
     s.setValue(Setting::InvisibleMeshCull, m_cullInvisibleCheck->isChecked());
     s.setValue(Setting::StandardizeTexture0, m_standardizeTexture0Check->isChecked());
     s.setValue(Setting::StripEEExtras, m_stripEEExtrasCheck->isChecked());
+    s.setValue(Setting::GameDir, m_gameDirEdit->text());
+    s.setValue(Setting::ResourceDirs, m_resourceDirsEdit->text());
     s.setValue(Setting::PlaceableTrans, m_placeableTransCheck->isChecked());
     s.setValue(Setting::TransparencyKey, m_transparencyKeyEdit->text());
 

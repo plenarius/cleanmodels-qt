@@ -2,6 +2,7 @@
 #include "loghtml.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include <QDir>
 #include <QDirIterator>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -441,6 +442,15 @@ QStringList MainWindow::buildCliArgs()
     args << m_sInDir;
     if (!m_sOutDir.isEmpty() && m_sOutDir != m_sInDir)
         args << m_sOutDir;
+
+    // Where supermodels and materials are looked up (compiled output only).
+    if (!m_radioDecompile->isChecked())
+    {
+        if (!m_gameDirEdit->text().trimmed().isEmpty())
+            args << CliFlag::GameDir << m_gameDirEdit->text().trimmed();
+        for (const QString &dir : m_resourceDirsEdit->text().split(QDir::listSeparator(), Qt::SkipEmptyParts))
+            args << CliFlag::ResourceDir << dir.trimmed();
+    }
 
     return args;
 }

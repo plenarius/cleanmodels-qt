@@ -143,6 +143,8 @@ private:
     // --- EE cleanup ---
     QCheckBox *m_standardizeTexture0Check;
     QCheckBox *m_stripEEExtrasCheck;
+    QLineEdit *m_gameDirEdit;
+    QLineEdit *m_resourceDirsEdit;
 
     // --- Placeable transparency ---
     QCheckBox *m_placeableTransCheck;
