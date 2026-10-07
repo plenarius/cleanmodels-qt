@@ -115,6 +115,8 @@ namespace CliFlag {
     constexpr const char *ExcludeChecks       = "--exclude-checks";
     constexpr const char *StandardizeTexture0 = "--standardize-texture0";
     constexpr const char *StripEEExtras       = "--strip-ee-extras";
+    constexpr const char *GameDir             = "--game-dir";
+    constexpr const char *ResourceDir         = "--resource-dir";
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +186,8 @@ namespace Setting {
 
     constexpr const char *StandardizeTexture0 = "standardize_texture0";
     constexpr const char *StripEEExtras      = "strip_ee_extras";
+    constexpr const char *GameDir            = "game_dir";
+    constexpr const char *ResourceDirs       = "resource_dirs";
 
     constexpr const char *CameraRotSens  = "camera_rotation_sensitivity";
     constexpr const char *CameraPanScale = "camera_pan_scale";
