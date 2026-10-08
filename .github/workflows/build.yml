@@ -32,7 +32,10 @@ jobs:
           # cleanmodels' two darwin assets in the download step. Avoids
           # the macos-13 Intel runner which is queue-starved on free
           # public-repo minutes and slated for eventual deprecation.
-          - os: macos-latest
+          # Pinned: macos-latest is now macOS 26, whose SDK has no AGL
+          # framework, and Qt 6.7's QtOpenGL still links it ("ld: framework
+          # 'AGL' not found"). Unpin once the Qt version here drops AGL.
+          - os: macos-15
             name: macos
             cmake_extra: "-DCMAKE_OSX_ARCHITECTURES='x86_64;arm64'"
           - os: windows-latest
