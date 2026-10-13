@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QMessageBox>
 #include <QStringBuilder>
 #include <QScrollBar>
 #include <QTime>
@@ -481,9 +482,10 @@ QStringList MainWindow::buildCliArgs()
             args << CliFlag::RemapWalkmesh << QString("%1:%2").arg(m_wokMatFromSpin->value()).arg(m_wokMatToSpin->value());
     }
 
-    args << m_sInDir;
-    if (!m_sOutDir.isEmpty() && m_sOutDir != m_sInDir)
-        args << m_sOutDir;
+    // Always name the output. The CLI writes nothing for repair when it is left
+    // out (and refuses to compile), so "Out equals In", the in-place mode, is
+    // spelled by passing the folder twice. doClean() makes sure Out is not empty.
+    args << m_sInDir << m_sOutDir;
 
     // Where supermodels and materials are looked up (compiled output only).
     if (!m_radioDecompile->isChecked())
@@ -512,6 +514,14 @@ void MainWindow::doClean()
         return;
     }
 
+    if (m_sOutDir.trimmed().isEmpty())
+    {
+        QMessageBox::warning(this, tr("Choose an output folder"),
+            tr("Choose an output folder first.\n\nTo change the files where they are, set Out to the "
+               "same folder as In."));
+        return;
+    }
+
     disconnect(m_pCleanProcess, &QProcess::readyReadStandardOutput,
                this, &MainWindow::onCaptureCleanModelsOutput);
     connect(m_pCleanProcess, &QProcess::readyReadStandardOutput,
@@ -531,6 +541,10 @@ void MainWindow::doClean()
 
     QStringList args = buildCliArgs();
     m_lastCommand = args.join(" ");
+
+    if (QDir::cleanPath(m_sInDir) == QDir::cleanPath(m_sOutDir))
+        appendDebugHtml(LogHtml::span(LogColor::Warning,
+            QStringLiteral("Out is the same folder as In: the files are modified in place.")) % QStringLiteral("<br>"));
 
     appendDebugHtml(LogHtml::span(LogColor::Command,
         QStringLiteral("$ ") % m_sBinaryPath.toHtmlEscaped() % QStringLiteral(" ")
