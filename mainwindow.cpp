@@ -1027,18 +1027,18 @@ MainWindow::MainWindow(QWidget *parent) :
 
     m_sBinaryName = CliDefaults::BinaryName;
 
-    bool cliFound = true;
-    auto cliInPath = QStandardPaths::findExecutable(m_sBinaryName);
-    if (cliInPath.isEmpty())
-    {
-        QStringList cliPaths = {QDir::currentPath(), QApplication::applicationDirPath()};
-        cliInPath = QStandardPaths::findExecutable(m_sBinaryName, cliPaths);
-        if (cliInPath.isEmpty())
-            cliFound = false;
-    }
+    // Prefer the CLI that ships next to the GUI: releases bundle the matching
+    // version there, while whatever is on PATH may be an older build that does
+    // not speak the same protocol. Then PATH, then the current directory.
+    auto cliPath = QStandardPaths::findExecutable(m_sBinaryName, {QApplication::applicationDirPath()});
+    if (cliPath.isEmpty())
+        cliPath = QStandardPaths::findExecutable(m_sBinaryName);
+    if (cliPath.isEmpty())
+        cliPath = QStandardPaths::findExecutable(m_sBinaryName, {QDir::currentPath()});
 
+    const bool cliFound = !cliPath.isEmpty();
     if (cliFound)
-        m_sBinaryPath = cliInPath;
+        m_sBinaryPath = cliPath;
 
     // Build the UI
     buildUi();
@@ -1064,7 +1064,7 @@ MainWindow::MainWindow(QWidget *parent) :
     }
     else
     {
-        QString errorMsg = "Could not find the " % m_sBinaryName % " executable in the current directory or in your path!";
+        QString errorMsg = "Could not find the " % m_sBinaryName % " executable next to this program, in your path or in the current directory!";
         QMessageBox::critical(this, "No cleanmodels CLI", errorMsg);
         appendDebugHtml(LogHtml::span(LogColor::Error, errorMsg.toHtmlEscaped()) % QStringLiteral("<br>"));
     }
