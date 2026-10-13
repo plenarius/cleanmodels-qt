@@ -190,7 +190,8 @@ void MainWindow::onCaptureCleanModelsOutput()
             if (row >= 0)
             {
                 auto *statusItem = new QTableWidgetItem();
-                statusItem->setText(QString::fromUtf8("✅ ") + actionVerbPast);
+                statusItem->setText(actionVerbPast);
+                statusItem->setIcon(style()->standardIcon(QStyle::SP_DialogApplyButton));
                 statusItem->setToolTip(actionVerbPast);
                 m_filesTable->setItem(row, 2, statusItem);
 
@@ -250,7 +251,8 @@ void MainWindow::onCaptureCleanModelsOutput()
             if (row >= 0)
             {
                 auto *item = new QTableWidgetItem();
-                item->setText(QString::fromUtf8("❌ Failed"));
+                item->setText(QStringLiteral("Failed"));
+                item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxCritical));
                 item->setToolTip(msg);
                 m_filesTable->setItem(row, 2, item);
 

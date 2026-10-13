@@ -29,6 +29,10 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QMenu>
+#include <QIcon>
+#include <QPixmap>
+#include <QPainterPath>
+#include <QPainter>
 #include <QPalette>
 #include <QMessageBox>
 #include <QScreen>
@@ -109,6 +113,59 @@ static void revealInFileManager(const QString &path)
 #else
     QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
 #endif
+}
+
+// Small painted icons for the file list and the scale lock. They replace emoji
+// (page, package, padlock), which Qt cannot draw where no colour-emoji font is
+// installed, leaving a missing-glyph box in every file row.
+static QIcon fileTypeIcon(bool ascii)
+{
+    QIcon icon;
+    for (int px : {16, 32}) {
+        QPixmap pm(px, px);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing);
+        const qreal m = px / 8.0;
+        const QRectF r(m, m, px - 2 * m, px - 2 * m);
+        p.setPen(Qt::NoPen);
+        p.setBrush(ascii ? QColor(0x3d, 0x7f, 0xc4) : QColor(0x8a, 0x5f, 0xb8));
+        p.drawRoundedRect(r, px / 6.0, px / 6.0);
+        QFont f;
+        f.setBold(true);
+        f.setPixelSize(static_cast<int>(px * 0.6));
+        p.setFont(f);
+        p.setPen(Qt::white);
+        p.drawText(r, Qt::AlignCenter, ascii ? QStringLiteral("A") : QStringLiteral("B"));
+        icon.addPixmap(pm);
+    }
+    return icon;
+}
+
+static QIcon scaleLockIcon(bool locked, const QColor &color)
+{
+    QIcon icon;
+    for (int px : {16, 32}) {
+        QPixmap pm(px, px);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.scale(px / 16.0, px / 16.0);
+        QPen pen(color, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        QPainterPath shackle;
+        shackle.moveTo(5, 8);
+        shackle.lineTo(5, 5);
+        shackle.arcTo(QRectF(5, 2, 6, 6), 180, -180);
+        shackle.lineTo(11, locked ? 8 : 4);
+        p.drawPath(shackle);
+        p.setPen(Qt::NoPen);
+        p.setBrush(color);
+        p.drawRoundedRect(QRectF(3, 8, 10, 6.5), 1.5, 1.5);
+        icon.addPixmap(pm);
+    }
+    return icon;
 }
 
 static void fillCombo(QComboBox *combo, const ComboOption *opts, int count)
@@ -406,7 +463,9 @@ void MainWindow::buildUi()
     m_scaleYSpin->setToolTip("Y-axis scale factor");
     m_scaleZSpin = new QDoubleSpinBox; m_scaleZSpin->setRange(0.01, 100); m_scaleZSpin->setValue(1.0); m_scaleZSpin->setSingleStep(0.1); m_scaleZSpin->setDecimals(2);
     m_scaleZSpin->setToolTip("Z-axis scale factor");
-    m_scaleLockBtn = new QPushButton(QString::fromUtf8("🔒"));
+    m_scaleLockBtn = new QPushButton;
+    m_scaleLockBtn->setIcon(scaleLockIcon(true, palette().color(QPalette::ButtonText)));
+    m_scaleLockBtn->setIconSize(QSize(16, 16));
     m_scaleLockBtn->setCheckable(true);
     m_scaleLockBtn->setChecked(true);
     m_scaleLockBtn->setFlat(true);
@@ -430,7 +489,7 @@ void MainWindow::buildUi()
     advLayout->addWidget(makeHLine());
 
     connect(m_scaleLockBtn, &QPushButton::toggled, this, [this](bool locked) {
-        m_scaleLockBtn->setText(locked ? QString::fromUtf8("🔒") : QString::fromUtf8("🔓"));
+        m_scaleLockBtn->setIcon(scaleLockIcon(locked, palette().color(QPalette::ButtonText)));
         m_scaleYSpin->setEnabled(!locked);
         m_scaleZSpin->setEnabled(!locked);
         if (locked) { m_scaleYSpin->setValue(m_scaleXSpin->value()); m_scaleZSpin->setValue(m_scaleXSpin->value()); }
@@ -1804,7 +1863,8 @@ void MainWindow::updateFileListing()
         inputFile.close();
         bool isASCII = !ModelViewport::fileIsBinaryMdl(fullPath);
         auto *fileNameItem = new QTableWidgetItem();
-        fileNameItem->setText((isASCII ? QString::fromUtf8("📄 ") : QString::fromUtf8("📦 ")) + filePath);
+        fileNameItem->setText(filePath);
+        fileNameItem->setIcon(fileTypeIcon(isASCII));
         fileNameItem->setData(Qt::UserRole, filePath);
         fileNameItem->setToolTip(isASCII ? "ASCII MDL" : "Binary MDL");
         auto *fileSizeItem = new QTableWidgetItem(humanFileSize(inputFile.size()));
