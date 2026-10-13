@@ -9,6 +9,7 @@
 #include <QClipboard>
 #include <QDebug>
 #include <QDesktopServices>
+#include <QUrl>
 #include <QInputDialog>
 #include <QDir>
 #include <QJsonArray>
@@ -85,6 +86,35 @@ QWidget *MainWindow::createCollapsibleGroup(const QString &title, QWidget **cont
 // ---------------------------------------------------------------------------
 // Build the entire UI programmatically
 // ---------------------------------------------------------------------------
+// "Show this file in the system file manager". macOS and Windows can select the
+// file in its folder; Linux file managers have no common way to do that, so there
+// the folder is opened. The menu label says what the platform will actually do.
+static QString revealMenuLabel()
+{
+#if defined(Q_OS_MACOS)
+    return QStringLiteral("Reveal in Finder");
+#elif defined(Q_OS_WIN)
+    return QStringLiteral("Show in Explorer");
+#else
+    return QStringLiteral("Open Containing Folder");
+#endif
+}
+
+static void revealInFileManager(const QString &path)
+{
+#if defined(Q_OS_MACOS)
+    QProcess::startDetached("open", {"-R", path});
+#elif defined(Q_OS_WIN)
+    // explorer wants /select,"path" as one argument with its own quoting.
+    QProcess explorer;
+    explorer.setProgram("explorer.exe");
+    explorer.setNativeArguments("/select,\"" + QDir::toNativeSeparators(path) + "\"");
+    explorer.startDetached();
+#else
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+#endif
+}
+
 // Small painted icons for the file list and the scale lock. They replace emoji
 // (page, package, padlock), which Qt cannot draw where no colour-emoji font is
 // installed, leaving a missing-glyph box in every file row.
@@ -980,8 +1010,8 @@ void MainWindow::buildUi()
         menu.addSeparator();
 
         if (selectedFiles.size() == 1) {
-            menu.addAction("Reveal in Finder", this, [firstFile] {
-                QProcess::startDetached("open", {"-R", firstFile});
+            menu.addAction(revealMenuLabel(), this, [firstFile] {
+                revealInFileManager(firstFile);
             });
         }
         menu.exec(m_filesTable->mapToGlobal(pos));
