@@ -1,33 +1,41 @@
-cmake_minimum_required(VERSION 3.10)
-project(cleanmodels-qt)
+cmake_minimum_required(VERSION 3.16)
+project(cleanmodels-qt LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(QT_COMPONENTS Core Widgets Gui)
-
-if(DEFINED ENV{STATIC_BUILD} AND NOT $ENV{STATIC_BUILD} STREQUAL "")
-    if(DEFINED ENV{QT_STATIC_PATH} AND NOT $ENV{QT_STATIC_PATH} STREQUAL "")
-        set(CMAKE_PREFIX_PATH "$ENV{QT_STATIC_PATH}/lib/cmake/Qt5")
-        set(QT_ROOT "$ENV{QT_STATIC_PATH}/lib/cmake/")
-        include("./CMakeModules/Qt.cmake")
-    endif()
-endif()
-
-find_package(Qt5 COMPONENTS ${QT_COMPONENTS} REQUIRED)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-add_executable(${PROJECT_NAME} main.cpp mainwindow.cpp mainwindow_clean.cpp fsmodel.cpp icons.qrc prolog_files.qrc mainwindow.ui)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui OpenGL OpenGLWidgets)
 
-include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(${PROJECT_NAME} Qt5::Core Qt5::Widgets Qt5::Gui)
+add_executable(${PROJECT_NAME}
+    main.cpp
+    mainwindow.cpp
+    mainwindow_clean.cpp
+    fsmodel.cpp
+    camera.cpp
+    mdlscene.cpp
+    mdlanimationplayer.cpp
+    gpumesh.cpp
+    gputexture.cpp
+    renderer.cpp
+    modelviewport.cpp
+    constants.h
+    icons.qrc
+    mainwindow.ui
+)
 
-if(DEFINED ENV{STATIC_BUILD} AND NOT $ENV{STATIC_BUILD} STREQUAL "")
-    if(DEFINED ENV{QT_STATIC_PATH} AND NOT $ENV{QT_STATIC_PATH} STREQUAL "")
-    qt5_import_plugins(${PROJECT_NAME}
-            EXCLUDE_BY_TYPE imageformats
-            )
-    endif()
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    Qt6::Core Qt6::Widgets Qt6::Gui Qt6::OpenGL Qt6::OpenGLWidgets)
+
+if(APPLE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES MACOSX_BUNDLE TRUE)
 endif()
+if(WIN32)
+    set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
+
+install(TARGETS ${PROJECT_NAME} DESTINATION bin)
