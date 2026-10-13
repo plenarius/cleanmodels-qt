@@ -119,6 +119,31 @@ void MainWindow::onCaptureCleanModelsOutput()
                 allTooltipLines << QString::fromUtf8("\xe2\x9c\x93 ") % r.toString();
             }
 
+            // Warnings the CLI raises outside the checks arrive in their own fields:
+            // "parse_warnings" are lines the ASCII parser had to work around
+            // ("line 352: ... set to 0"), and "warnings" are decompile/compile notes
+            // such as nodes left out of the binary. They are findings like any other.
+            //
+            // They go first: a parser warning explains the findings after it (the
+            // clamped UV index that follows a dropped tvert, say), and a warning
+            // should not sit below a screenful of info lines.
+            QStringList leadFindings;
+            const QJsonArray parseWarnings = result["parse_warnings"].toArray();
+            for (const auto &w : parseWarnings)
+                leadFindings << QStringLiteral("WARN: parse: ") % w.toString();
+            const QJsonArray decompileWarnings = result["warnings"].toArray();
+            for (const auto &w : decompileWarnings)
+            {
+                const QJsonObject warn = w.toObject();
+                const QString node = warn["node"].toString();
+                QString msg = warn["message"].toString();
+                if (!node.isEmpty() && !msg.contains(node))
+                    msg = node % QStringLiteral(": ") % msg;
+                leadFindings << QStringLiteral("WARN: ") % msg;
+            }
+            findings = leadFindings + findings;
+            allTooltipLines = leadFindings + allTooltipLines;
+
             appendDebugHtml(QStringLiteral("<p>") % LogHtml::span(LogColor::Success,
                 QStringLiteral("<b>") % file.toHtmlEscaped() % QStringLiteral(" ") % actionVerbPast.toLower()
                 % QStringLiteral(" (") % QString::number(fixes) % QStringLiteral(" fixes)</b>"))
@@ -171,7 +196,22 @@ void MainWindow::onCaptureCleanModelsOutput()
 
                 QString fixesText = QString::number(fixes);
                 if (!findings.isEmpty())
-                    fixesText += " (" % QString::number(findings.size()) % " info)";
+                {
+                    // Say what the findings are: the column used to call every one of
+                    // them "info", errors and warnings included.
+                    int nErrors = 0, nWarnings = 0, nInfo = 0;
+                    for (const QString &f : findings)
+                    {
+                        if (f.startsWith("ERROR"))     ++nErrors;
+                        else if (f.startsWith("WARN")) ++nWarnings;
+                        else                           ++nInfo;
+                    }
+                    QStringList parts;
+                    if (nErrors)   parts << QString::number(nErrors)   % " err";
+                    if (nWarnings) parts << QString::number(nWarnings) % " warn";
+                    if (nInfo)     parts << QString::number(nInfo)     % " info";
+                    fixesText += " (" % parts.join(", ") % ")";
+                }
                 auto *fixesItem = new QTableWidgetItem(fixesText);
                 fixesItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
                 if (!allTooltipLines.isEmpty())

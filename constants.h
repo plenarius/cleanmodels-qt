@@ -297,7 +297,7 @@ namespace Layout {
     // Horizontal em (multiplied by zero-advance, so they read as "N digits"):
     constexpr double TableColumnSizeChars     = 9.0;   // "1234.56 KB"
     constexpr double TableColumnStatusChars   = 11.0;  // "Processing"
-    constexpr double TableColumnFixesChars    = 9.0;   // "12 (3 info)"
+    constexpr double TableColumnFixesChars    = 24.0;  // "12 (1 err, 2 warn, 30 info)"
     constexpr double TableColumnTimeChars     = 9.0;   // "00:00.000"
     constexpr double RefModelComboWidthChars  = 14.0;
     constexpr double StatusProgressWidthChars = 11.0;
