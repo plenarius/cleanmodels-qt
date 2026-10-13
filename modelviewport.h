@@ -16,6 +16,9 @@
 #include <QString>
 #include <functional>
 
+class QLabel;
+class QResizeEvent;
+
 class ModelViewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
 {
     Q_OBJECT
@@ -79,6 +82,7 @@ protected:
     // scheduling repaints they'll never actually paint.
     void hideEvent(QHideEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     // Reads `mdlPath` and asynchronously delivers the ASCII representation to
@@ -113,6 +117,12 @@ private:
     // fresh baseline. Open-coded at four sites before extraction
     // (hideEvent, loadModel, playAnimation, clearModel).
     void stopAnimationTick();
+
+    // Shows or hides the "double-click a file" hint. It is visible exactly
+    // while no model is loaded, so an empty canvas explains how to fill it.
+    void updateEmptyHint();
+
+    QLabel *m_emptyHint = nullptr;
 
     Renderer m_renderer;
     Camera m_camera;
