@@ -4,7 +4,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHideEvent>
+#include <QLabel>
 #include <QPointer>
+#include <QResizeEvent>
 #include <QShowEvent>
 #include <QTimer>
 
@@ -37,6 +39,19 @@ ModelViewport::ModelViewport(QWidget *parent)
 {
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
+
+    // A selected row does not change the viewport; only a double-click (or the
+    // context menu) does. Say so on the empty canvas. The label sits over the
+    // GL surface, lets mouse events through, and is hidden once a model loads.
+    m_emptyHint = new QLabel(
+        tr("Double-click a file in the list to preview it\n"
+           "(or right-click it and choose \"Preview in viewport\")"),
+        this);
+    m_emptyHint->setAlignment(Qt::AlignCenter);
+    m_emptyHint->setWordWrap(true);
+    m_emptyHint->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_emptyHint->setStyleSheet(QStringLiteral(
+        "QLabel { color: #b4bccb; background: transparent; font-size: 15px; padding: 12px; }"));
 
     // ~60Hz animation tick. Only runs while a model with active animation
     // is loaded AND the widget is currently visible (hideEvent stops it,
@@ -269,6 +284,7 @@ void ModelViewport::loadModel(const QString &asciiMdl, const QString &textureDir
     m_camera.focusOnBounds(bmin, bmax);
 
     m_hasModel = true;
+    updateEmptyHint();
     // Must come after m_hasModel = true; the helper bails out if no
     // model is loaded.
     startAnimationTickIfVisible();
@@ -322,8 +338,22 @@ void ModelViewport::clearModel()
         m_renderer.prepareScene(this, m_scene);
     }
     m_hasModel = false;
+    updateEmptyHint();
     update();
     emit animationsAvailable({}, {});
+}
+
+void ModelViewport::updateEmptyHint()
+{
+    if (m_emptyHint)
+        m_emptyHint->setVisible(!m_hasModel);
+}
+
+void ModelViewport::resizeEvent(QResizeEvent *event)
+{
+    QOpenGLWidget::resizeEvent(event);
+    if (m_emptyHint)
+        m_emptyHint->setGeometry(rect());
 }
 
 
