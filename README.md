@@ -52,7 +52,7 @@ Grab the latest build for your platform from the [Releases](https://github.com/p
 | macOS | `cleanmodels-qt-macos.zip` |
 | Windows (x86_64) | `cleanmodels-qt-windows-amd64.zip` |
 
-Each download already contains the matching [cleanmodels](https://github.com/plenarius/cleanmodels) command-line tool, so there is nothing else to install. The window shows which version it is using in the Raw Log (`CLI: <path>`).
+Each download already contains the matching [cleanmodels](https://github.com/plenarius/cleanmodels) command-line tool, so there is nothing else to install. The window shows which version it is using in the Raw Log (`CLI: <path>`). The builds are also on the [Neverwinter Vault](https://neverwintervault.org/project/nwnee/other/tool/clean-models-extended-edition-model-decompile-repair-and-compile); GitHub always has the latest.
 
 ### Using your own cleanmodels
 
