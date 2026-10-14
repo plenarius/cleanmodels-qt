@@ -3,6 +3,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QDir>
+#include <QFileInfo>
 #include <QDirIterator>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -11,6 +12,18 @@
 #include <QStringBuilder>
 #include <QScrollBar>
 #include <QTime>
+
+// Each check message from the CLI starts with "<file>: " (it is part of the JSON
+// contract). The app shows the file name right above, in the details pane and the
+// log header, so repeating the whole path on every line only makes them long.
+static QString withoutFilePrefix(const QString &msg, const QString &file)
+{
+    for (const QString &name : {file, QFileInfo(file).fileName()}) {
+        if (!name.isEmpty() && msg.startsWith(name + QStringLiteral(": ")))
+            return msg.mid(name.size() + 2);
+    }
+    return msg;
+}
 
 void MainWindow::onCaptureCleanModelsOutput()
 {
@@ -92,7 +105,7 @@ void MainWindow::onCaptureCleanModelsOutput()
             for (const auto &c : checks)
             {
                 QJsonObject check = c.toObject();
-                QString msg = check["message"].toString();
+                QString msg = withoutFilePrefix(check["message"].toString(), result["file"].toString());
                 if (check["fixed"].toBool())
                 {
                     fixDetails << msg;
