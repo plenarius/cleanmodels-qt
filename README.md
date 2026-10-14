@@ -4,6 +4,8 @@ Qt6 GUI for [cleanmodels](https://github.com/plenarius/cleanmodels), a tool to v
 
 ![Qt6](https://img.shields.io/badge/Qt-6.7-41cd52) ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)
 
+![cleanmodels-qt after a run: the file list with status and fixes, the details pane, a textured 3D preview of a tile, and the log](docs/screenshots/3d-preview.png)
+
 ## Features
 
 - Pick a folder (or drag one in) and run check, repair, compile, or decompile over every model in it, with per-file progress and status
@@ -11,6 +13,33 @@ Qt6 GUI for [cleanmodels](https://github.com/plenarius/cleanmodels), a tool to v
 - 3D model preview with an OpenGL viewport: **double-click a file** in the list, or right-click and choose *Preview in viewport*
 - Full access to the cleanmodels repair, transform, and tile options
 - Persistent settings for directories, options, and camera
+
+## Screenshots
+
+Run a folder through Clean, Decompile or Compile and see every file's result. Click a file for what was fixed and what was only noted:
+
+![The file list after a run, with a green check, the fixes column and the details pane](docs/screenshots/results.png)
+
+ASCII and binary models are marked **A** and **B**. A file that cannot be processed is shown as Failed, with the reason in the details pane:
+
+![A mixed folder: ASCII and binary models cleaned, and a truncated binary shown as Failed with its error](docs/screenshots/binary-and-failed.png)
+
+The repair, transform and tile options are in the panel on the left:
+
+![The options panel with Game Resources and Advanced Options expanded](docs/screenshots/options.png)
+
+<details>
+<summary>More: the right-click menu and the bug report prompt</summary>
+
+Right-click a file to preview it, copy its path, report a problem, or open its folder:
+
+![The right-click menu on a file: Preview in viewport, Copy path, Report Issue, Open Containing Folder](docs/screenshots/context-menu.png)
+
+*Report Issue* asks what is wrong and sends the model to the cleanmodels issue tracker; Cancel sends nothing:
+
+![The bug report prompt with a short description typed in](docs/screenshots/report-dialog.png)
+
+</details>
 
 ## Download
 
