@@ -1,7 +1,7 @@
 # Screenshots
 
-Images used in the README, taken from the released cleanmodels-qt v1.1.0 (with the bundled cleanmodels
-v4.2.0) running on a virtual display, so nothing else from the desktop is in them and no personal paths
+Images used in the README, taken from a build of cleanmodels-qt v1.1.1 (with the bundled cleanmodels
+v4.2.1) running on a virtual display, so nothing else from the desktop is in them and no personal paths
 appear (the demo folders are under `/tmp`).
 
 - The models are files from cleanmodels' `tests/fixtures/oracle/ascii`; the textures in the 3D preview
