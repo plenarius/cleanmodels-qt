@@ -121,6 +121,7 @@ private:
 
     QWidget *m_adjustBox = nullptr;
     QLabel *m_adjustTitle = nullptr;
+    QLabel *m_notesLabel = nullptr;
     QMap<QString, QSlider *> m_sliders;
     QMap<QString, QSpinBox *> m_spins;
     QPushButton *m_resetButton = nullptr;

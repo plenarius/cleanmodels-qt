@@ -183,6 +183,13 @@ void VariantsDialog::buildUi()
     adjust->setVerticalSpacing(2);
     m_adjustTitle = new QLabel;
     adjust->addWidget(m_adjustTitle, 0, 0, 1, 6);
+    // The selected tile's notes (what could not be done as usual) or why it
+    // was not written; the tiles only say how many.
+    m_notesLabel = new QLabel;
+    m_notesLabel->setWordWrap(true);
+    m_notesLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_notesLabel->setVisible(false);
+    adjust->addWidget(m_notesLabel, 1, 0, 1, 9);
     int idx = 0;
     for (const AdjustParam &a : kAdjustParams) {
         const QString name = QString::fromLatin1(a.name);
@@ -196,7 +203,7 @@ void VariantsDialog::buildUi()
         spin->setValue(100);
         spin->setSuffix(QStringLiteral(" %"));
         spin->setToolTip(tr(a.tip));
-        const int row = 1 + idx / 3, col = (idx % 3) * 3;
+        const int row = 2 + idx / 3, col = (idx % 3) * 3;
         adjust->addWidget(label, row, col);
         adjust->addWidget(slider, row, col + 1);
         adjust->addWidget(spin, row, col + 2);
@@ -237,7 +244,7 @@ void VariantsDialog::buildUi()
     buttons->addWidget(m_resetButton);
     buttons->addWidget(m_remakeButton);
     buttons->addWidget(m_openButton);
-    adjust->addLayout(buttons, 1 + (idx + 2) / 3, 0, 1, 9);
+    adjust->addLayout(buttons, 2 + (idx + 2) / 3, 0, 1, 9);
     root->addWidget(m_adjustBox);
 
     // --- Status ---
@@ -570,7 +577,7 @@ void VariantsDialog::refreshTileStatus(Tile &t)
             text += QStringLiteral(" <span style=\"color:%1\">%2</span>")
                         .arg(QLatin1String(LogColor::SevWarning),
                              t.warnings.size() == 1 ? tr("1 note") : tr("%1 notes").arg(t.warnings.size()));
-            tip = t.warnings.join('\n');
+            tip = t.warnings.join('\n') + QStringLiteral("\n\n") + tr("Click the tile to see these below the grid.");
         }
     } else if (t.isSource) {
         if (t.written > 0)
@@ -628,6 +635,19 @@ void VariantsDialog::refreshAdjustBar()
         m_spins[it.key()]->setEnabled(variant);
     }
     m_resetButton->setEnabled(variant && !t->adjust.isEmpty());
+    QString notes;
+    if (t && !t->error.isEmpty())
+        notes = QStringLiteral("<span style=\"color:%1\">%2</span> %3")
+                    .arg(QLatin1String(LogColor::Error), tr("Not written:"), t->error.toHtmlEscaped());
+    else if (t && !t->warnings.isEmpty()) {
+        notes = QStringLiteral("<span style=\"color:%1\">%2</span>")
+                    .arg(QLatin1String(LogColor::SevWarning),
+                         t->warnings.size() == 1 ? tr("Note:") : tr("Notes:"));
+        for (const QString &w : t->warnings)
+            notes += QStringLiteral("<br>&bull; ") + w.toHtmlEscaped();
+    }
+    m_notesLabel->setText(notes);
+    m_notesLabel->setVisible(!notes.isEmpty());
     m_remakeButton->setEnabled(variant && !running);
     m_openButton->setEnabled(t && !t->output.isEmpty());
 }
