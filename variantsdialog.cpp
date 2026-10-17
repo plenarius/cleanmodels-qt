@@ -17,6 +17,9 @@
 #include <QMouseEvent>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QRegularExpression>
+#include <QMap>
+#include <QSet>
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -27,30 +30,35 @@
 
 namespace {
 
-// The races variants are made for, by the letter in the body prefix, in the
-// grid's column order. Half-elves wear the human models.
-struct Race { char letter; const char *name; };
-constexpr Race kRaces[] = {
-    {'h', "Human"}, {'d', "Dwarf"}, {'e', "Elf"},
-    {'g', "Gnome"}, {'a', "Halfling"}, {'o', "Half-orc"},
-};
-struct Pheno { char digit; const char *name; };
-constexpr Pheno kPhenos[] = {{'0', "normal"}, {'2', "large"}};
-
 // The tiles' starting view: from the front (creatures face +y), a little to
 // the side and above.
 constexpr float kStartYaw = 1.1f;
 constexpr float kStartPitch = 0.25f;
 
-// A body prefix (pmh0) from a robe or part file name (pmh0_robe003.mdl), or
-// "" when the name does not start with one.
+// A body prefix (pmh0, pmh15) from a robe or part file name
+// (pmh0_robe003.mdl), or "" when the name does not start with one.
 QString bodyPrefix(const QString &path)
 {
-    const QString base = QFileInfo(path).completeBaseName().toLower();
-    const int us = base.indexOf('_');
-    if (us != 4 || !base.startsWith('p') || (base[1] != 'm' && base[1] != 'f'))
-        return {};
-    return base.left(4);
+    static const QRegularExpression re(QStringLiteral("^(p[mf][a-z][0-9]+)_"));
+    const auto m = re.match(QFileInfo(path).completeBaseName().toLower());
+    return m.hasMatch() ? m.captured(1) : QString();
+}
+
+// "3, 5, 9, 15-21" from sorted phenotype numbers.
+QString phenotypeRanges(QList<int> ns)
+{
+    std::sort(ns.begin(), ns.end());
+    QStringList parts;
+    for (int i = 0; i < ns.size();) {
+        int j = i;
+        while (j + 1 < ns.size() && ns[j + 1] == ns[j] + 1)
+            ++j;
+        parts << (j > i + 1 ? QStringLiteral("%1-%2").arg(ns[i]).arg(ns[j])
+                            : j == i + 1 ? QStringLiteral("%1, %2").arg(ns[i]).arg(ns[j])
+                                         : QString::number(ns[i]));
+        i = j + 1;
+    }
+    return parts.join(QStringLiteral(", "));
 }
 
 // The CLI's message for an existing output, in the dialog's terms.
@@ -77,6 +85,11 @@ VariantsDialog::VariantsDialog(const QString &cliPath, const QStringList &lookup
 
 VariantsDialog::~VariantsDialog()
 {
+    if (m_listProcess) {
+        m_listProcess->disconnect(this);
+        m_listProcess->kill();
+        m_listProcess->waitForFinished(2000);
+    }
     if (m_process && m_process->state() != QProcess::NotRunning) {
         m_process->kill();
         m_process->waitForFinished(2000);
@@ -233,12 +246,21 @@ void VariantsDialog::setSource(const QString &mdlPath)
     updateControls();
 }
 
+void VariantsDialog::setLookupArgs(const QStringList &args)
+{
+    if (args == m_lookupArgs)
+        return;
+    m_lookupArgs = args;
+    if (!m_process && !m_gridSource.isEmpty())
+        rebuildGrid();
+}
+
 QString VariantsDialog::sourcePrefix() const
 {
     return bodyPrefix(m_sourceEdit->text().trimmed());
 }
 
-void VariantsDialog::rebuildGrid()
+void VariantsDialog::clearGrid()
 {
     for (Tile &t : m_tiles) {
         t.frame->removeEventFilter(this);
@@ -246,101 +268,218 @@ void VariantsDialog::rebuildGrid()
         delete t.frame;
     }
     m_tiles.clear();
+    m_tileOf.clear();
     m_selected = -1;
     while (QLayoutItem *item = m_grid->takeAt(0)) {
         delete item->widget();
         delete item;
     }
+}
+
+void VariantsDialog::rebuildGrid()
+{
+    clearGrid();
+    if (m_listProcess) {
+        m_listProcess->disconnect(this);
+        m_listProcess->kill();
+        m_listProcess->deleteLater();
+        m_listProcess = nullptr;
+    }
 
     const QString source = m_sourceEdit->text().trimmed();
     const QString prefix = sourcePrefix();
     m_gridSource = source;
+    m_gridNote->setVisible(true);
     if (source.isEmpty() || prefix.isEmpty()) {
         m_gridNote->setText(source.isEmpty()
             ? tr("Pick a robe, cloak or armour part to make its versions for the other races and phenotypes.")
             : tr("%1 is not named for a body. Variants are made from models such as pmh0_robe003, pmh0_cloak_001 or pmh0_chest050.")
                   .arg(QFileInfo(source).fileName()));
-        m_gridNote->setVisible(true);
         refreshAdjustBar();
+        return;
+    }
+    if (m_cliPath.isEmpty()) {
+        m_gridNote->setText(tr("cleanmodels was not found, so variants cannot be made."));
+        return;
+    }
+
+    // Ask the CLI which bodies the model gets variants for: every race and
+    // phenotype found in the game install and the resource folders (custom
+    // races included), grouped by shape.
+    m_gridNote->setText(tr("Finding the bodies..."));
+    m_listProcess = new QProcess(this);
+    QProcess *proc = m_listProcess;
+    connect(proc, &QProcess::finished, this, [this, proc](int exitCode, QProcess::ExitStatus status) {
+        if (proc != m_listProcess)
+            return;
+        m_listProcess = nullptr;
+        proc->deleteLater();
+        const QByteArray out = proc->readAllStandardOutput();
+        const QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        QJsonParseError perr;
+        const QJsonDocument doc = QJsonDocument::fromJson(out, &perr);
+        if (status != QProcess::NormalExit || exitCode != CliExit::Ok || !doc.isArray()) {
+            QString msg = err.isEmpty() ? tr("cleanmodels could not list the bodies.") : err;
+            if (err.contains(QStringLiteral("flag provided but not defined")))
+                msg = tr("This cleanmodels is too old to make variants here; it needs 4.7 or later.") + QStringLiteral("\n") + err;
+            m_gridNote->setText(msg);
+            return;
+        }
+        buildTiles(doc.array());
+        updateControls();
+    });
+    connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError e) {
+        if (e == QProcess::FailedToStart && proc == m_listProcess) {
+            m_listProcess = nullptr;
+            proc->deleteLater();
+            m_gridNote->setText(tr("cleanmodels could not be started: %1").arg(proc->errorString()));
+        }
+    });
+    proc->start(m_cliPath, QStringList{CliCommand::Variants, CliFlag::ListBodies, CliFlag::Json}
+                               << m_lookupArgs << QDir::fromNativeSeparators(source),
+                QIODevice::ReadOnly);
+    refreshAdjustBar();
+}
+
+void VariantsDialog::buildTiles(const QJsonArray &bodies)
+{
+    clearGrid();
+    const QString source = m_sourceEdit->text().trimmed();
+    const QString prefix = sourcePrefix();
+
+    // Shapes: a body with sameShape (in this list) is drawn by that body's
+    // tile; it gets the same fit, renamed.
+    struct Info { QString prefix, race, phenoName, sameShape; int pheno = 0; bool source = false; };
+    QList<Info> infos;
+    QSet<QString> listed;
+    for (const QJsonValue &v : bodies) {
+        const QJsonObject o = v.toObject();
+        Info i;
+        i.prefix = o.value(QStringLiteral("prefix")).toString();
+        i.race = o.value(QStringLiteral("raceName")).toString();
+        i.pheno = o.value(QStringLiteral("phenotype")).toInt();
+        i.phenoName = o.value(QStringLiteral("phenotypeName")).toString();
+        i.sameShape = o.value(QStringLiteral("sameShape")).toString();
+        i.source = o.value(QStringLiteral("source")).toBool() || i.prefix == prefix;
+        infos << i;
+        listed << i.prefix;
+    }
+    if (infos.size() <= 1) {
+        m_gridNote->setText(tr("No other bodies were found. Set the game folder (and your haks, for custom races) under Game Resources in the main window."));
         return;
     }
     m_gridNote->setVisible(false);
 
-    const QChar gender = prefix[1];
-    for (int c = 0; c < int(std::size(kRaces)); ++c) {
-        auto *head = new QLabel(QString::fromLatin1(kRaces[c].name));
+    QStringList races;              // columns, in the CLI's order
+    QList<int> phenos;              // rows
+    QMap<QString, QString> phenoNames;
+    for (const Info &i : infos) {
+        const bool rep = i.sameShape.isEmpty() || !listed.contains(i.sameShape);
+        if (!races.contains(i.race))
+            races << i.race;
+        if (rep && !phenos.contains(i.pheno)) {
+            phenos << i.pheno;
+            phenoNames[QString::number(i.pheno)] = i.phenoName;
+        }
+    }
+    std::sort(phenos.begin(), phenos.end());
+
+    for (int c = 0; c < races.size(); ++c) {
+        auto *head = new QLabel(races[c]);
         head->setAlignment(Qt::AlignCenter);
         QFont f = head->font();
         f.setBold(true);
         head->setFont(f);
         m_grid->addWidget(head, 0, c + 1);
     }
-    for (int r = 0; r < int(std::size(kPhenos)); ++r) {
-        auto *head = new QLabel(tr("Phenotype %1\n(%2)").arg(QChar(kPhenos[r].digit)).arg(QString::fromLatin1(kPhenos[r].name)));
+    for (int r = 0; r < phenos.size(); ++r) {
+        const QString name = phenoNames.value(QString::number(phenos[r]));
+        auto *head = new QLabel(name.isEmpty() ? tr("Phenotype %1").arg(phenos[r])
+                                               : tr("Phenotype %1\n(%2)").arg(phenos[r]).arg(name));
         head->setAlignment(Qt::AlignCenter);
         m_grid->addWidget(head, r + 1, 0);
-
-        for (int c = 0; c < int(std::size(kRaces)); ++c) {
-            Tile t;
-            t.target = QStringLiteral("p") + gender + QChar(kRaces[c].letter) + QChar(kPhenos[r].digit);
-            t.title = tr("%1, %2").arg(QString::fromLatin1(kRaces[c].name), QString::fromLatin1(kPhenos[r].name));
-            t.isSource = t.target == prefix;
-
-            t.frame = new QFrame;
-            t.frame->setObjectName(QStringLiteral("variantTile"));
-            t.frame->setFrameShape(QFrame::StyledPanel);
-            auto *v = new QVBoxLayout(t.frame);
-            v->setContentsMargins(4, 4, 4, 4);
-            v->setSpacing(2);
-
-            auto *top = new QHBoxLayout;
-            if (!t.isSource) {
-                t.check = new QCheckBox;
-                t.check->setChecked(true);
-                t.check->setToolTip(tr("Make this variant"));
-                top->addWidget(t.check);
-            }
-            t.titleLabel = new QLabel(t.isSource ? tr("%1 (source)").arg(t.target) : t.target);
-            top->addWidget(t.titleLabel, 1);
-            v->addLayout(top);
-
-            t.view = new ModelViewport;
-            t.view->setMinimumSize(160, 220);
-            t.view->setCliBinaryPath(m_cliPath);
-            t.view->setEmptyHint(t.isSource ? tr("Loading...") : tr("Not made yet"));
-            t.view->setViewAngles(kStartYaw, kStartPitch);
-            t.view->setSolidReference(true);
-            t.view->setAccessibleName(t.title);
-            v->addWidget(t.view, 1);
-
-            t.status = new QLabel;
-            t.status->setWordWrap(true);
-            v->addWidget(t.status);
-
-            t.frame->installEventFilter(this);
-            t.view->installEventFilter(this);
-            ModelViewport *view = t.view;
-            connect(view, &ModelViewport::viewRotated, this, [this, view](float yaw, float pitch) {
-                if (!m_syncViewsCheck->isChecked())
-                    return;
-                for (Tile &o : m_tiles)
-                    if (o.view != view)
-                        o.view->setViewAngles(yaw, pitch);
-            });
-
-            m_grid->addWidget(t.frame, r + 1, c + 1);
-            m_tiles.append(t);
-        }
     }
-    for (int c = 0; c < int(std::size(kRaces)); ++c)
+
+    for (const Info &i : infos) {
+        if (!i.sameShape.isEmpty() && listed.contains(i.sameShape))
+            continue;
+        Tile t;
+        t.target = i.prefix;
+        t.title = i.phenoName.isEmpty() ? tr("%1, phenotype %2").arg(i.race).arg(i.pheno)
+                                        : tr("%1, %2").arg(i.race, i.phenoName);
+        t.isSource = i.source;
+        for (const Info &m : infos)
+            if (m.sameShape == i.prefix && !m.source) {
+                t.members << m.prefix;
+                t.memberPhenos << m.pheno;
+            }
+
+        t.frame = new QFrame;
+        t.frame->setFrameShape(QFrame::StyledPanel);
+        auto *v = new QVBoxLayout(t.frame);
+        v->setContentsMargins(4, 4, 4, 4);
+        v->setSpacing(2);
+
+        auto *top = new QHBoxLayout;
+        if (!t.isSource) {
+            t.check = new QCheckBox;
+            t.check->setChecked(true);
+            t.check->setToolTip(tr("Make this variant"));
+            top->addWidget(t.check);
+        }
+        t.titleLabel = new QLabel(t.isSource ? tr("%1 (source)").arg(t.target) : t.target);
+        top->addWidget(t.titleLabel, 1);
+        v->addLayout(top);
+        if (!t.members.isEmpty()) {
+            auto *also = new QLabel(t.memberPhenos.size() == 1
+                ? tr("also phenotype %1").arg(t.memberPhenos.first())
+                : tr("also phenotypes %1").arg(phenotypeRanges(t.memberPhenos)));
+            also->setWordWrap(true);
+            also->setToolTip(t.isSource
+                ? tr("Same shape as the source: these get copies of it, renamed (%1)").arg(t.members.join(QStringLiteral(", ")))
+                : tr("Same shape: these get this fit, renamed (%1)").arg(t.members.join(QStringLiteral(", "))));
+            v->addWidget(also);
+        }
+
+        t.view = new ModelViewport;
+        t.view->setMinimumSize(160, 220);
+        t.view->setCliBinaryPath(m_cliPath);
+        t.view->setEmptyHint(t.isSource ? tr("Loading...") : tr("Not made yet"));
+        t.view->setViewAngles(kStartYaw, kStartPitch);
+        t.view->setSolidReference(true);
+        t.view->setAccessibleName(t.title);
+        v->addWidget(t.view, 1);
+
+        t.status = new QLabel;
+        t.status->setWordWrap(true);
+        v->addWidget(t.status);
+
+        t.frame->installEventFilter(this);
+        t.view->installEventFilter(this);
+        ModelViewport *view = t.view;
+        connect(view, &ModelViewport::viewRotated, this, [this, view](float yaw, float pitch) {
+            if (!m_syncViewsCheck->isChecked())
+                return;
+            for (Tile &o : m_tiles)
+                if (o.view != view)
+                    o.view->setViewAngles(yaw, pitch);
+        });
+
+        m_grid->addWidget(t.frame, phenos.indexOf(i.pheno) + 1, races.indexOf(i.race) + 1);
+        m_tileOf[t.target] = m_tiles.size();
+        for (const QString &m : t.members)
+            m_tileOf[m] = m_tiles.size();
+        m_tiles.append(t);
+    }
+    for (int c = 0; c < races.size(); ++c)
         m_grid->setColumnStretch(c + 1, 1);
-    for (int r = 0; r < int(std::size(kPhenos)); ++r)
+    for (int r = 0; r < phenos.size(); ++r)
         m_grid->setRowStretch(r + 1, 1);
 
     // Until a run shows it on its body, the source tile shows the file as is.
     const int si = tileIndex(prefix);
     if (si >= 0)
-        m_tiles[si].view->previewFile(source);
+        m_tiles[si].view->previewFile(QDir::fromNativeSeparators(source));
 
     for (Tile &t : m_tiles)
         refreshTileStatus(t);
@@ -349,10 +488,7 @@ void VariantsDialog::rebuildGrid()
 
 int VariantsDialog::tileIndex(const QString &target) const
 {
-    for (int i = 0; i < m_tiles.size(); ++i)
-        if (m_tiles[i].target == target)
-            return i;
-    return -1;
+    return m_tileOf.value(target, -1);
 }
 
 void VariantsDialog::refreshTileStatus(Tile &t)
@@ -365,14 +501,19 @@ void VariantsDialog::refreshTileStatus(Tile &t)
         tip = t.error;
     } else if (!t.output.isEmpty()) {
         text = QFileInfo(t.output).fileName().toHtmlEscaped();
+        if (t.written > 1)
+            text += QStringLiteral(" ") + tr("(%1 files)").arg(t.written);
         if (!t.warnings.isEmpty()) {
             text += QStringLiteral(" <span style=\"color:%1\">%2</span>")
                         .arg(QLatin1String(LogColor::SevWarning),
                              t.warnings.size() == 1 ? tr("1 note") : tr("%1 notes").arg(t.warnings.size()));
             tip = t.warnings.join('\n');
         }
-    } else if (t.isSource && !t.warnings.isEmpty()) {
-        tip = t.warnings.join('\n');
+    } else if (t.isSource) {
+        if (t.written > 0)
+            text = t.written == 1 ? tr("1 copy written") : tr("%1 copies written").arg(t.written);
+        if (!t.warnings.isEmpty())
+            tip = t.warnings.join('\n');
     }
     if (!t.isSource && (t.width != 1.0 || t.length != 1.0))
         text += QStringLiteral("<br>") + tr("width %1 %, length %2 %").arg(qRound(t.width * 100)).arg(qRound(t.length * 100));
@@ -464,7 +605,21 @@ void VariantsDialog::makeVariants()
     // One run per width and length, so adjusted tiles keep their adjustment.
     m_jobs.clear();
     for (const Tile &t : m_tiles) {
-        if (t.isSource || !t.check || !t.check->isChecked())
+        if (t.isSource) {
+            // Bodies of the source's shape get copies of it, renamed.
+            if (!t.members.isEmpty()) {
+                auto it = std::find_if(m_jobs.begin(), m_jobs.end(), [](const Job &j) {
+                    return j.width == 1.0 && j.length == 1.0;
+                });
+                if (it == m_jobs.end()) {
+                    m_jobs.append(Job{{}, 1.0, 1.0, m_overwriteCheck->isChecked()});
+                    it = m_jobs.end() - 1;
+                }
+                it->targets << t.members;
+            }
+            continue;
+        }
+        if (!t.check || !t.check->isChecked())
             continue;
         auto it = std::find_if(m_jobs.begin(), m_jobs.end(), [&](const Job &j) {
             return j.width == t.width && j.length == t.length;
@@ -473,7 +628,7 @@ void VariantsDialog::makeVariants()
             m_jobs.append(Job{{}, t.width, t.length, m_overwriteCheck->isChecked()});
             it = m_jobs.end() - 1;
         }
-        it->targets << t.target;
+        it->targets << t.target << t.members;
     }
     if (m_jobs.isEmpty()) {
         m_statusLabel->setText(tr("Tick at least one body."));
@@ -494,10 +649,10 @@ void VariantsDialog::remakeSelected()
     if (m_process || m_selected < 0 || m_tiles[m_selected].isSource)
         return;
     const Tile &t = m_tiles[m_selected];
-    m_jobs = {Job{{t.target}, t.width, t.length, true}};
-    m_jobTotal = 1;
+    m_jobs = {Job{QStringList{t.target} << t.members, t.width, t.length, true}};
+    m_jobTotal = m_jobs.first().targets.size();
     m_jobDone = m_written = m_failed = 0;
-    m_progress->setRange(0, 1);
+    m_progress->setRange(0, m_jobTotal);
     m_progress->setValue(0);
     m_progress->setVisible(true);
     startNextJob();
@@ -541,8 +696,9 @@ void VariantsDialog::startNextJob()
 
     for (const QString &target : job.targets) {
         const int i = tileIndex(target);
-        if (i >= 0) {
+        if (i >= 0 && m_tiles[i].target == target) {
             m_tiles[i].error.clear();
+            m_tiles[i].written = 0;
             m_tiles[i].status->setText(tr("Waiting..."));
         }
     }
@@ -608,21 +764,28 @@ void VariantsDialog::handleEvent(const QJsonObject &evt)
         show();
         refreshTileStatus(t);
     } else if (type == QLatin1String("start")) {
-        t.status->setText(tr("Making..."));
+        if (t.target == target)
+            t.status->setText(tr("Making..."));
         m_statusLabel->setText(tr("Making %1...").arg(evt.value(QStringLiteral("file")).toString()));
     } else if (type == QLatin1String("done")) {
-        t.output = evt.value(QStringLiteral("output")).toString();
-        t.error.clear();
-        t.warnings.clear();
-        const QJsonArray ws = evt.value(QStringLiteral("result")).toObject().value(QStringLiteral("warnings")).toArray();
-        for (const QJsonValue &w : ws)
-            t.warnings << w.toObject().value(QStringLiteral("message")).toString();
-        show();
+        ++t.written;
+        if (t.target == target) {
+            // The tile's own body: its file, notes and preview. Bodies of the
+            // same shape only add to the count.
+            t.output = evt.value(QStringLiteral("output")).toString();
+            t.error.clear();
+            t.warnings.clear();
+            const QJsonArray ws = evt.value(QStringLiteral("result")).toObject().value(QStringLiteral("warnings")).toArray();
+            for (const QJsonValue &w : ws)
+                t.warnings << w.toObject().value(QStringLiteral("message")).toString();
+            show();
+        }
         refreshTileStatus(t);
         ++m_written;
         m_progress->setValue(++m_jobDone);
     } else if (type == QLatin1String("error")) {
-        t.error = friendlyError(evt.value(QStringLiteral("message")).toString());
+        const QString msg = friendlyError(evt.value(QStringLiteral("message")).toString());
+        t.error = t.target == target ? msg : QStringLiteral("%1: %2").arg(target, msg);
         refreshTileStatus(t);
         ++m_failed;
         m_progress->setValue(++m_jobDone);

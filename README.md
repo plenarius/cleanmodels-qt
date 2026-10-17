@@ -11,7 +11,7 @@ Qt6 GUI for [cleanmodels](https://github.com/plenarius/cleanmodels), a tool to v
 - Pick a folder (or drag one in) and run check, repair, compile, or decompile over every model in it, with per-file progress and status
 - A findings column and a detail pane per file: what was wrong, what was fixed, and any warnings the parser raised on damaged lines
 - 3D model preview with an OpenGL viewport: **double-click a file** in the list, or right-click and choose *Preview in viewport*
-- **Make Variants** (*Tools* menu, or right-click a model): make a robe's, cloak's or armour part's versions for the other races and phenotypes, see them all on their bodies in one grid, and remake any of them a little wider, narrower, longer or shorter
+- **Make Variants** (*Tools* menu, or right-click a model): make a robe's, cloak's or armour part's versions for the other races (custom ones from your haks too) and phenotypes, see them all on their bodies in one grid, and remake any of them a little wider, narrower, longer or shorter
 - Full access to the cleanmodels repair, transform, and tile options
 - Persistent settings for directories, options, and camera
 
@@ -29,7 +29,7 @@ The repair, transform and tile options are in the panel on the left:
 
 ![The options panel with Game Resources and Advanced Options expanded](docs/screenshots/options.png)
 
-*Make Variants* fits a robe, cloak or armour part to every race in phenotypes 0 and 2 and shows each on its body: the variant in grey, the body's base parts in blue (for a robe, only the parts the game shows under it). Where blue shows through the grey, that variant is too tight there. Click a tile to remake it with more width or length; double-click it to open it in the main viewport. Views turn together, so you can look at all of them from the back at once:
+*Make Variants* fits a robe, cloak or armour part to every body that wears that kind of model and shows each on its body: the variant in grey, the body's base parts in blue (for a robe, only the parts the game shows under it). Where blue shows through the grey, that variant is too tight there. The bodies come from the game install and the haks under *Game Resources*, so custom races appear as their own columns. Phenotypes of the same shape share a tile ("also phenotypes 9, 15-21"): robes and cloaks need a copy for every phenotype that has them, mounted and fighting styles included, and those get the tile's fit, renamed. Click a tile to remake it with more width or length; double-click it to open it in the main viewport. Views turn together, so you can look at all of them from the back at once:
 
 ![Make Variants: a robe made for twelve bodies, each shown on its body](docs/screenshots/variants.png)
 

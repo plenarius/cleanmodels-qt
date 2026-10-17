@@ -133,6 +133,8 @@ namespace CliFlag {
     constexpr const char *PreviewDir  = "--preview-dir";
     constexpr const char *CompileOut  = "--compile";
     constexpr const char *Overwrite   = "--overwrite";
+    constexpr const char *ListBodies  = "--list-bodies";
+    constexpr const char *Json        = "--json";
 }
 
 // ---------------------------------------------------------------------------

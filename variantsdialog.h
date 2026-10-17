@@ -3,6 +3,8 @@
 
 #include <QByteArray>
 #include <QDialog>
+#include <QHash>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QList>
 #include <QProcess>
@@ -22,7 +24,8 @@ class ModelViewport;
 
 // Makes a robe's, cloak's or armour part's versions for the other bodies
 // (cleanmodels variants) and shows them in a grid, one tile per race and
-// phenotype, each on its body: the variant in grey, the body's base parts in
+// phenotype shape (the CLI's --list-bodies: custom races from the haks
+// included; phenotypes of the same shape share a tile), each on its body: the variant in grey, the body's base parts in
 // the reference blue, so a body poking through the cloth shows. A tile can
 // be remade with more or less width or length.
 class VariantsDialog : public QDialog
@@ -36,7 +39,9 @@ public:
     ~VariantsDialog() override;
 
     void setSource(const QString &mdlPath);
-    void setLookupArgs(const QStringList &args) { m_lookupArgs = args; }
+    // Sets the --game-dir / --resource-dir flags; a change lists the bodies
+    // again (custom races come from the resource folders).
+    void setLookupArgs(const QStringList &args);
 
 signals:
     // The user asked to see a written variant in the main viewport.
@@ -56,6 +61,9 @@ private:
         QLabel *titleLabel = nullptr;
         ModelViewport *view = nullptr;
         QLabel *status = nullptr;
+        QStringList members;      // bodies of the same shape: this fit, renamed
+        QList<int> memberPhenos;
+        int written = 0;          // files written for the tile in the last run
         QString output;
         QStringList warnings;
         QString error;
@@ -72,7 +80,9 @@ private:
     };
 
     void buildUi();
+    void clearGrid();
     void rebuildGrid();
+    void buildTiles(const QJsonArray &bodies);
     void updateControls();
     void selectTile(int index);
     void refreshTileStatus(Tile &tile);
@@ -111,6 +121,8 @@ private:
     QProgressBar *m_progress = nullptr;
 
     QList<Tile> m_tiles;
+    QHash<QString, int> m_tileOf; // body prefix -> tile (members too)
+    QProcess *m_listProcess = nullptr;
     QString m_gridSource; // the model the grid was built for
     int m_selected = -1;
 
