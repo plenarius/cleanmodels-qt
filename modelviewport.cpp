@@ -293,9 +293,11 @@ void ModelViewport::loadModel(const QString &asciiMdl, const QString &textureDir
         m_renderer.prepareScene(this, m_scene, m_player.boneWorldMatrices(), textureDir);
     }
 
-    QVector3D bmin, bmax;
-    m_scene.computeBounds(bmin, bmax);
-    m_camera.focusOnBounds(bmin, bmax);
+    if (!(m_keepViewOnReload && m_hasModel)) {
+        QVector3D bmin, bmax;
+        m_scene.computeBounds(bmin, bmax);
+        m_camera.focusOnBounds(bmin, bmax);
+    }
 
     m_hasModel = true;
     updateEmptyHint();

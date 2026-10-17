@@ -32,6 +32,11 @@ public:
     void loadModel(const QString &asciiMdl, const QString &textureDir = QString());
     void clearModel();
 
+    // When on, loading a model into a viewport that already shows one keeps
+    // the camera (zoom, pan, angles) instead of framing the new model: for a
+    // model that is remade in place. Off by default.
+    void setKeepViewOnReload(bool on) { m_keepViewOnReload = on; }
+
     // Replaces the text shown on the empty canvas.
     void setEmptyHint(const QString &text);
 
@@ -146,6 +151,7 @@ private:
     QString m_cliBinaryPath;
     bool m_initialized = false;
     bool m_hasModel = false;
+    bool m_keepViewOnReload = false;
 
     // Live model + animation state. m_scene owns the parsed MDL data so the
     // renderer can re-skin per frame; m_player drives bone matrices over
