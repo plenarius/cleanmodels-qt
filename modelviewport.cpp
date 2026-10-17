@@ -466,6 +466,12 @@ void ModelViewport::clearReference()
 
 bool ModelViewport::hasReference() const { return m_renderer.showReference(); }
 
+void ModelViewport::setHeadlight(bool on)
+{
+    m_renderer.setHeadlight(on);
+    if (m_initialized) update();
+}
+
 void ModelViewport::setSolidReference(bool on)
 {
     m_renderer.setSolidReference(on);

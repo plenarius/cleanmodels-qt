@@ -529,6 +529,7 @@ void VariantsDialog::buildTiles(const QJsonArray &bodies)
         t.view->setEmptyHint(t.isSource ? tr("Loading...") : tr("Not made yet"));
         t.view->setViewAngles(kStartYaw, kStartPitch);
         t.view->setSolidReference(true);
+        t.view->setHeadlight(true); // the back is as clear as the front
         t.view->setKeepViewOnReload(true); // a remake keeps the user's zoom
         t.view->setAccessibleName(t.title);
         v->addWidget(t.view, 1);

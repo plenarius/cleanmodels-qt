@@ -55,6 +55,8 @@ public:
     // Draw the reference filled and depth-tested with the model instead of
     // as a wireframe behind it (Renderer::setSolidReference).
     void setSolidReference(bool on);
+    // Light from the camera instead of fixed in the scene (Renderer::setHeadlight).
+    void setHeadlight(bool on);
 
     Camera &camera() { return m_camera; }
     const Camera &camera() const { return m_camera; }

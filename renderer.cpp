@@ -650,6 +650,11 @@ void Renderer::render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera)
     gl->glUniform3f(m_locViewPos, camPos.x(), camPos.y(), camPos.z());
 
     QVector3D lightDir = QVector3D(-0.5f, -1.0f, -0.5f).normalized();
+    if (m_headlight) {
+        // The view's forward direction (minus its third row), tipped down.
+        const QVector3D forward = -QVector3D(view(2, 0), view(2, 1), view(2, 2));
+        lightDir = (forward.normalized() + QVector3D(0.0f, 0.0f, -0.4f)).normalized();
+    }
     gl->glUniform3f(m_locLightDir, lightDir.x(), lightDir.y(), lightDir.z());
     gl->glUniform3f(m_locLightColor, 1.0f, 1.0f, 1.0f);
 
