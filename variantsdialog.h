@@ -4,6 +4,7 @@
 #include <QByteArray>
 #include <QDialog>
 #include <QHash>
+#include <QMap>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QList>
@@ -19,7 +20,9 @@ class QLabel;
 class QLineEdit;
 class QProgressBar;
 class QPushButton;
+class QSlider;
 class QSpinBox;
+class QTimer;
 class ModelViewport;
 
 // Makes a robe's, cloak's or armour part's versions for the other bodies
@@ -31,6 +34,10 @@ class ModelViewport;
 class VariantsDialog : public QDialog
 {
     Q_OBJECT
+
+    // A tile's adjustments in percent by name (width, length, shoulders,
+    // chest, waist, hips, hem); a name not in it is 100.
+    using Adjust = QMap<QString, int>;
 
 public:
     // lookupArgs are the --game-dir / --resource-dir flags the main window
@@ -67,15 +74,13 @@ private:
         QString output;
         QStringList warnings;
         QString error;
-        double width = 1.0;
-        double length = 1.0;
+        Adjust adjust;            // the tile's adjustments
     };
 
-    // One CLI run: the targets that share a width and length.
+    // One CLI run: the targets that share their adjustments.
     struct Job {
         QStringList targets;
-        double width = 1.0;
-        double length = 1.0;
+        Adjust adjust;
         bool overwrite = false;
     };
 
@@ -92,6 +97,9 @@ private:
 
     void makeVariants();
     void remakeSelected();
+    void remakeTile(int index);
+    void scheduleRemake();
+    void setAdjust(const QString &name, int percent);
     void startNextJob();
     void onReadyRead();
     void onFinished(int exitCode, QProcess::ExitStatus status);
@@ -111,10 +119,14 @@ private:
     QWidget *m_gridHost = nullptr;
     QLabel *m_gridNote = nullptr;
 
+    QWidget *m_adjustBox = nullptr;
     QLabel *m_adjustTitle = nullptr;
-    QSpinBox *m_widthSpin = nullptr;
-    QSpinBox *m_lengthSpin = nullptr;
+    QMap<QString, QSlider *> m_sliders;
+    QMap<QString, QSpinBox *> m_spins;
+    QPushButton *m_resetButton = nullptr;
     QPushButton *m_remakeButton = nullptr;
+    QList<int> m_pendingRemakes; // tiles to remake when the run going on ends
+    QTimer *m_remakeTimer = nullptr; // a short wait after a change, then remake
     QPushButton *m_openButton = nullptr;
 
     QLabel *m_statusLabel = nullptr;

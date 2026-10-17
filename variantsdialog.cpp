@@ -21,7 +21,9 @@
 #include <QMap>
 #include <QSet>
 #include <QScrollArea>
+#include <QSlider>
 #include <QSpinBox>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -29,6 +31,19 @@
 #include <utility>
 
 namespace {
+
+// The adjustments a tile can have, in the adjust panel's order: the CLI's
+// --width, --length and the --shape regions.
+struct AdjustParam { const char *name; const char *label; const char *tip; };
+constexpr AdjustParam kAdjustParams[] = {
+    {"width", QT_TR_NOOP("Width"), QT_TR_NOOP("Width across every bone, against the fit: above 100 % is looser, below is tighter")},
+    {"length", QT_TR_NOOP("Length"), QT_TR_NOOP("Stretch along every bone, against the fit")},
+    {"shoulders", QT_TR_NOOP("Shoulders"), QT_TR_NOOP("Width at the shoulders (sleeves stay on the arms)")},
+    {"chest", QT_TR_NOOP("Chest"), QT_TR_NOOP("Width halfway between the shoulders and the waist")},
+    {"waist", QT_TR_NOOP("Waist"), QT_TR_NOOP("Width at the waist (torso_g)")},
+    {"hips", QT_TR_NOOP("Hips"), QT_TR_NOOP("Width at the hips (the thigh joints)")},
+    {"hem", QT_TR_NOOP("Hem"), QT_TR_NOOP("Width at the lowest edge")},
+};
 
 // The tiles' starting view: from the front (creatures face +y), a little to
 // the side and above.
@@ -155,29 +170,74 @@ void VariantsDialog::buildUi()
     scroll->setWidget(m_gridHost);
     root->addWidget(scroll, 1);
 
-    // --- Adjust bar for the selected tile ---
-    auto *adjust = new QHBoxLayout;
+    // --- Adjust panel for the selected tile ---
+    m_remakeTimer = new QTimer(this);
+    m_remakeTimer->setSingleShot(true);
+    m_remakeTimer->setInterval(300);
+    connect(m_remakeTimer, &QTimer::timeout, this, &VariantsDialog::scheduleRemake);
+    m_adjustBox = new QWidget;
+    auto *adjust = new QGridLayout(m_adjustBox);
+    adjust->setContentsMargins(0, 0, 0, 0);
+    adjust->setHorizontalSpacing(6);
+    adjust->setVerticalSpacing(2);
     m_adjustTitle = new QLabel;
-    m_widthSpin = new QSpinBox;
-    m_widthSpin->setRange(50, 200);
-    m_widthSpin->setSuffix(QStringLiteral(" %"));
-    m_widthSpin->setToolTip(tr("Width across every bone, against the fit: above 100 % is looser, below is tighter"));
-    m_lengthSpin = new QSpinBox;
-    m_lengthSpin->setRange(50, 200);
-    m_lengthSpin->setSuffix(QStringLiteral(" %"));
-    m_lengthSpin->setToolTip(tr("Stretch along every bone, against the fit"));
+    adjust->addWidget(m_adjustTitle, 0, 0, 1, 6);
+    int idx = 0;
+    for (const AdjustParam &a : kAdjustParams) {
+        const QString name = QString::fromLatin1(a.name);
+        auto *label = new QLabel(tr(a.label));
+        auto *slider = new QSlider(Qt::Horizontal);
+        slider->setRange(50, 200);
+        slider->setValue(100);
+        slider->setToolTip(tr(a.tip));
+        auto *spin = new QSpinBox;
+        spin->setRange(50, 200);
+        spin->setValue(100);
+        spin->setSuffix(QStringLiteral(" %"));
+        spin->setToolTip(tr(a.tip));
+        const int row = 1 + idx / 3, col = (idx % 3) * 3;
+        adjust->addWidget(label, row, col);
+        adjust->addWidget(slider, row, col + 1);
+        adjust->addWidget(spin, row, col + 2);
+        m_sliders[name] = slider;
+        m_spins[name] = spin;
+        // The slider and the box show the same value; letting go of the
+        // slider, or leaving the box, remakes the tile.
+        connect(slider, &QSlider::valueChanged, this, [this, name, spin, slider](int v) {
+            QSignalBlocker b(spin);
+            spin->setValue(v);
+            setAdjust(name, v);
+            if (!slider->isSliderDown())
+                m_remakeTimer->start(); // a click on the groove, the wheel, the keys
+        });
+        connect(slider, &QSlider::sliderReleased, this, [this] { m_remakeTimer->start(); });
+        connect(spin, &QSpinBox::editingFinished, this, [this, name, spin, slider] {
+            if (m_selected < 0 || m_tiles[m_selected].isSource)
+                return;
+            const int before = m_tiles[m_selected].adjust.value(name, 100);
+            QSignalBlocker b(slider);
+            slider->setValue(spin->value());
+            setAdjust(name, spin->value());
+            if (spin->value() != before)
+                scheduleRemake(); // editingFinished also fires on leaving the box
+        });
+        ++idx;
+    }
+    for (int c = 0; c < 3; ++c)
+        adjust->setColumnStretch(c * 3 + 1, 1);
+    m_resetButton = new QPushButton(tr("Reset"));
+    m_resetButton->setToolTip(tr("Back to the fit: every adjustment 100 %, and remake"));
     m_remakeButton = new QPushButton(tr("Remake"));
-    m_remakeButton->setToolTip(tr("Make this variant again with the width and length set here, replacing its file"));
+    m_remakeButton->setToolTip(tr("Make this tile's bodies again with these adjustments, replacing their files"));
     m_openButton = new QPushButton(tr("Open in Viewport"));
     m_openButton->setToolTip(tr("Show the written file in the main window's viewport"));
-    adjust->addWidget(m_adjustTitle, 1);
-    adjust->addWidget(new QLabel(tr("Width:")));
-    adjust->addWidget(m_widthSpin);
-    adjust->addWidget(new QLabel(tr("Length:")));
-    adjust->addWidget(m_lengthSpin);
-    adjust->addWidget(m_remakeButton);
-    adjust->addWidget(m_openButton);
-    root->addLayout(adjust);
+    auto *buttons = new QHBoxLayout;
+    buttons->addStretch(1);
+    buttons->addWidget(m_resetButton);
+    buttons->addWidget(m_remakeButton);
+    buttons->addWidget(m_openButton);
+    adjust->addLayout(buttons, 1 + (idx + 2) / 3, 0, 1, 9);
+    root->addWidget(m_adjustBox);
 
     // --- Status ---
     auto *statusRow = new QHBoxLayout;
@@ -217,18 +277,19 @@ void VariantsDialog::buildUi()
         if (m_process) {
             m_stopping = true;
             m_jobs.clear();
+            m_pendingRemakes.clear();
             m_process->kill();
             return;
         }
         makeVariants();
     });
-    connect(m_widthSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int v) {
-        if (m_selected >= 0 && !m_tiles[m_selected].isSource)
-            m_tiles[m_selected].width = v / 100.0;
-    });
-    connect(m_lengthSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int v) {
-        if (m_selected >= 0 && !m_tiles[m_selected].isSource)
-            m_tiles[m_selected].length = v / 100.0;
+    connect(m_resetButton, &QPushButton::clicked, this, [this] {
+        if (m_selected < 0 || m_tiles[m_selected].isSource)
+            return;
+        m_tiles[m_selected].adjust.clear();
+        refreshAdjustBar();
+        refreshTileStatus(m_tiles[m_selected]);
+        scheduleRemake();
     });
     connect(m_remakeButton, &QPushButton::clicked, this, &VariantsDialog::remakeSelected);
     connect(m_openButton, &QPushButton::clicked, this, [this] {
@@ -269,6 +330,7 @@ void VariantsDialog::clearGrid()
     }
     m_tiles.clear();
     m_tileOf.clear();
+    m_pendingRemakes.clear();
     m_selected = -1;
     while (QLayoutItem *item = m_grid->takeAt(0)) {
         delete item->widget();
@@ -515,8 +577,16 @@ void VariantsDialog::refreshTileStatus(Tile &t)
         if (!t.warnings.isEmpty())
             tip = t.warnings.join('\n');
     }
-    if (!t.isSource && (t.width != 1.0 || t.length != 1.0))
-        text += QStringLiteral("<br>") + tr("width %1 %, length %2 %").arg(qRound(t.width * 100)).arg(qRound(t.length * 100));
+    if (!t.isSource) {
+        QStringList adj;
+        for (const AdjustParam &a : kAdjustParams) {
+            const int v = t.adjust.value(QString::fromLatin1(a.name), 100);
+            if (v != 100)
+                adj << tr("%1 %2 %").arg(tr(a.label).toLower()).arg(v);
+        }
+        if (!adj.isEmpty())
+            text += QStringLiteral("<br>") + adj.join(QStringLiteral(", "));
+    }
     t.status->setText(text);
     t.status->setToolTip(tip);
     t.view->setToolTip(tip);
@@ -524,6 +594,11 @@ void VariantsDialog::refreshTileStatus(Tile &t)
 
 void VariantsDialog::selectTile(int index)
 {
+    // A change still waiting to be remade belongs to the tile being left.
+    if (m_remakeTimer->isActive()) {
+        m_remakeTimer->stop();
+        scheduleRemake();
+    }
     m_selected = index;
     for (int i = 0; i < m_tiles.size(); ++i) {
         m_tiles[i].frame->setFrameShape(i == index ? QFrame::Box : QFrame::StyledPanel);
@@ -543,13 +618,15 @@ void VariantsDialog::refreshAdjustBar()
         m_adjustTitle->setText(tr("%1 (%2): the source").arg(t->title, t->target));
     else
         m_adjustTitle->setText(tr("%1 (%2)").arg(t->title, t->target));
-    {
-        QSignalBlocker bw(m_widthSpin), bl(m_lengthSpin);
-        m_widthSpin->setValue(variant ? qRound(t->width * 100) : 100);
-        m_lengthSpin->setValue(variant ? qRound(t->length * 100) : 100);
+    for (auto it = m_sliders.begin(); it != m_sliders.end(); ++it) {
+        const int v = variant ? t->adjust.value(it.key(), 100) : 100;
+        QSignalBlocker bs(it.value()), bb(m_spins[it.key()]);
+        it.value()->setValue(v);
+        m_spins[it.key()]->setValue(v);
+        it.value()->setEnabled(variant);
+        m_spins[it.key()]->setEnabled(variant);
     }
-    m_widthSpin->setEnabled(variant);
-    m_lengthSpin->setEnabled(variant);
+    m_resetButton->setEnabled(variant && !t->adjust.isEmpty());
     m_remakeButton->setEnabled(variant && !running);
     m_openButton->setEnabled(t && !t->output.isEmpty());
 }
@@ -593,6 +670,7 @@ void VariantsDialog::closeEvent(QCloseEvent *event)
     if (m_process) {
         m_stopping = true;
         m_jobs.clear();
+        m_pendingRemakes.clear();
         m_process->kill();
     }
     QDialog::closeEvent(event);
@@ -602,17 +680,17 @@ void VariantsDialog::makeVariants()
 {
     if (m_tiles.isEmpty())
         return;
-    // One run per width and length, so adjusted tiles keep their adjustment.
+    // One run per set of adjustments, so adjusted tiles keep theirs.
     m_jobs.clear();
     for (const Tile &t : m_tiles) {
         if (t.isSource) {
             // Bodies of the source's shape get copies of it, renamed.
             if (!t.members.isEmpty()) {
                 auto it = std::find_if(m_jobs.begin(), m_jobs.end(), [](const Job &j) {
-                    return j.width == 1.0 && j.length == 1.0;
+                    return j.adjust.isEmpty();
                 });
                 if (it == m_jobs.end()) {
-                    m_jobs.append(Job{{}, 1.0, 1.0, m_overwriteCheck->isChecked()});
+                    m_jobs.append(Job{{}, {}, m_overwriteCheck->isChecked()});
                     it = m_jobs.end() - 1;
                 }
                 it->targets << t.members;
@@ -622,10 +700,10 @@ void VariantsDialog::makeVariants()
         if (!t.check || !t.check->isChecked())
             continue;
         auto it = std::find_if(m_jobs.begin(), m_jobs.end(), [&](const Job &j) {
-            return j.width == t.width && j.length == t.length;
+            return j.adjust == t.adjust;
         });
         if (it == m_jobs.end()) {
-            m_jobs.append(Job{{}, t.width, t.length, m_overwriteCheck->isChecked()});
+            m_jobs.append(Job{{}, t.adjust, m_overwriteCheck->isChecked()});
             it = m_jobs.end() - 1;
         }
         it->targets << t.target << t.members;
@@ -646,16 +724,46 @@ void VariantsDialog::makeVariants()
 
 void VariantsDialog::remakeSelected()
 {
-    if (m_process || m_selected < 0 || m_tiles[m_selected].isSource)
+    remakeTile(m_selected);
+}
+
+void VariantsDialog::remakeTile(int index)
+{
+    if (m_process || index < 0 || index >= m_tiles.size() || m_tiles[index].isSource)
         return;
-    const Tile &t = m_tiles[m_selected];
-    m_jobs = {Job{QStringList{t.target} << t.members, t.width, t.length, true}};
+    const Tile &t = m_tiles[index];
+    m_jobs = {Job{QStringList{t.target} << t.members, t.adjust, true}};
     m_jobTotal = m_jobs.first().targets.size();
     m_jobDone = m_written = m_failed = 0;
     m_progress->setRange(0, m_jobTotal);
     m_progress->setValue(0);
     m_progress->setVisible(true);
     startNextJob();
+}
+
+// Remakes the selected tile now, or when the run going on ends.
+void VariantsDialog::scheduleRemake()
+{
+    if (m_selected < 0 || m_tiles[m_selected].isSource)
+        return;
+    if (m_process) {
+        if (!m_pendingRemakes.contains(m_selected))
+            m_pendingRemakes << m_selected;
+        return;
+    }
+    remakeSelected();
+}
+
+void VariantsDialog::setAdjust(const QString &name, int percent)
+{
+    if (m_selected < 0 || m_tiles[m_selected].isSource)
+        return;
+    Tile &t = m_tiles[m_selected];
+    if (percent == 100)
+        t.adjust.remove(name);
+    else
+        t.adjust[name] = percent;
+    m_resetButton->setEnabled(!t.adjust.isEmpty());
 }
 
 void VariantsDialog::startNextJob()
@@ -669,6 +777,8 @@ void VariantsDialog::startNextJob()
             msg += QLatin1Char(' ') + tr("Blue is each body's base parts: where it shows through, the variant is too tight there.");
         m_statusLabel->setText(msg);
         updateControls();
+        if (!m_pendingRemakes.isEmpty())
+            remakeTile(m_pendingRemakes.takeFirst());
         return;
     }
     if (!m_previewDir.isValid()) {
@@ -683,11 +793,22 @@ void VariantsDialog::startNextJob()
     if (outDir.isEmpty())
         outDir = QFileInfo(source).absolutePath();
 
+    auto factor = [&job](const char *name) {
+        return QString::number(job.adjust.value(QString::fromLatin1(name), 100) / 100.0, 'g', 4);
+    };
     QStringList args{CliCommand::Variants, CliFlag::JsonLines,
                      CliFlag::To, job.targets.join(','),
-                     CliFlag::Width, QString::number(job.width, 'g', 4),
-                     CliFlag::Length, QString::number(job.length, 'g', 4),
+                     CliFlag::Width, factor("width"),
+                     CliFlag::Length, factor("length"),
                      CliFlag::PreviewDir, m_previewDir.path()};
+    QStringList shape;
+    for (const AdjustParam &a : kAdjustParams) {
+        const QString name = QString::fromLatin1(a.name);
+        if (name != QLatin1String("width") && name != QLatin1String("length") && job.adjust.value(name, 100) != 100)
+            shape << name + QLatin1Char('=') + factor(a.name);
+    }
+    if (!shape.isEmpty())
+        args << CliFlag::Shape << shape.join(QLatin1Char(','));
     if (m_compileCheck->isChecked())
         args << CliFlag::CompileOut;
     if (job.overwrite)

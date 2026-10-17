@@ -130,6 +130,7 @@ namespace CliFlag {
     constexpr const char *To          = "--to";
     constexpr const char *Width       = "--width";
     constexpr const char *Length      = "--length";
+    constexpr const char *Shape       = "--shape";
     constexpr const char *PreviewDir  = "--preview-dir";
     constexpr const char *CompileOut  = "--compile";
     constexpr const char *Overwrite   = "--overwrite";
