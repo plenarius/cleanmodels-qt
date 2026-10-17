@@ -9,6 +9,7 @@
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QTimer>
+#include <utility>
 
 namespace {
 
@@ -132,6 +133,19 @@ void ModelViewport::initializeGL()
 
     glViewport(0, 0, width(), height());
     m_camera.setAspectRatio(static_cast<float>(width()) / static_cast<float>(std::max(height(), 1)));
+
+    // Loads asked for before GL was up. Deferred to the event loop: they
+    // make the context current themselves, which initializeGL must not see.
+    if (!m_pendingPreview.isEmpty() || !m_pendingReference.isEmpty()) {
+        QTimer::singleShot(0, this, [this] {
+            const QString model = std::exchange(m_pendingPreview, QString());
+            const QString ref = std::exchange(m_pendingReference, QString());
+            if (!model.isEmpty())
+                previewFile(model);
+            if (!ref.isEmpty())
+                loadReferenceFile(ref);
+        });
+    }
 }
 
 void ModelViewport::resizeGL(int w, int h)
@@ -224,7 +238,7 @@ void ModelViewport::decompileAsync(const QString &mdlPath,
 void ModelViewport::previewFile(const QString &mdlPath)
 {
     if (!m_initialized) {
-        emit previewError("Viewport not initialized");
+        m_pendingPreview = mdlPath;
         return;
     }
 
@@ -327,6 +341,7 @@ bool ModelViewport::isPlayingAnimation() const
 
 void ModelViewport::clearModel()
 {
+    m_pendingPreview.clear();
     if (!m_initialized)
         return;
     stopAnimationTick();
@@ -341,6 +356,19 @@ void ModelViewport::clearModel()
     updateEmptyHint();
     update();
     emit animationsAvailable({}, {});
+}
+
+void ModelViewport::setEmptyHint(const QString &text)
+{
+    if (m_emptyHint)
+        m_emptyHint->setText(text);
+}
+
+void ModelViewport::setViewAngles(float yaw, float pitch)
+{
+    m_camera.setAngles(yaw, pitch);
+    if (m_initialized)
+        update();
 }
 
 void ModelViewport::updateEmptyHint()
@@ -375,7 +403,10 @@ bool ModelViewport::showGrid() const { return m_renderer.showGrid(); }
 
 void ModelViewport::loadReferenceFile(const QString &mdlPath)
 {
-    if (!m_initialized) return;
+    if (!m_initialized) {
+        m_pendingReference = mdlPath;
+        return;
+    }
 
     QPointer<ModelViewport> self(this);
     decompileAsync(mdlPath,
@@ -418,6 +449,7 @@ void ModelViewport::loadReferenceFile(const QString &mdlPath)
 
 void ModelViewport::clearReference()
 {
+    m_pendingReference.clear();
     if (!m_initialized) return;
     {
         GlContextGuard ctx(this);
@@ -427,6 +459,12 @@ void ModelViewport::clearReference()
 }
 
 bool ModelViewport::hasReference() const { return m_renderer.showReference(); }
+
+void ModelViewport::setSolidReference(bool on)
+{
+    m_renderer.setSolidReference(on);
+    if (m_initialized) update();
+}
 
 void ModelViewport::mousePressEvent(QMouseEvent *event)
 {
@@ -443,8 +481,10 @@ void ModelViewport::mouseMoveEvent(QMouseEvent *event)
     if (m_pressedButtons & Qt::MiddleButton) {
         if (event->modifiers() & Qt::ShiftModifier)
             m_camera.pan(static_cast<float>(delta.x()), static_cast<float>(delta.y()));
-        else
+        else {
             m_camera.rotate(static_cast<float>(delta.x()), static_cast<float>(delta.y()));
+            emit viewRotated(m_camera.yaw(), m_camera.pitch());
+        }
         update();
     } else if (m_pressedButtons & Qt::RightButton) {
         m_camera.pan(static_cast<float>(delta.x()), static_cast<float>(delta.y()));
@@ -452,6 +492,7 @@ void ModelViewport::mouseMoveEvent(QMouseEvent *event)
     } else if (m_pressedButtons & Qt::LeftButton) {
         m_camera.rotate(static_cast<float>(delta.x()), static_cast<float>(delta.y()));
         update();
+        emit viewRotated(m_camera.yaw(), m_camera.pitch());
     }
 
     event->accept();

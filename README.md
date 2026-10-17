@@ -11,6 +11,7 @@ Qt6 GUI for [cleanmodels](https://github.com/plenarius/cleanmodels), a tool to v
 - Pick a folder (or drag one in) and run check, repair, compile, or decompile over every model in it, with per-file progress and status
 - A findings column and a detail pane per file: what was wrong, what was fixed, and any warnings the parser raised on damaged lines
 - 3D model preview with an OpenGL viewport: **double-click a file** in the list, or right-click and choose *Preview in viewport*
+- **Make Variants** (*Tools* menu, or right-click a model): make a robe's, cloak's or armour part's versions for the other races and phenotypes, see them all on their bodies in one grid, and remake any of them a little wider, narrower, longer or shorter
 - Full access to the cleanmodels repair, transform, and tile options
 - Persistent settings for directories, options, and camera
 
@@ -27,6 +28,10 @@ ASCII and binary models are marked **A** and **B**. A file that cannot be proces
 The repair, transform and tile options are in the panel on the left:
 
 ![The options panel with Game Resources and Advanced Options expanded](docs/screenshots/options.png)
+
+*Make Variants* fits a robe, cloak or armour part to every race in phenotypes 0 and 2 and shows each on its body: the variant in grey, the body's base parts in blue (for a robe, only the parts the game shows under it). Where blue shows through the grey, that variant is too tight there. Click a tile to remake it with more width or length; double-click it to open it in the main viewport. Views turn together, so you can look at all of them from the back at once:
+
+![Make Variants: a robe made for twelve bodies, each shown on its body](docs/screenshots/variants.png)
 
 <details>
 <summary>More: the right-click menu and the bug report prompt</summary>
@@ -56,7 +61,7 @@ Each download already contains the matching [cleanmodels](https://github.com/ple
 
 ### Using your own cleanmodels
 
-The app uses the `cleanmodels` next to it first, then one in your `PATH`. To run a newer or custom build, put it beside the app or on your `PATH`. It must be the Go-based cleanmodels **v4 or newer**; the legacy Prolog CLI is not supported (for the old Prolog-based GUI, see [cleanmodels-qt v0.8.0](https://github.com/plenarius/cleanmodels-qt/releases/tag/build0.8.0-HEAD)).
+The app uses the `cleanmodels` next to it first, then one in your `PATH`. To run a newer or custom build, put it beside the app or on your `PATH`. It must be the Go-based cleanmodels **v4 or newer** (*Make Variants* needs **v4.7** or newer); the legacy Prolog CLI is not supported (for the old Prolog-based GUI, see [cleanmodels-qt v0.8.0](https://github.com/plenarius/cleanmodels-qt/releases/tag/build0.8.0-HEAD)).
 
 When you build from source (below), the build does not bundle the CLI, so you need to supply one this way.
 

@@ -680,13 +680,14 @@ void Renderer::render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera)
         gl->glDisable(GL_CULL_FACE);
         gl->glEnable(GL_BLEND);
         gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        gl->glDepthMask(GL_FALSE);
+        if (!m_solidReference)
+            gl->glDepthMask(GL_FALSE);
 
         MaterialOverride refMat;
         refMat.active = true;
         refMat.diffuse = {ViewportColor::RefR, ViewportColor::RefG, ViewportColor::RefB};
-        refMat.ambient = refMat.diffuse;
-        renderNodes(gl, m_referenceNodes, true, refMat);
+        refMat.ambient = refMat.diffuse * (m_solidReference ? 0.5f : 1.0f);
+        renderNodes(gl, m_referenceNodes, !m_solidReference, refMat);
 
         gl->glDepthMask(GL_TRUE);
         gl->glEnable(GL_CULL_FACE);

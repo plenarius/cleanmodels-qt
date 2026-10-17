@@ -33,6 +33,12 @@ void Camera::rotate(float dx, float dy)
     m_pitch = std::clamp(m_pitch, -1.5f, 1.5f);
 }
 
+void Camera::setAngles(float yaw, float pitch)
+{
+    m_yaw = yaw;
+    m_pitch = std::clamp(pitch, -1.5f, 1.5f);
+}
+
 void Camera::pan(float dx, float dy)
 {
     QVector3D forward = (m_target - position()).normalized();

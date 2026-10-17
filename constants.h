@@ -59,6 +59,14 @@ namespace CliCommand {
     constexpr const char *Repair    = "repair";
     constexpr const char *Decompile = "decompile";
     constexpr const char *Compile   = "compile";
+    constexpr const char *Variants  = "variants";
+}
+
+// cleanmodels exit codes (cmd/cleanmodels/process.go).
+namespace CliExit {
+    constexpr int Ok     = 0;
+    constexpr int Errors = 1; // ran, some files failed
+    constexpr int Usage  = 2; // bad flags or arguments: nothing was done
 }
 
 namespace CliFlag {
@@ -117,6 +125,14 @@ namespace CliFlag {
     constexpr const char *StripEEExtras       = "--strip-ee-extras";
     constexpr const char *GameDir             = "--game-dir";
     constexpr const char *ResourceDir         = "--resource-dir";
+
+    // variants
+    constexpr const char *To          = "--to";
+    constexpr const char *Width       = "--width";
+    constexpr const char *Length      = "--length";
+    constexpr const char *PreviewDir  = "--preview-dir";
+    constexpr const char *CompileOut  = "--compile";
+    constexpr const char *Overwrite   = "--overwrite";
 }
 
 // ---------------------------------------------------------------------------

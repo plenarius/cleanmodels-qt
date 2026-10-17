@@ -502,13 +502,19 @@ QStringList MainWindow::buildCliArgs()
 
     // Where supermodels and materials are looked up (compiled output only).
     if (!m_radioDecompile->isChecked())
-    {
-        if (!m_gameDirEdit->text().trimmed().isEmpty())
-            args << CliFlag::GameDir << m_gameDirEdit->text().trimmed();
-        for (const QString &dir : m_resourceDirsEdit->text().split(QDir::listSeparator(), Qt::SkipEmptyParts))
-            args << CliFlag::ResourceDir << dir.trimmed();
-    }
+        args << lookupCliArgs();
 
+    return args;
+}
+
+// The --game-dir and --resource-dir flags for the folders set in the sidebar.
+QStringList MainWindow::lookupCliArgs() const
+{
+    QStringList args;
+    if (!m_gameDirEdit->text().trimmed().isEmpty())
+        args << CliFlag::GameDir << m_gameDirEdit->text().trimmed();
+    for (const QString &dir : m_resourceDirsEdit->text().split(QDir::listSeparator(), Qt::SkipEmptyParts))
+        args << CliFlag::ResourceDir << dir.trimmed();
     return args;
 }
 

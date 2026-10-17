@@ -4,6 +4,7 @@
 #include "mainwindow.h"
 #include "metrics.h"
 #include "modelviewport.h"
+#include "variantsdialog.h"
 #include "ui_mainwindow.h"
 #include <QApplication>
 #include <QClipboard>
@@ -998,6 +999,11 @@ void MainWindow::buildUi()
                     m_viewport->previewFile(firstFile);
             });
         }
+        if (selectedFiles.size() == 1 && firstFile.endsWith(QStringLiteral(".mdl"), Qt::CaseInsensitive)) {
+            menu.addAction("Make Variants...", this, [this, firstFile] {
+                showVariantsDialog(firstFile);
+            });
+        }
         menu.addAction("Copy path to clipboard", this, &MainWindow::copyToClipboard);
         menu.addSeparator();
 
@@ -1212,6 +1218,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_pCleanProcess, &QProcess::finished, this, &MainWindow::onCleanFinished);
     connect(ui->actionHelp, &QAction::triggered, this, &MainWindow::onHelpTriggered);
     connect(ui->actionReportIssue, &QAction::triggered, this, &MainWindow::onReportIssueTriggered);
+    connect(ui->actionMakeVariants, &QAction::triggered, this, [this] { showVariantsDialog(); });
     connect(ui->actionAbout, &QAction::triggered, this, &MainWindow::onAboutTriggered);
     connect(ui->actionSavePreset, &QAction::triggered, this, &MainWindow::onSaveConfigTriggered);
     connect(ui->actionLoadPreset, &QAction::triggered, this, &MainWindow::onLoadConfigTriggered);
@@ -1770,6 +1777,25 @@ QStringList MainWindow::selectedCheckNames() const
 int MainWindow::totalCheckCount() const
 {
     return m_individualChecks.size();
+}
+
+void MainWindow::showVariantsDialog(const QString &mdlPath)
+{
+    if (!m_variantsDialog) {
+        m_variantsDialog = new VariantsDialog(m_sBinaryPath, lookupCliArgs(), this);
+        connect(m_variantsDialog, &VariantsDialog::openInViewport, this, [this](const QString &path) {
+            if (m_viewport)
+                m_viewport->previewFile(path);
+            raise();
+            activateWindow();
+        });
+    }
+    m_variantsDialog->setLookupArgs(lookupCliArgs());
+    if (!mdlPath.isEmpty())
+        m_variantsDialog->setSource(mdlPath);
+    m_variantsDialog->show();
+    m_variantsDialog->raise();
+    m_variantsDialog->activateWindow();
 }
 
 void MainWindow::onQuitTriggered()

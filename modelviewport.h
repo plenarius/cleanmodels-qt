@@ -32,6 +32,13 @@ public:
     void loadModel(const QString &asciiMdl, const QString &textureDir = QString());
     void clearModel();
 
+    // Replaces the text shown on the empty canvas.
+    void setEmptyHint(const QString &text);
+
+    // Sets the orbit angles (Camera::setAngles) and repaints, without
+    // emitting viewRotated.
+    void setViewAngles(float yaw, float pitch);
+
     void setWireframe(bool on);
     bool wireframe() const;
     void setShowGrid(bool on);
@@ -40,6 +47,9 @@ public:
     void loadReferenceFile(const QString &mdlPath);
     void clearReference();
     bool hasReference() const;
+    // Draw the reference filled and depth-tested with the model instead of
+    // as a wireframe behind it (Renderer::setSolidReference).
+    void setSolidReference(bool on);
 
     Camera &camera() { return m_camera; }
     const Camera &camera() const { return m_camera; }
@@ -65,6 +75,8 @@ signals:
     // Fires after a model loads with the freshly-parsed animation list.
     // Receivers (e.g. the toolbar combobox) should rebuild their UI.
     void animationsAvailable(const QStringList &names, const QString &nowPlaying);
+    // Fires when the user orbits the view with the mouse.
+    void viewRotated(float yaw, float pitch);
 
 protected:
     void initializeGL() override;
@@ -123,6 +135,11 @@ private:
     void updateEmptyHint();
 
     QLabel *m_emptyHint = nullptr;
+
+    // previewFile / loadReferenceFile calls made before initializeGL (a
+    // viewport not shown yet) are kept here and run once GL is up.
+    QString m_pendingPreview;
+    QString m_pendingReference;
 
     Renderer m_renderer;
     Camera m_camera;

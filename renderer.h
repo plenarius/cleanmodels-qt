@@ -72,6 +72,10 @@ public:
     bool showReference() const { return m_showReference; }
     void setShowGrid(bool on) { m_showGrid = on; }
     bool showGrid() const { return m_showGrid; }
+    // A solid reference is drawn filled and depth-tested with the model, so
+    // each hides the other where it is behind; the default is a wireframe
+    // the model covers.
+    void setSolidReference(bool on) { m_solidReference = on; }
 
 private:
     GLuint m_program = 0;
@@ -92,6 +96,7 @@ private:
     bool m_wireframe = false;
     bool m_showReference = false;
     bool m_showGrid = true;
+    bool m_solidReference = false;
     std::vector<RenderNode> m_renderNodes;
     std::vector<RenderNode> m_referenceNodes;
     std::unique_ptr<GpuMesh> m_gridMesh;
