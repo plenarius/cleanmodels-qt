@@ -19,6 +19,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QMap>
+#include <QMessageBox>
 #include <QSet>
 #include <QScrollArea>
 #include <QSlider>
@@ -711,6 +712,49 @@ void VariantsDialog::makeVariants()
     if (m_jobs.isEmpty()) {
         m_statusLabel->setText(tr("Tick at least one body."));
         return;
+    }
+    // Files already there (an earlier run): ask, rather than fail each one.
+    if (!m_overwriteCheck->isChecked()) {
+        const QString source = QDir::fromNativeSeparators(m_sourceEdit->text().trimmed());
+        QString outDir = QDir::fromNativeSeparators(m_outDirEdit->text().trimmed());
+        if (outDir.isEmpty())
+            outDir = QFileInfo(source).absolutePath();
+        const QString prefix = sourcePrefix();
+        const QString suffix = QFileInfo(source).completeBaseName().toLower().mid(prefix.size());
+        QSet<QString> existing;
+        for (const Job &j : m_jobs)
+            for (const QString &target : j.targets)
+                if (QFileInfo::exists(QDir(outDir).filePath(target + suffix + QStringLiteral(".mdl"))))
+                    existing << target;
+        if (!existing.isEmpty()) {
+            QMessageBox box(QMessageBox::Question, tr("Make Variants"),
+                tr("%n of these variants already exist in %1.", nullptr, int(existing.size()))
+                    .arg(QDir::toNativeSeparators(outDir)),
+                QMessageBox::Cancel, this);
+            QPushButton *replace = box.addButton(tr("Replace Them"), QMessageBox::AcceptRole);
+            QPushButton *skip = box.addButton(tr("Skip Them"), QMessageBox::ActionRole);
+            box.setDefaultButton(replace);
+            box.exec();
+            if (box.clickedButton() == replace) {
+                for (Job &j : m_jobs)
+                    j.overwrite = true;
+            } else if (box.clickedButton() == skip) {
+                for (Job &j : m_jobs)
+                    j.targets.erase(std::remove_if(j.targets.begin(), j.targets.end(),
+                                                   [&](const QString &t) { return existing.contains(t); }),
+                                    j.targets.end());
+                m_jobs.erase(std::remove_if(m_jobs.begin(), m_jobs.end(),
+                                            [](const Job &j) { return j.targets.isEmpty(); }),
+                             m_jobs.end());
+                if (m_jobs.isEmpty()) {
+                    m_statusLabel->setText(tr("Every variant already exists; nothing to make."));
+                    return;
+                }
+            } else {
+                m_jobs.clear();
+                return;
+            }
+        }
     }
     m_jobTotal = 0;
     for (const Job &j : m_jobs)
