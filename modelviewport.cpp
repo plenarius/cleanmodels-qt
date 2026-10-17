@@ -250,6 +250,8 @@ void ModelViewport::previewFile(const QString &mdlPath)
                 emit self->previewError("Empty MDL content for " + mdlPath);
                 return;
             }
+            self->m_reloadSame = self->m_hasModel && self->m_modelPath == mdlPath;
+            self->m_modelPath = mdlPath;
             self->loadModel(ascii, QFileInfo(mdlPath).absolutePath());
         },
         [self](const QString &err) {
@@ -293,7 +295,8 @@ void ModelViewport::loadModel(const QString &asciiMdl, const QString &textureDir
         m_renderer.prepareScene(this, m_scene, m_player.boneWorldMatrices(), textureDir);
     }
 
-    if (!(m_keepViewOnReload && m_hasModel)) {
+    const bool keepView = m_keepViewOnReload && std::exchange(m_reloadSame, false);
+    if (!keepView) {
         QVector3D bmin, bmax;
         m_scene.computeBounds(bmin, bmax);
         m_camera.focusOnBounds(bmin, bmax);
@@ -350,6 +353,7 @@ void ModelViewport::clearModel()
     // setScene(nullptr) calls stop() internally; no need to call both.
     m_player.setScene(nullptr);
     m_scene = MdlScene();
+    m_modelPath.clear();
     {
         GlContextGuard ctx(this);
         m_renderer.prepareScene(this, m_scene);
