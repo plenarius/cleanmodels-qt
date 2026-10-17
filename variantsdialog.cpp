@@ -147,7 +147,6 @@ void VariantsDialog::buildUi()
     m_syncViewsCheck->setChecked(true);
     m_syncViewsCheck->setToolTip(tr("Orbiting one view turns all of them"));
     m_makeButton = new QPushButton(tr("Make Variants"));
-    m_makeButton->setDefault(true);
     optRow->addWidget(m_compileCheck);
     optRow->addWidget(m_overwriteCheck);
     optRow->addWidget(m_syncViewsCheck);
@@ -174,7 +173,7 @@ void VariantsDialog::buildUi()
     // --- Adjust panel for the selected tile ---
     m_remakeTimer = new QTimer(this);
     m_remakeTimer->setSingleShot(true);
-    m_remakeTimer->setInterval(300);
+    m_remakeTimer->setInterval(600);
     connect(m_remakeTimer, &QTimer::timeout, this, &VariantsDialog::scheduleRemake);
     m_adjustBox = new QWidget;
     auto *adjust = new QGridLayout(m_adjustBox);
@@ -209,8 +208,8 @@ void VariantsDialog::buildUi()
         adjust->addWidget(spin, row, col + 2);
         m_sliders[name] = slider;
         m_spins[name] = spin;
-        // The slider and the box show the same value; letting go of the
-        // slider, or leaving the box, remakes the tile.
+        // The slider and the box show the same value; a change remakes the
+        // tile after a short wait.
         connect(slider, &QSlider::valueChanged, this, [this, name, spin, slider](int v) {
             QSignalBlocker b(spin);
             spin->setValue(v);
@@ -219,15 +218,20 @@ void VariantsDialog::buildUi()
                 m_remakeTimer->start(); // a click on the groove, the wheel, the keys
         });
         connect(slider, &QSlider::sliderReleased, this, [this] { m_remakeTimer->start(); });
-        connect(spin, &QSpinBox::editingFinished, this, [this, name, spin, slider] {
-            if (m_selected < 0 || m_tiles[m_selected].isSource)
-                return;
-            const int before = m_tiles[m_selected].adjust.value(name, 100);
+        // Typing, the arrows, the wheel: applied after the same short wait as
+        // the slider (a typed 85 passes through 8, which the box does not
+        // take, so no remake at 8); Enter applies at once.
+        connect(spin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, name, slider](int v) {
             QSignalBlocker b(slider);
-            slider->setValue(spin->value());
-            setAdjust(name, spin->value());
-            if (spin->value() != before)
-                scheduleRemake(); // editingFinished also fires on leaving the box
+            slider->setValue(v);
+            setAdjust(name, v);
+            m_remakeTimer->start();
+        });
+        connect(spin, &QSpinBox::editingFinished, this, [this] {
+            if (m_remakeTimer->isActive()) {
+                m_remakeTimer->stop();
+                scheduleRemake();
+            }
         });
         ++idx;
     }
@@ -258,6 +262,14 @@ void VariantsDialog::buildUi()
     statusRow->addWidget(m_statusLabel, 1);
     statusRow->addWidget(m_progress);
     root->addLayout(statusRow);
+
+    // No default button: Enter in a value box applies that value (and
+    // remakes the tile); it must not also press Make Variants, which is Stop
+    // while a run is going.
+    for (QPushButton *b : findChildren<QPushButton *>()) {
+        b->setAutoDefault(false);
+        b->setDefault(false);
+    }
 
     connect(sourceBrowse, &QPushButton::clicked, this, [this] {
         const QString start = m_sourceEdit->text().isEmpty() ? QString() : QFileInfo(m_sourceEdit->text()).absolutePath();
