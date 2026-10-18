@@ -19,6 +19,12 @@ public:
     QMatrix4x4 projectionMatrix() const;
     QVector3D position() const;
 
+    // Orbit angles in radians: yaw about z, pitch above the ground plane.
+    // setAngles clamps pitch like rotate() does.
+    float yaw() const { return m_yaw; }
+    float pitch() const { return m_pitch; }
+    void setAngles(float yaw, float pitch);
+
     float rotationSensitivity() const { return m_rotSens; }
     void setRotationSensitivity(float v) { m_rotSens = v; }
 

@@ -650,6 +650,11 @@ void Renderer::render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera)
     gl->glUniform3f(m_locViewPos, camPos.x(), camPos.y(), camPos.z());
 
     QVector3D lightDir = QVector3D(-0.5f, -1.0f, -0.5f).normalized();
+    if (m_headlight) {
+        // The view's forward direction (minus its third row), tipped down.
+        const QVector3D forward = -QVector3D(view(2, 0), view(2, 1), view(2, 2));
+        lightDir = (forward.normalized() + QVector3D(0.0f, 0.0f, -0.4f)).normalized();
+    }
     gl->glUniform3f(m_locLightDir, lightDir.x(), lightDir.y(), lightDir.z());
     gl->glUniform3f(m_locLightColor, 1.0f, 1.0f, 1.0f);
 
@@ -680,13 +685,14 @@ void Renderer::render(QOpenGLFunctions_3_3_Core *gl, const Camera &camera)
         gl->glDisable(GL_CULL_FACE);
         gl->glEnable(GL_BLEND);
         gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        gl->glDepthMask(GL_FALSE);
+        if (!m_solidReference)
+            gl->glDepthMask(GL_FALSE);
 
         MaterialOverride refMat;
         refMat.active = true;
         refMat.diffuse = {ViewportColor::RefR, ViewportColor::RefG, ViewportColor::RefB};
-        refMat.ambient = refMat.diffuse;
-        renderNodes(gl, m_referenceNodes, true, refMat);
+        refMat.ambient = refMat.diffuse * (m_solidReference ? 0.5f : 1.0f);
+        renderNodes(gl, m_referenceNodes, !m_solidReference, refMat);
 
         gl->glDepthMask(GL_TRUE);
         gl->glEnable(GL_CULL_FACE);

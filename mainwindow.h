@@ -26,6 +26,7 @@
 
 class FileSystemModel;
 class ModelViewport;
+class VariantsDialog;
 
 namespace Ui {
 class MainWindow;
@@ -38,6 +39,9 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
+
+    // Opens Make Variants (one window for the session), on mdlPath if given.
+    void showVariantsDialog(const QString &mdlPath = QString());
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -207,6 +211,7 @@ private:
     int m_nMdlsFailed = 0;
 
     ModelViewport *m_viewport = nullptr;
+    VariantsDialog *m_variantsDialog = nullptr;
 
     // --- Report issue state ---
     QStringList m_lastFailedFiles;
@@ -226,6 +231,7 @@ private:
     void loadSettings();
     void doClean();
     QStringList buildCliArgs();
+    QStringList lookupCliArgs() const;
     int findModelRow(const QString &mdlFile);
     void appendDebugHtml(const QString &html);
     void toggleSidebar();

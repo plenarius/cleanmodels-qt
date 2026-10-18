@@ -28,6 +28,10 @@
     <addaction name="actionToggleSidebar"/>
     <addaction name="actionToggleRawLog"/>
    </widget>
+   <widget class="QMenu" name="menuTools">
+    <property name="title"><string>Tools</string></property>
+    <addaction name="actionMakeVariants"/>
+   </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title"><string>Help</string></property>
     <addaction name="actionHelp"/>
@@ -37,6 +41,7 @@
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
+   <addaction name="menuTools"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QToolBar" name="toolBar">
@@ -47,6 +52,10 @@
    <addaction name="actionHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
+  <action name="actionMakeVariants">
+   <property name="text"><string>Make Variants...</string></property>
+   <property name="toolTip"><string>Make a robe's, cloak's or armour part's versions for the other races and phenotypes</string></property>
+  </action>
   <action name="actionLoadPreset">
    <property name="text"><string>Load Preset</string></property>
    <property name="shortcut"><string>Ctrl+O</string></property>

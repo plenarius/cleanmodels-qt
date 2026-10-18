@@ -72,6 +72,14 @@ public:
     bool showReference() const { return m_showReference; }
     void setShowGrid(bool on) { m_showGrid = on; }
     bool showGrid() const { return m_showGrid; }
+    // A solid reference is drawn filled and depth-tested with the model, so
+    // each hides the other where it is behind; the default is a wireframe
+    // the model covers.
+    void setSolidReference(bool on) { m_solidReference = on; }
+    // A headlight shines from the camera (a little from above), so the side
+    // being looked at is lit from any angle; the default light is fixed in
+    // the scene, from the front.
+    void setHeadlight(bool on) { m_headlight = on; }
 
 private:
     GLuint m_program = 0;
@@ -92,6 +100,8 @@ private:
     bool m_wireframe = false;
     bool m_showReference = false;
     bool m_showGrid = true;
+    bool m_solidReference = false;
+    bool m_headlight = false;
     std::vector<RenderNode> m_renderNodes;
     std::vector<RenderNode> m_referenceNodes;
     std::unique_ptr<GpuMesh> m_gridMesh;

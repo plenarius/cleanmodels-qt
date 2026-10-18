@@ -32,6 +32,18 @@ public:
     void loadModel(const QString &asciiMdl, const QString &textureDir = QString());
     void clearModel();
 
+    // When on, previewFile of the file already shown (a model remade in
+    // place) keeps the camera (zoom, pan, angles) instead of framing it
+    // again. Another file is always framed. Off by default.
+    void setKeepViewOnReload(bool on) { m_keepViewOnReload = on; }
+
+    // Replaces the text shown on the empty canvas.
+    void setEmptyHint(const QString &text);
+
+    // Sets the orbit angles (Camera::setAngles) and repaints, without
+    // emitting viewRotated.
+    void setViewAngles(float yaw, float pitch);
+
     void setWireframe(bool on);
     bool wireframe() const;
     void setShowGrid(bool on);
@@ -40,6 +52,11 @@ public:
     void loadReferenceFile(const QString &mdlPath);
     void clearReference();
     bool hasReference() const;
+    // Draw the reference filled and depth-tested with the model instead of
+    // as a wireframe behind it (Renderer::setSolidReference).
+    void setSolidReference(bool on);
+    // Light from the camera instead of fixed in the scene (Renderer::setHeadlight).
+    void setHeadlight(bool on);
 
     Camera &camera() { return m_camera; }
     const Camera &camera() const { return m_camera; }
@@ -65,6 +82,8 @@ signals:
     // Fires after a model loads with the freshly-parsed animation list.
     // Receivers (e.g. the toolbar combobox) should rebuild their UI.
     void animationsAvailable(const QStringList &names, const QString &nowPlaying);
+    // Fires when the user orbits the view with the mouse.
+    void viewRotated(float yaw, float pitch);
 
 protected:
     void initializeGL() override;
@@ -124,11 +143,19 @@ private:
 
     QLabel *m_emptyHint = nullptr;
 
+    // previewFile / loadReferenceFile calls made before initializeGL (a
+    // viewport not shown yet) are kept here and run once GL is up.
+    QString m_pendingPreview;
+    QString m_pendingReference;
+
     Renderer m_renderer;
     Camera m_camera;
     QString m_cliBinaryPath;
     bool m_initialized = false;
     bool m_hasModel = false;
+    bool m_keepViewOnReload = false;
+    QString m_modelPath;       // the file previewFile last loaded
+    bool m_reloadSame = false; // the load in progress is of that same file
 
     // Live model + animation state. m_scene owns the parsed MDL data so the
     // renderer can re-skin per frame; m_player drives bone matrices over
