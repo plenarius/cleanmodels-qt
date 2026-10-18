@@ -673,7 +673,7 @@ void VariantsDialog::refreshAdjustBar()
         if (variant && !effective)
             tip = tr("No effect on this model: %1").arg(
                 it.key() == QLatin1String("length") ? tr("it scales the same in every direction")
-                                                    : tr("none of it is at that height, or it is on the arms"));
+                                                    : tr("none of it is at that height (armour below the hips takes only width and length), or it is on the arms"));
         it.value()->setToolTip(tip);
         m_spins[it.key()]->setToolTip(tip);
     }
