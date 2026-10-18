@@ -44,6 +44,10 @@ public:
     // emitting viewRotated.
     void setViewAngles(float yaw, float pitch);
 
+    // Zooms by the same step as a wheel turn (Camera::zoom), without emitting
+    // viewZoomed: for views that zoom together.
+    void zoomBy(float delta);
+
     void setWireframe(bool on);
     bool wireframe() const;
     void setShowGrid(bool on);
@@ -84,6 +88,8 @@ signals:
     void animationsAvailable(const QStringList &names, const QString &nowPlaying);
     // Fires when the user orbits the view with the mouse.
     void viewRotated(float yaw, float pitch);
+    // Fires when the user zooms with the wheel (the Camera::zoom step).
+    void viewZoomed(float delta);
 
 protected:
     void initializeGL() override;

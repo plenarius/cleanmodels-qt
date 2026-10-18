@@ -116,6 +116,7 @@ private:
     QCheckBox *m_compileCheck = nullptr;
     QCheckBox *m_overwriteCheck = nullptr;
     QCheckBox *m_syncViewsCheck = nullptr;
+    QCheckBox *m_syncZoomCheck = nullptr;
     QPushButton *m_makeButton = nullptr;
     QGridLayout *m_grid = nullptr;
     QWidget *m_gridHost = nullptr;

@@ -377,6 +377,13 @@ void ModelViewport::setViewAngles(float yaw, float pitch)
         update();
 }
 
+void ModelViewport::zoomBy(float delta)
+{
+    m_camera.zoom(delta);
+    if (m_initialized)
+        update();
+}
+
 void ModelViewport::updateEmptyHint()
 {
     if (m_emptyHint)
@@ -521,5 +528,6 @@ void ModelViewport::wheelEvent(QWheelEvent *event)
     float delta = static_cast<float>(event->angleDelta().y()) / 120.0f;
     m_camera.zoom(delta);
     update();
+    emit viewZoomed(delta);
     event->accept();
 }

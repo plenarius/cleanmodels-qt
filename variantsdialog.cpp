@@ -146,10 +146,14 @@ void VariantsDialog::buildUi()
     m_syncViewsCheck = new QCheckBox(tr("Turn views together"));
     m_syncViewsCheck->setChecked(true);
     m_syncViewsCheck->setToolTip(tr("Orbiting one view turns all of them"));
+    m_syncZoomCheck = new QCheckBox(tr("Zoom together"));
+    m_syncZoomCheck->setChecked(true);
+    m_syncZoomCheck->setToolTip(tr("Zooming one view zooms all of them by the same step"));
     m_makeButton = new QPushButton(tr("Make Variants"));
     optRow->addWidget(m_compileCheck);
     optRow->addWidget(m_overwriteCheck);
     optRow->addWidget(m_syncViewsCheck);
+    optRow->addWidget(m_syncZoomCheck);
     optRow->addStretch(1);
     optRow->addWidget(m_makeButton);
     root->addLayout(optRow);
@@ -541,6 +545,13 @@ void VariantsDialog::buildTiles(const QJsonArray &bodies)
         t.frame->installEventFilter(this);
         t.view->installEventFilter(this);
         ModelViewport *view = t.view;
+        connect(view, &ModelViewport::viewZoomed, this, [this, view](float delta) {
+            if (!m_syncZoomCheck->isChecked())
+                return;
+            for (Tile &o : m_tiles)
+                if (o.view != view)
+                    o.view->zoomBy(delta);
+        });
         connect(view, &ModelViewport::viewRotated, this, [this, view](float yaw, float pitch) {
             if (!m_syncViewsCheck->isChecked())
                 return;
