@@ -6,7 +6,7 @@ Qt6/C++17 desktop GUI for [cleanmodels](https://github.com/plenarius/cleanmodels
 - **mainwindow.cpp** — UI construction (programmatic, not Designer-driven), settings, directory management
 - **mainwindow_clean.cpp** — QProcess lifecycle, JSON-lines parsing, file table + debug log updates
 - **modelviewport.cpp** — QOpenGLWidget subclass for 3D model preview (OpenGL 3.3 Core)
-- **variantsdialog.cpp** — Make Variants window: runs `cleanmodels variants --json-lines --preview-dir`, shows a ModelViewport per race and phenotype (variant on its body), remakes one with `--width`/`--length`
+- **variantsdialog.cpp** — Make Variants window: runs `cleanmodels variants --json-lines --preview-dir`, shows a ModelViewport per race and phenotype (variant on its body), remakes a tile with `--width`/`--length`/`--shape` (sliders disabled where the CLI's `adjusts` says they do nothing), shows `learnedFrom`
 - **renderer.cpp** — Scene graph traversal, shader compilation, mesh/texture upload
 - **mdlscene.cpp** — Lightweight ASCII MDL parser (preview-only, not the authoritative parser)
 - **gpumesh.cpp / gputexture.cpp** — GPU resource wrappers

@@ -146,10 +146,14 @@ void VariantsDialog::buildUi()
     m_syncViewsCheck = new QCheckBox(tr("Turn views together"));
     m_syncViewsCheck->setChecked(true);
     m_syncViewsCheck->setToolTip(tr("Orbiting one view turns all of them"));
+    m_syncZoomCheck = new QCheckBox(tr("Zoom together"));
+    m_syncZoomCheck->setChecked(true);
+    m_syncZoomCheck->setToolTip(tr("Zooming one view zooms all of them by the same step"));
     m_makeButton = new QPushButton(tr("Make Variants"));
     optRow->addWidget(m_compileCheck);
     optRow->addWidget(m_overwriteCheck);
     optRow->addWidget(m_syncViewsCheck);
+    optRow->addWidget(m_syncZoomCheck);
     optRow->addStretch(1);
     optRow->addWidget(m_makeButton);
     root->addLayout(optRow);
@@ -541,6 +545,13 @@ void VariantsDialog::buildTiles(const QJsonArray &bodies)
         t.frame->installEventFilter(this);
         t.view->installEventFilter(this);
         ModelViewport *view = t.view;
+        connect(view, &ModelViewport::viewZoomed, this, [this, view](float delta) {
+            if (!m_syncZoomCheck->isChecked())
+                return;
+            for (Tile &o : m_tiles)
+                if (o.view != view)
+                    o.view->zoomBy(delta);
+        });
         connect(view, &ModelViewport::viewRotated, this, [this, view](float yaw, float pitch) {
             if (!m_syncViewsCheck->isChecked())
                 return;
@@ -599,6 +610,11 @@ void VariantsDialog::refreshTileStatus(Tile &t)
         if (!t.warnings.isEmpty())
             tip = t.warnings.join('\n');
     }
+    if (!t.isSource && t.error.isEmpty() && t.learnedFrom > 0)
+        // Its fit came from versions of this slot that exist for both
+        // bodies, not from measuring the bodies (cleanmodels learnedFrom).
+        text += QStringLiteral("<br>") + (t.learnedFrom == 1 ? tr("learned from 1 pair")
+                                                               : tr("learned from %1 pairs").arg(t.learnedFrom));
     if (!t.isSource) {
         QStringList adj;
         for (const AdjustParam &a : kAdjustParams) {
@@ -645,8 +661,21 @@ void VariantsDialog::refreshAdjustBar()
         QSignalBlocker bs(it.value()), bb(m_spins[it.key()]);
         it.value()->setValue(v);
         m_spins[it.key()]->setValue(v);
-        it.value()->setEnabled(variant);
-        m_spins[it.key()]->setEnabled(variant);
+        // Only what changes this model (the CLI says; an older one does not,
+        // and then everything stays on).
+        const bool effective = variant && (t->adjusts.isEmpty() || t->adjusts.contains(it.key()));
+        it.value()->setEnabled(effective);
+        m_spins[it.key()]->setEnabled(effective);
+        QString tip;
+        for (const AdjustParam &a : kAdjustParams)
+            if (it.key() == QLatin1String(a.name))
+                tip = tr(a.tip);
+        if (variant && !effective)
+            tip = tr("No effect on this model: %1").arg(
+                it.key() == QLatin1String("length") ? tr("it scales the same in every direction")
+                                                    : tr("none of it is at that height (armour below the hips takes only width and length), or it is on the arms"));
+        it.value()->setToolTip(tip);
+        m_spins[it.key()]->setToolTip(tip);
     }
     m_resetButton->setEnabled(variant && !t->adjust.isEmpty());
     QString notes;
@@ -972,6 +1001,10 @@ void VariantsDialog::handleEvent(const QJsonObject &evt)
             // The tile's own body: its file, notes and preview. Bodies of the
             // same shape only add to the count.
             t.output = evt.value(QStringLiteral("output")).toString();
+            t.learnedFrom = evt.value(QStringLiteral("learnedFrom")).toInt();
+            t.adjusts.clear();
+            for (const QJsonValue &a : evt.value(QStringLiteral("adjusts")).toArray())
+                t.adjusts << a.toString();
             t.error.clear();
             t.warnings.clear();
             const QJsonArray ws = evt.value(QStringLiteral("result")).toObject().value(QStringLiteral("warnings")).toArray();
