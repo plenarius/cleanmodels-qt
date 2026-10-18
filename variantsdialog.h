@@ -71,6 +71,7 @@ private:
         QStringList members;      // bodies of the same shape: this fit, renamed
         QList<int> memberPhenos;
         int written = 0;          // files written for the tile in the last run
+        int learnedFrom = 0;      // pairs its fit was learned from (0: measured)
         QString output;
         QStringList warnings;
         QString error;

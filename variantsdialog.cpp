@@ -599,6 +599,11 @@ void VariantsDialog::refreshTileStatus(Tile &t)
         if (!t.warnings.isEmpty())
             tip = t.warnings.join('\n');
     }
+    if (!t.isSource && t.error.isEmpty() && t.learnedFrom > 0)
+        // Its fit came from versions of this slot that exist for both
+        // bodies, not from measuring the bodies (cleanmodels learnedFrom).
+        text += QStringLiteral("<br>") + (t.learnedFrom == 1 ? tr("learned from 1 pair")
+                                                               : tr("learned from %1 pairs").arg(t.learnedFrom));
     if (!t.isSource) {
         QStringList adj;
         for (const AdjustParam &a : kAdjustParams) {
@@ -972,6 +977,7 @@ void VariantsDialog::handleEvent(const QJsonObject &evt)
             // The tile's own body: its file, notes and preview. Bodies of the
             // same shape only add to the count.
             t.output = evt.value(QStringLiteral("output")).toString();
+            t.learnedFrom = evt.value(QStringLiteral("learnedFrom")).toInt();
             t.error.clear();
             t.warnings.clear();
             const QJsonArray ws = evt.value(QStringLiteral("result")).toObject().value(QStringLiteral("warnings")).toArray();
