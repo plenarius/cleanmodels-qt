@@ -72,6 +72,7 @@ private:
         QList<int> memberPhenos;
         int written = 0;          // files written for the tile in the last run
         int learnedFrom = 0;      // pairs its fit was learned from (0: measured)
+        QStringList adjusts;      // adjustments that change it (CLI adjusts); empty: not known
         QString output;
         QStringList warnings;
         QString error;

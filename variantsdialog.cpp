@@ -650,8 +650,21 @@ void VariantsDialog::refreshAdjustBar()
         QSignalBlocker bs(it.value()), bb(m_spins[it.key()]);
         it.value()->setValue(v);
         m_spins[it.key()]->setValue(v);
-        it.value()->setEnabled(variant);
-        m_spins[it.key()]->setEnabled(variant);
+        // Only what changes this model (the CLI says; an older one does not,
+        // and then everything stays on).
+        const bool effective = variant && (t->adjusts.isEmpty() || t->adjusts.contains(it.key()));
+        it.value()->setEnabled(effective);
+        m_spins[it.key()]->setEnabled(effective);
+        QString tip;
+        for (const AdjustParam &a : kAdjustParams)
+            if (it.key() == QLatin1String(a.name))
+                tip = tr(a.tip);
+        if (variant && !effective)
+            tip = tr("No effect on this model: %1").arg(
+                it.key() == QLatin1String("length") ? tr("it scales the same in every direction")
+                                                    : tr("none of it is at that height, or it is on the arms"));
+        it.value()->setToolTip(tip);
+        m_spins[it.key()]->setToolTip(tip);
     }
     m_resetButton->setEnabled(variant && !t->adjust.isEmpty());
     QString notes;
@@ -978,6 +991,9 @@ void VariantsDialog::handleEvent(const QJsonObject &evt)
             // same shape only add to the count.
             t.output = evt.value(QStringLiteral("output")).toString();
             t.learnedFrom = evt.value(QStringLiteral("learnedFrom")).toInt();
+            t.adjusts.clear();
+            for (const QJsonValue &a : evt.value(QStringLiteral("adjusts")).toArray())
+                t.adjusts << a.toString();
             t.error.clear();
             t.warnings.clear();
             const QJsonArray ws = evt.value(QStringLiteral("result")).toObject().value(QStringLiteral("warnings")).toArray();
