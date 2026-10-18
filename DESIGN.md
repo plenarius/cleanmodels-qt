@@ -103,7 +103,7 @@ OpenGL clear/grid/overlay colors. RGB floats in code; hex equivalents documented
 
 - **Background** (`#2E3340`, RGB(0.18, 0.20, 0.25)): Dark slate-blue clear color. Cool and neutral; lets light-coloured models sit comfortably without glare.
 - **Grid** (`#595966`, RGB(0.35, 0.35, 0.40)): Mid-gray grid lines. Visible against the background but not so bright they compete with the model wireframe.
-- **Reference Model Overlay** (`#6699E6`, RGB(0.4, 0.6, 0.9)): Light blue. Distinct from any common diffuse colour so the user can tell at a glance what's the loaded model and what's the reference. In the main viewport the reference is a wireframe behind the model; in *Make Variants* the body is drawn solid in this blue and depth-tested with the variant (grey), so the body shows exactly where it pokes through.
+- **Reference Model Overlay** (`#6699E6`, RGB(0.4, 0.6, 0.9)): Light blue. Distinct from any common diffuse colour so the user can tell at a glance what's the loaded model and what's the reference. In the main viewport the reference is a wireframe behind the model; in *Make Variants* the body is drawn solid in this blue and depth-tested with the variant (textured; grey where no texture is found), so the body shows exactly where it pokes through. The *Make Variants* tiles also light from the camera (a headlight) instead of the fixed front light, so the back of a model is as readable as its front.
 
 ### Invalid State
 

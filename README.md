@@ -29,16 +29,16 @@ The repair, transform and tile options are in the panel on the left:
 
 ![The options panel with Game Resources and Advanced Options expanded](docs/screenshots/options.png)
 
-*Make Variants* fits a robe, cloak or armour part to every body that wears that kind of model and shows each on its body: the variant in grey, the body's base parts in blue (for a robe, only the parts the game shows under it). Where blue shows through the grey, that variant is too tight there. The bodies come from the game install and the haks under *Game Resources*, so custom races appear as their own columns. Phenotypes of the same shape share a tile ("also phenotypes 9, 15-21"): robes and cloaks need a copy for every phenotype that has them, mounted and fighting styles included, and those get the tile's fit, renamed. Click a tile to adjust it: overall width and length, and the width at the shoulders, chest, waist, hips and hem (sleeves stay on the arms). Letting go of a slider remakes that tile's bodies; Reset goes back to the fit. Double-click a tile to open it in the main viewport. Views turn together, so you can look at all of them from the back at once:
+*Make Variants* fits a robe, cloak or armour part to every body that wears that kind of model and shows each on its body: the variant with its texture (coloured as in game), the body's base parts in solid blue (for a robe, only the parts the game shows under it). Where blue shows through, that variant is too tight there. The bodies come from the game install and the haks under *Game Resources*, so custom races appear as their own columns. Phenotypes of the same shape share a tile ("also phenotypes 9, 15-21"): robes and cloaks need a copy for every phenotype that has them, mounted and fighting styles included, and those get the tile's fit, renamed. Click a tile to adjust it: overall width and length, and the width at the shoulders, chest, waist, hips and hem (sleeves stay on the arms). A change remakes that tile's bodies after a moment (Enter in a box at once), and the tile keeps your zoom; Reset goes back to the fit. The tile's notes, if any, show below the grid. Double-click a tile to open it in the main viewport. Views turn together and are lit from the camera, so you can look at all of them from the back at once. If versions already exist in the output folder, it asks whether to replace or skip them:
 
-![Make Variants: a robe made for twelve bodies, each shown on its body](docs/screenshots/variants.png)
+![Make Variants: a robe made for every race and phenotype, each textured on its body, the dwarf's shoulders brought in to 90 %](docs/screenshots/variants.png)
 
 <details>
 <summary>More: the right-click menu and the bug report prompt</summary>
 
-Right-click a file to preview it, copy its path, report a problem, or open its folder:
+Right-click a file to preview it, make its variants, copy its path, report a problem, or open its folder:
 
-![The right-click menu on a file: Preview in viewport, Copy path, Report Issue, Open Containing Folder](docs/screenshots/context-menu.png)
+![The right-click menu on a file: Preview in viewport, Make Variants, Copy path, Report Issue, Open Containing Folder](docs/screenshots/context-menu.png)
 
 *Report Issue* asks what is wrong and sends the model to the cleanmodels issue tracker; Cancel sends nothing:
 
