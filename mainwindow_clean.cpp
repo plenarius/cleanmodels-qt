@@ -145,18 +145,29 @@ void MainWindow::onCaptureCleanModelsOutput()
             const QJsonArray parseWarnings = result["parse_warnings"].toArray();
             for (const auto &w : parseWarnings)
                 leadFindings << QStringLiteral("WARN: parse: ") % w.toString();
-            const QJsonArray decompileWarnings = result["warnings"].toArray();
-            for (const auto &w : decompileWarnings)
-            {
-                const QJsonObject warn = w.toObject();
+            auto withNode = [](const QJsonObject &warn) {
                 const QString node = warn["node"].toString();
                 QString msg = warn["message"].toString();
                 if (!node.isEmpty() && !msg.contains(node))
                     msg = node % QStringLiteral(": ") % msg;
-                leadFindings << QStringLiteral("WARN: ") % msg;
-            }
+                return msg;
+            };
+            const QJsonArray decompileWarnings = result["warnings"].toArray();
+            for (const auto &w : decompileWarnings)
+                leadFindings << QStringLiteral("WARN: ") % withNode(w.toObject());
             findings = leadFindings + findings;
             allTooltipLines = leadFindings + allTooltipLines;
+
+            // "notes" are decompile notes at info level (CLI 4.11 and later):
+            // data the decompiler dropped that is known and harmless, such as
+            // light controller 144. They go with the other info lines.
+            const QJsonArray decompileNotes = result["notes"].toArray();
+            for (const auto &n : decompileNotes)
+            {
+                const QString line = QStringLiteral("INFO: ") % withNode(n.toObject());
+                findings << line;
+                allTooltipLines << line;
+            }
 
             appendDebugHtml(QStringLiteral("<p>") % LogHtml::span(LogColor::Success,
                 QStringLiteral("<b>") % file.toHtmlEscaped() % QStringLiteral(" ") % actionVerbPast.toLower()
