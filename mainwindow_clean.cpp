@@ -339,6 +339,8 @@ QStringList MainWindow::buildCliArgs()
             args << CliFlag::StripDegenerate;
         if (m_checkFixAnims->isChecked())
             args << CliFlag::FixAnimations;
+        if (m_checkFixTangents->isChecked() && m_cliHasFixTangents)
+            args << CliFlag::FixTangents;
         if (m_checkRepairPivots->isChecked())
             args << CliFlag::FixPivots;
         if (m_checkFixTilefade->isChecked())
