@@ -90,6 +90,10 @@ private:
     QMap<QString, QCheckBox*> m_individualChecks;
     QCheckBox *m_checkStripDegen;
     QCheckBox *m_checkFixAnims;
+    QCheckBox *m_checkFixTangents;
+    // Whether the CLI has repair --fix-tangents (4.13 and later): asked with
+    // `repair --help` at start, so an older CLI is not given a flag it rejects.
+    bool m_cliHasFixTangents = false;
     QCheckBox *m_checkRepairPivots;
     QCheckBox *m_checkFixTilefade;
     QCheckBox *m_checkTilefadeUndo;
