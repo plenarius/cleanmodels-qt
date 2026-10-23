@@ -75,6 +75,7 @@ namespace CliFlag {
     constexpr const char *StripDegenerate = "--strip-degenerate";
     constexpr const char *FixAnimations   = "--fix-animations";
     constexpr const char *FixTangents     = "--fix-tangents";
+    constexpr const char *FixRobeTurns    = "--fix-robe-turns";
     constexpr const char *FixPivots       = "--fix-pivots";
     constexpr const char *FixTilefade     = "--fix-tilefade";
     constexpr const char *TilefadeZ       = "--tilefade-z";
@@ -156,6 +157,7 @@ namespace Setting {
     constexpr const char *FixStripDegen  = "fix_strip_degen";
     constexpr const char *FixAnimations  = "fix_animations";
     constexpr const char *FixTangents    = "fix_tangents";
+    constexpr const char *FixRobeTurns   = "fix_robe_turns";
     constexpr const char *FixPivots      = "fix_pivots";
     constexpr const char *FixTilefade    = "fix_tilefade";
     constexpr const char *FixAabb        = "fix_aabb";

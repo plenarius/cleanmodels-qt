@@ -362,6 +362,8 @@ void MainWindow::buildUi()
     m_checkFixAnims->setToolTip("Fix animation lengths and missing end-keys");
     m_checkFixTangents    = new QCheckBox("Fix zero-length tangents");
     m_checkFixTangents->setToolTip("Drop a mesh's tangents when any has zero length (they draw as white streaks), so cleanmodels computes them from the geometry");
+    m_checkFixRobeTurns   = new QCheckBox("Fix robe turns under torso_g");
+    m_checkFixRobeTurns->setToolTip("On a worn robe the game draws a node under torso_g without its turn (a cape panel on a turned shoulder pad stands up above the shoulder): put the turn into the node's geometry");
     m_checkRepairPivots   = new QCheckBox("Repair pivots");
     m_checkRepairPivots->setToolTip("Repair walkmesh pivot points for proper tile pathfinding");
     m_checkFixTilefade    = new QCheckBox("Fix tilefade (TILE only)");
@@ -378,7 +380,7 @@ void MainWindow::buildUi()
     m_checkSplitMultiEdge = new QCheckBox("Split multi-edge shadows");
     m_checkSplitMultiEdge->setToolTip("Fix non-manifold edges that break shadow rendering");
 
-    for (auto *cb : {m_checkStripDegen, m_checkFixAnims, m_checkFixTangents,
+    for (auto *cb : {m_checkStripDegen, m_checkFixAnims, m_checkFixTangents, m_checkFixRobeTurns,
          m_checkRepairPivots, m_checkFixTilefade, m_checkRebuildAABB,
          m_checkReparentChildren, m_checkWrapRoot, m_checkSplitMultiEdge})
     {
@@ -395,7 +397,7 @@ void MainWindow::buildUi()
         if (allOn)
         {
             m_checkValidateAll->setChecked(true);
-            for (auto *cb : {m_checkStripDegen, m_checkFixAnims, m_checkFixTangents,
+            for (auto *cb : {m_checkStripDegen, m_checkFixAnims, m_checkFixTangents, m_checkFixRobeTurns,
                  m_checkRepairPivots, m_checkFixTilefade, m_checkRebuildAABB,
                  m_checkReparentChildren, m_checkWrapRoot, m_checkSplitMultiEdge})
                 cb->setChecked(true);
@@ -1159,17 +1161,24 @@ MainWindow::MainWindow(QWidget *parent) :
         });
         listProc->start(m_sBinaryPath, {"check", "--list"});
 
-        // Does this CLI have repair --fix-tangents? Its usage lists the flag.
+        // Does this CLI have repair --fix-tangents and --fix-robe-turns? Its
+        // usage lists the flags.
         m_checkFixTangents->setEnabled(false);
+        m_checkFixRobeTurns->setEnabled(false);
         auto *helpProc = new QProcess(this);
         helpProc->setProcessChannelMode(QProcess::MergedChannels);
         connect(helpProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
                 this, [this, helpProc](int, QProcess::ExitStatus) {
             helpProc->deleteLater();
-            m_cliHasFixTangents = helpProc->readAll().contains("-fix-tangents");
+            const QByteArray usage = helpProc->readAll();
+            m_cliHasFixTangents = usage.contains("-fix-tangents");
             m_checkFixTangents->setEnabled(m_cliHasFixTangents);
             if (!m_cliHasFixTangents)
                 m_checkFixTangents->setToolTip("Needs cleanmodels 4.13 or later");
+            m_cliHasFixRobeTurns = usage.contains("-fix-robe-turns");
+            m_checkFixRobeTurns->setEnabled(m_cliHasFixRobeTurns);
+            if (!m_cliHasFixRobeTurns)
+                m_checkFixRobeTurns->setToolTip("Needs cleanmodels 4.14 or later");
         });
         helpProc->start(m_sBinaryPath, {"repair", "--help"});
     }
@@ -1313,6 +1322,7 @@ void MainWindow::loadSettings()
     m_checkStripDegen->setChecked(s.value(Setting::FixStripDegen, true).toBool());
     m_checkFixAnims->setChecked(s.value(Setting::FixAnimations, true).toBool());
     m_checkFixTangents->setChecked(s.value(Setting::FixTangents, true).toBool());
+    m_checkFixRobeTurns->setChecked(s.value(Setting::FixRobeTurns, true).toBool());
     m_checkRepairPivots->setChecked(s.value(Setting::FixPivots, true).toBool());
     m_checkFixTilefade->setChecked(s.value(Setting::FixTilefade, true).toBool());
     m_checkTilefadeUndo->setChecked(s.value(Setting::TilefadeUndo, false).toBool());
@@ -1404,6 +1414,7 @@ void MainWindow::saveSettings()
     s.setValue(Setting::FixStripDegen, m_checkStripDegen->isChecked());
     s.setValue(Setting::FixAnimations, m_checkFixAnims->isChecked());
     s.setValue(Setting::FixTangents, m_checkFixTangents->isChecked());
+    s.setValue(Setting::FixRobeTurns, m_checkFixRobeTurns->isChecked());
     s.setValue(Setting::FixPivots, m_checkRepairPivots->isChecked());
     s.setValue(Setting::FixTilefade, m_checkFixTilefade->isChecked());
     s.setValue(Setting::TilefadeUndo, m_checkTilefadeUndo->isChecked());
