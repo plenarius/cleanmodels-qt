@@ -94,6 +94,10 @@ private:
     // Whether the CLI has repair --fix-tangents (4.13 and later): asked with
     // `repair --help` at start, so an older CLI is not given a flag it rejects.
     bool m_cliHasFixTangents = false;
+    QCheckBox *m_checkFixRobeTurns;
+    // Whether the CLI has repair --fix-robe-turns (4.14 and later), asked the
+    // same way.
+    bool m_cliHasFixRobeTurns = false;
     QCheckBox *m_checkRepairPivots;
     QCheckBox *m_checkFixTilefade;
     QCheckBox *m_checkTilefadeUndo;

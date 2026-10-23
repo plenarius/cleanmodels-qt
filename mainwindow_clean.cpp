@@ -341,6 +341,8 @@ QStringList MainWindow::buildCliArgs()
             args << CliFlag::FixAnimations;
         if (m_checkFixTangents->isChecked() && m_cliHasFixTangents)
             args << CliFlag::FixTangents;
+        if (m_checkFixRobeTurns->isChecked() && m_cliHasFixRobeTurns)
+            args << CliFlag::FixRobeTurns;
         if (m_checkRepairPivots->isChecked())
             args << CliFlag::FixPivots;
         if (m_checkFixTilefade->isChecked())
