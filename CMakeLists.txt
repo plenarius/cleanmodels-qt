@@ -24,6 +24,7 @@ add_executable(${PROJECT_NAME}
     renderer.cpp
     modelviewport.cpp
     variantsdialog.cpp
+    previewdir.h
     constants.h
     icons.qrc
     mainwindow.ui
