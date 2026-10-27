@@ -1,6 +1,7 @@
 #include "variantsdialog.h"
 #include "constants.h"
 #include "modelviewport.h"
+#include "previewdir.h"
 
 #include <QCheckBox>
 #include <QCloseEvent>
@@ -23,6 +24,7 @@
 #include <QSet>
 #include <QScrollArea>
 #include <QSlider>
+#include <QStandardPaths>
 #include <QSpinBox>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -101,6 +103,7 @@ VariantsDialog::VariantsDialog(const QString &cliPath, const QStringList &lookup
 
 VariantsDialog::~VariantsDialog()
 {
+    delete m_previewDir;
     if (m_listProcess) {
         m_listProcess->disconnect(this);
         m_listProcess->kill();
@@ -873,6 +876,27 @@ void VariantsDialog::setAdjust(const QString &name, int percent)
     m_resetButton->setEnabled(!t.adjust.isEmpty());
 }
 
+// The scratch folder for the previews: the system temp folder, else the app's
+// cache folder, else a folder beside the output. Tried when the first job starts,
+// and again if it failed before, so a fixed or changed setup works without a restart.
+bool VariantsDialog::ensurePreviewDir(QString *failures)
+{
+    if (m_previewDir && m_previewDir->isValid())
+        return true;
+    delete m_previewDir;
+    m_previewDir = nullptr;
+
+    const QString source = QDir::fromNativeSeparators(m_sourceEdit->text().trimmed());
+    QString outDir = QDir::fromNativeSeparators(m_outDirEdit->text().trimmed());
+    if (outDir.isEmpty())
+        outDir = QFileInfo(source).absolutePath();
+    const QStringList parents{QDir::tempPath(),
+                              QStandardPaths::writableLocation(QStandardPaths::CacheLocation),
+                              outDir};
+    m_previewDir = makeScratchDir(parents, failures);
+    return m_previewDir != nullptr;
+}
+
 void VariantsDialog::startNextJob()
 {
     if (m_jobs.isEmpty()) {
@@ -888,9 +912,10 @@ void VariantsDialog::startNextJob()
             remakeTile(m_pendingRemakes.takeFirst());
         return;
     }
-    if (!m_previewDir.isValid()) {
+    QString failures;
+    if (!ensurePreviewDir(&failures)) {
         m_jobs.clear();
-        m_statusLabel->setText(tr("Cannot make a temporary folder for the previews."));
+        m_statusLabel->setText(tr("Cannot make a folder for the previews. Tried:%1").arg(failures));
         updateControls();
         return;
     }
@@ -907,7 +932,7 @@ void VariantsDialog::startNextJob()
                      CliFlag::To, job.targets.join(','),
                      CliFlag::Width, factor("width"),
                      CliFlag::Length, factor("length"),
-                     CliFlag::PreviewDir, m_previewDir.path()};
+                     CliFlag::PreviewDir, m_previewDir->path()};
     QStringList shape;
     for (const AdjustParam &a : kAdjustParams) {
         const QString name = QString::fromLatin1(a.name);

@@ -109,7 +109,8 @@ private:
 
     QString m_cliPath;
     QStringList m_lookupArgs;
-    QTemporaryDir m_previewDir;
+    QTemporaryDir *m_previewDir = nullptr; // made by ensurePreviewDir(), owned by the dialog
+    bool ensurePreviewDir(QString *failures);
 
     QLineEdit *m_sourceEdit = nullptr;
     QLineEdit *m_outDirEdit = nullptr;
