@@ -219,6 +219,9 @@ void MainWindow::updateModeUI()
     } else if (m_radioCompile->isChecked()) {
         m_cleanButton->setText("Compile");
         m_cleanButton->setIcon(m_iconCleanButton);
+    } else if (m_radioFixShadows->isChecked()) {
+        m_cleanButton->setText("Fix Shadows");
+        m_cleanButton->setIcon(m_iconCleanButton);
     } else {
         m_cleanButton->setText("Clean");
         m_cleanButton->setIcon(m_iconCleanButton);
@@ -228,6 +231,9 @@ void MainWindow::updateModeUI()
     m_advancedGroup->setEnabled(cleanMode);
     m_tileGroup->setEnabled(cleanMode);
     m_pivotGroup->setEnabled(cleanMode);
+    // Shown only in Decompile mode; usable only when the CLI has the flag.
+    m_checkKeepVertexSplits->setVisible(m_radioDecompile->isChecked());
+    m_checkKeepVertexSplits->setEnabled(m_cliHasKeepVertexSplits);
 }
 
 static QFrame *makeHLine()
@@ -313,20 +319,39 @@ void MainWindow::buildUi()
     scroll->setWidget(optionsWidget);
 
     // ── Mode ───────────────────────────────────────────────────────────
-    auto *modeRow = new QHBoxLayout;
     m_radioClean = new QRadioButton("Clean");
     m_radioClean->setToolTip("Parse, validate, repair, and recompile models");
     m_radioDecompile = new QRadioButton("Decompile");
     m_radioDecompile->setToolTip("Decompile binary MDL to ASCII without cleaning");
     m_radioCompile = new QRadioButton("Compile");
     m_radioCompile->setToolTip("Compile ASCII MDL to binary format");
+    m_radioFixShadows = new QRadioButton("Fix Shadows");
+    m_radioFixShadows->setToolTip("Binary models only: open the edges shared by three or more faces, where the game's\n"
+                                  "shadow volume tears. Only the faces' stored neighbours change; nothing else in the file.");
+    m_radioFixShadows->setEnabled(false);
     m_radioClean->setChecked(true);
-    modeRow->addWidget(boldLabel("Mode:"));
-    modeRow->addWidget(m_radioClean);
-    modeRow->addWidget(m_radioDecompile);
-    modeRow->addWidget(m_radioCompile);
-    modeRow->addStretch();
-    optionsLayout->addLayout(modeRow);
+    // Two rows: the side panel is too narrow for four modes on one.
+    auto *modeGrid = new QGridLayout;
+    modeGrid->setContentsMargins(0, 0, 0, 0);
+    modeGrid->setHorizontalSpacing(Layout::DefaultSpacing * 2);
+    modeGrid->addWidget(boldLabel("Mode:"), 0, 0);
+    modeGrid->addWidget(m_radioClean, 0, 1);
+    modeGrid->addWidget(m_radioDecompile, 0, 2);
+    modeGrid->addWidget(m_radioCompile, 0, 3);
+    modeGrid->addWidget(m_radioFixShadows, 1, 1, 1, 3);
+    modeGrid->setColumnStretch(4, 1);
+    optionsLayout->addLayout(modeGrid);
+
+    m_checkKeepVertexSplits = new QCheckBox("Keep vertex splits");
+    m_checkKeepVertexSplits->setToolTip("Write one position per binary vertex, as older versions did. By default the decompiler\n"
+                                        "shares a position again where the source did, so a compile casts the same shadows.");
+    m_checkKeepVertexSplits->setEnabled(false);
+    m_checkKeepVertexSplits->setVisible(false);
+    auto *decompileRow = new QHBoxLayout;
+    decompileRow->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    decompileRow->addWidget(m_checkKeepVertexSplits);
+    decompileRow->addStretch();
+    optionsLayout->addLayout(decompileRow);
 
     // ── All Fixes master checkbox ──────────────────────────────────────
     m_allFixesCheck = new QCheckBox("All Fixes (recommended)");
@@ -989,6 +1014,7 @@ void MainWindow::buildUi()
 
     connect(m_radioDecompile, &QRadioButton::toggled, this, &MainWindow::updateModeUI);
     connect(m_radioCompile, &QRadioButton::toggled, this, &MainWindow::updateModeUI);
+    connect(m_radioFixShadows, &QRadioButton::toggled, this, &MainWindow::updateModeUI);
 
     connect(m_filesTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
         if (m_filesTable->selectedItems().isEmpty()) return;
@@ -1179,8 +1205,25 @@ MainWindow::MainWindow(QWidget *parent) :
             m_checkFixRobeTurns->setEnabled(m_cliHasFixRobeTurns);
             if (!m_cliHasFixRobeTurns)
                 m_checkFixRobeTurns->setToolTip("Needs cleanmodels 4.14 or later");
+            m_cliHasOpenMultiedges = usage.contains("-open-multiedges");
+            m_radioFixShadows->setEnabled(m_cliHasOpenMultiedges);
+            if (!m_cliHasOpenMultiedges)
+                m_radioFixShadows->setToolTip("Needs a cleanmodels with repair --open-multiedges");
         });
         helpProc->start(m_sBinaryPath, {"repair", "--help"});
+
+        // And decompile --keep-vertex-splits.
+        auto *decompileHelpProc = new QProcess(this);
+        decompileHelpProc->setProcessChannelMode(QProcess::MergedChannels);
+        connect(decompileHelpProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, decompileHelpProc](int, QProcess::ExitStatus) {
+            decompileHelpProc->deleteLater();
+            m_cliHasKeepVertexSplits = decompileHelpProc->readAll().contains("-keep-vertex-splits");
+            if (!m_cliHasKeepVertexSplits)
+                m_checkKeepVertexSplits->setToolTip("Needs a cleanmodels with decompile --keep-vertex-splits");
+            updateModeUI();
+        });
+        decompileHelpProc->start(m_sBinaryPath, {"decompile", "--help"});
     }
     else
     {
@@ -1330,6 +1373,7 @@ void MainWindow::loadSettings()
     m_checkReparentChildren->setChecked(s.value(Setting::FixReparent, true).toBool());
     m_checkWrapRoot->setChecked(s.value(Setting::FixWrapRoot, true).toBool());
     m_checkSplitMultiEdge->setChecked(s.value(Setting::FixSplitMultiedge, true).toBool());
+    m_checkKeepVertexSplits->setChecked(s.value(Setting::KeepVertexSplits, false).toBool());
 
     // Advanced
     m_scaleXSpin->setValue(s.value(Setting::RescaleX, 1.0).toDouble());
@@ -1422,6 +1466,7 @@ void MainWindow::saveSettings()
     s.setValue(Setting::FixReparent, m_checkReparentChildren->isChecked());
     s.setValue(Setting::FixWrapRoot, m_checkWrapRoot->isChecked());
     s.setValue(Setting::FixSplitMultiedge, m_checkSplitMultiEdge->isChecked());
+    s.setValue(Setting::KeepVertexSplits, m_checkKeepVertexSplits->isChecked());
 
     s.setValue(Setting::RescaleX, m_scaleXSpin->value());
     s.setValue(Setting::RescaleY, m_scaleYSpin->value());
@@ -1907,7 +1952,8 @@ void MainWindow::updateFileListing()
     m_mdlsDetectedLabel->setText("Detected: " + QString::number(totalfiles.count()));
     m_mdlsCleanedLabel->setText(
         m_radioCompile->isChecked() ? "Compiled: 0" :
-        m_radioDecompile->isChecked() ? "Decompiled: 0" : "Cleaned: 0");
+        m_radioDecompile->isChecked() ? "Decompiled: 0" :
+        m_radioFixShadows->isChecked() ? "Fixed: 0" : "Cleaned: 0");
     m_mdlsFailedLabel->setText("Failed: 0");
 
     for (const QString &filePath : totalfiles)

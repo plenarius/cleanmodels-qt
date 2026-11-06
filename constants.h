@@ -83,6 +83,8 @@ namespace CliFlag {
     constexpr const char *ReparentChildren = "--reparent-children";
     constexpr const char *WrapRoot        = "--wrap-root";
     constexpr const char *SplitMultiedge  = "--split-multiedge";
+    constexpr const char *OpenMultiedges  = "--open-multiedges";
+    constexpr const char *KeepVertexSplits = "--keep-vertex-splits";
     constexpr const char *Scale           = "--scale";
     constexpr const char *ScaleX          = "--scale-x";
     constexpr const char *ScaleY          = "--scale-y";
@@ -164,6 +166,7 @@ namespace Setting {
     constexpr const char *FixReparent    = "fix_reparent";
     constexpr const char *FixWrapRoot    = "fix_wrap_root";
     constexpr const char *FixSplitMultiedge = "fix_split_multiedge";
+    constexpr const char *KeepVertexSplits = "keep_vertex_splits";
 
     constexpr const char *RescaleX       = "rescale_x";
     constexpr const char *RescaleY       = "rescale_y";

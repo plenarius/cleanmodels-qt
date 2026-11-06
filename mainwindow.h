@@ -79,6 +79,14 @@ private:
     QRadioButton *m_radioClean;
     QRadioButton *m_radioDecompile;
     QRadioButton *m_radioCompile;
+    // Fix Shadows: repair --open-multiedges, which patches a binary's stored
+    // face neighbours and changes nothing else, so it runs alone.
+    QRadioButton *m_radioFixShadows;
+    bool m_cliHasOpenMultiedges = false;
+    // Decompile with one position per binary vertex (decompile
+    // --keep-vertex-splits), asked of the CLI like the repair flags.
+    QCheckBox *m_checkKeepVertexSplits;
+    bool m_cliHasKeepVertexSplits = false;
 
     // --- Fixes ---
     QCheckBox *m_allFixesCheck;
