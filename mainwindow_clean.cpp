@@ -58,8 +58,9 @@ void MainWindow::onCaptureCleanModelsOutput()
 
         bool decompiling = m_radioDecompile->isChecked();
         bool compiling = m_radioCompile->isChecked();
-        QString actionVerbPast = compiling ? "Compiled" : decompiling ? "Decompiled" : "Cleaned";
-        QString actionVerbPresent = compiling ? "Compiling" : decompiling ? "Decompiling" : "Cleaning";
+        bool fixingShadows = m_radioFixShadows->isChecked();
+        QString actionVerbPast = compiling ? "Compiled" : decompiling ? "Decompiled" : fixingShadows ? "Fixed" : "Cleaned";
+        QString actionVerbPresent = compiling ? "Compiling" : decompiling ? "Decompiling" : fixingShadows ? "Fixing shadows" : "Cleaning";
 
         if (type == "start")
         {
@@ -301,10 +302,18 @@ QStringList MainWindow::buildCliArgs()
     if (m_radioDecompile->isChecked())
     {
         args << CliCommand::Decompile << CliFlag::JsonLines;
+        if (m_checkKeepVertexSplits->isChecked() && m_cliHasKeepVertexSplits)
+            args << CliFlag::KeepVertexSplits;
     }
     else if (m_radioCompile->isChecked())
     {
         args << CliCommand::Compile << CliFlag::JsonLines;
+    }
+    else if (m_radioFixShadows->isChecked())
+    {
+        // Alone: the CLI refuses it with other repairs, since it patches the
+        // binary as it is rather than rewriting it.
+        args << CliCommand::Repair << CliFlag::JsonLines << CliFlag::OpenMultiedges;
     }
     else
     {

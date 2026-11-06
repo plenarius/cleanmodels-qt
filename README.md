@@ -13,6 +13,7 @@ Qt6 GUI for [cleanmodels](https://github.com/plenarius/cleanmodels), a tool to v
 - 3D model preview with an OpenGL viewport: **double-click a file** in the list, or right-click and choose *Preview in viewport*
 - **Make Variants** (*Tools* menu, or right-click a model): make a robe's, cloak's or armour part's versions for the other races (custom ones from your haks too) and phenotypes, see them all on their bodies in one grid, and reshape any of them with sliders (width, length, shoulders, chest, waist, hips, hem)
 - Full access to the cleanmodels repair, transform, and tile options
+- **Fix Shadows** mode: on binary models, opens the edges shared by three or more faces, where the game's shadow volume tears, by changing only the faces' stored neighbours (`repair --open-multiedges`). Decompile can **keep vertex splits** (`--keep-vertex-splits`) to write one position per binary vertex, as older versions did. Both appear when the cleanmodels CLI has them
 - Persistent settings for directories, options, and camera
 
 ## Screenshots
