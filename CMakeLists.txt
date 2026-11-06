@@ -9,6 +9,10 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Version stamped into the Windows executable's version info. CI passes the
+# release tag without its "v" (1.3.9); local builds get 0.0.0.
+set(CLEANMODELS_QT_VERSION "0.0.0" CACHE STRING "Release version, MAJOR.MINOR.PATCH")
+
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui OpenGL OpenGLWidgets)
 
 add_executable(${PROJECT_NAME}
@@ -38,6 +42,19 @@ if(APPLE)
 endif()
 if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
+
+    # Icon and version info (cleanmodels-qt_resource.rc.in).
+    # The numeric fields take MAJOR.MINOR.PATCH; a suffix such as -rc1 only
+    # shows in the version strings.
+    if(NOT CLEANMODELS_QT_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
+        message(FATAL_ERROR "CLEANMODELS_QT_VERSION must start with MAJOR.MINOR.PATCH, got '${CLEANMODELS_QT_VERSION}'")
+    endif()
+    set(CMQT_VERSION_COMMAS "${CMAKE_MATCH_1},${CMAKE_MATCH_2},${CMAKE_MATCH_3},0")
+    set(CMQT_ICON "${CMAKE_CURRENT_SOURCE_DIR}/cmicon.ico")
+    configure_file(cleanmodels-qt_resource.rc.in
+        ${CMAKE_CURRENT_BINARY_DIR}/cleanmodels-qt_resource.rc @ONLY)
+    target_sources(${PROJECT_NAME} PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/cleanmodels-qt_resource.rc)
 endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
