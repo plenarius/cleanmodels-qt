@@ -60,7 +60,16 @@ jobs:
           sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxcb-cursor0 libfuse2
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ${{ matrix.cmake_extra }}
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # Tag builds stamp the tag (without its "v") into the Windows
+          # executable's version info; other builds use the CMake default.
+          VERSION_ARG=""
+          if [ "${REF_TYPE}" = "tag" ]; then VERSION_ARG="-DCLEANMODELS_QT_VERSION=${REF_NAME#v}"; fi
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ${VERSION_ARG} ${{ matrix.cmake_extra }}
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -225,6 +234,9 @@ jobs:
         with:
           merge-multiple: true
 
+      - name: Checksums
+        run: sha256sum cleanmodels-qt-*.AppImage cleanmodels-qt-*.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
@@ -232,3 +244,4 @@ jobs:
           files: |
             cleanmodels-qt-*.AppImage
             cleanmodels-qt-*.zip
+            SHA256SUMS.txt

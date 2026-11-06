@@ -58,6 +58,16 @@ Grab the latest build for your platform from the [Releases](https://github.com/p
 | macOS | `cleanmodels-qt-macos.zip` |
 | Windows (x86_64) | `cleanmodels-qt-windows-amd64.zip` |
 
+Each release also has a `SHA256SUMS.txt` listing the checksum of every download.
+
+> **Windows warns about the download?** The Windows build is not code-signed yet, so SmartScreen may say "Windows protected your PC" (unknown publisher), and Defender sometimes flags unsigned programs, including the bundled `cleanmodels.exe`, by mistake. These warnings are about the files having no reputation yet, not about anything found in them. To check that your copy is the one GitHub Actions built from this repository, compare its checksum with the release's `SHA256SUMS.txt`:
+>
+> ```
+> Get-FileHash cleanmodels-qt-windows-amd64.zip -Algorithm SHA256
+> ```
+>
+> If Defender quarantines it, please [open an issue](https://github.com/plenarius/cleanmodels-qt/issues) with the detection name so it can be reported to Microsoft as a false positive.
+
 Each download already contains the matching [cleanmodels](https://github.com/plenarius/cleanmodels) command-line tool, so there is nothing else to install. The window shows which version it is using in the Raw Log (`CLI: <path>`). The builds are also on the [Neverwinter Vault](https://neverwintervault.org/project/nwnee/other/tool/clean-models-extended-edition-model-decompile-repair-and-compile); GitHub always has the latest.
 
 ### Using your own cleanmodels
