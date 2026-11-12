@@ -60,6 +60,8 @@ namespace CliCommand {
     constexpr const char *Decompile = "decompile";
     constexpr const char *Compile   = "compile";
     constexpr const char *Variants  = "variants";
+    constexpr const char *Cache     = "cache";     // cache prune (cleanmodels 4.17)
+    constexpr const char *Prune     = "prune";
 }
 
 // cleanmodels exit codes (cmd/cleanmodels/process.go).
@@ -86,6 +88,7 @@ namespace CliFlag {
     constexpr const char *OpenMultiedges  = "--open-multiedges";
     constexpr const char *KeepVertexSplits = "--keep-vertex-splits";
     constexpr const char *CacheDir        = "--cache-dir";
+    constexpr const char *UnusedFor       = "--unused-for"; // cache prune
     constexpr const char *Scale           = "--scale";
     constexpr const char *ScaleX          = "--scale-x";
     constexpr const char *ScaleY          = "--scale-y";
@@ -169,6 +172,7 @@ namespace Setting {
     constexpr const char *FixSplitMultiedge = "fix_split_multiedge";
     constexpr const char *KeepVertexSplits = "keep_vertex_splits";
     constexpr const char *CompileCacheDir = "compile_cache_dir";
+    constexpr const char *CachePruneDays  = "cache_prune_days";
 
     constexpr const char *RescaleX       = "rescale_x";
     constexpr const char *RescaleY       = "rescale_y";

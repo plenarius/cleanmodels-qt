@@ -1,5 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
+#include "cacheprune.h"
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCompleter>
@@ -92,6 +94,11 @@ private:
     QWidget *m_compileCacheRow;
     QLineEdit *m_compileCacheEdit;
     bool m_cliHasCacheDir = false;
+    // Prune cache… runs `cleanmodels cache prune` on that folder (4.17).
+    QPushButton *m_compileCachePrune;
+    bool m_cliHasCachePrune = false;
+    bool m_cachePruneRunning = false;
+    int m_cachePruneDays = CachePrune::DefaultDays;
 
     // --- Fixes ---
     QCheckBox *m_allFixesCheck;
@@ -243,6 +250,8 @@ private:
     // --- Methods ---
     void buildUi();
     void updateModeUI();
+    void updateCachePruneButton();
+    void pruneCompileCache();
     static QFormLayout *makeStandardForm(int spacing = 4);
     QWidget *createCollapsibleGroup(const QString &title, QWidget **contentOut, bool startCollapsed = true);
     void onUpdateInDir(const QString &newInDir);
