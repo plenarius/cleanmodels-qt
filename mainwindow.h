@@ -1,5 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
+#include "cacheprune.h"
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCompleter>
@@ -87,6 +89,16 @@ private:
     // --keep-vertex-splits), asked of the CLI like the repair flags.
     QCheckBox *m_checkKeepVertexSplits;
     bool m_cliHasKeepVertexSplits = false;
+    // Compile with a cache folder (compile --cache-dir, cleanmodels 4.17):
+    // a model whose inputs have not changed is written from the cache.
+    QWidget *m_compileCacheRow;
+    QLineEdit *m_compileCacheEdit;
+    bool m_cliHasCacheDir = false;
+    // Prune cache… runs `cleanmodels cache prune` on that folder (4.17).
+    QPushButton *m_compileCachePrune;
+    bool m_cliHasCachePrune = false;
+    bool m_cachePruneRunning = false;
+    int m_cachePruneDays = CachePrune::DefaultDays;
 
     // --- Fixes ---
     QCheckBox *m_allFixesCheck;
@@ -224,6 +236,7 @@ private:
     bool m_bUpdateFilesAfterClean = false;
     bool m_bCleanRunning = false;
     int m_nMdlsCleaned = 0;
+    int m_nMdlsCached = 0;   // compile --cache-dir results written from the cache
     int m_nMdlsFailed = 0;
 
     ModelViewport *m_viewport = nullptr;
@@ -237,6 +250,8 @@ private:
     // --- Methods ---
     void buildUi();
     void updateModeUI();
+    void updateCachePruneButton();
+    void pruneCompileCache();
     static QFormLayout *makeStandardForm(int spacing = 4);
     QWidget *createCollapsibleGroup(const QString &title, QWidget **contentOut, bool startCollapsed = true);
     void onUpdateInDir(const QString &newInDir);

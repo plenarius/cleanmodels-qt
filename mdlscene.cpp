@@ -263,10 +263,11 @@ bool MdlScene::loadFromString(const QString &ascii)
         }
         else
         {
+            // The game does not stop at donemodel: it reads on to the end of
+            // the file and still runs the animations it finds there (nwn-mdl-spec
+            // MDL-ASCII-020, cleanmodels 4.18), so the preview reads them too.
             if (line.startsWith("newanim "))
                 parseAnimBlock(lines, pos);
-            else if (line.startsWith("donemodel"))
-                break;
             else
                 pos++;
         }
@@ -684,6 +685,7 @@ void MdlScene::parseAnimBlock(const QStringList &lines, int &pos)
 
     MdlAnimation anim;
     anim.name = header[1];
+    QVector<ParsedAnimNode> nodes;
 
     while (pos < lines.size())
     {
@@ -695,7 +697,7 @@ void MdlScene::parseAnimBlock(const QStringList &lines, int &pos)
         }
         if (line.startsWith("node "))
         {
-            parseAnimNodeBlock(lines, pos, anim);
+            parseAnimNodeBlock(lines, pos, nodes);
             continue;
         }
 
@@ -709,10 +711,111 @@ void MdlScene::parseAnimBlock(const QStringList &lines, int &pos)
         pos++;
     }
 
+    // Play only what the game plays: the tree pruned to the animroot.
+    QVector<MdlAnimTreeNode> tree;
+    tree.reserve(nodes.size());
+    for (const auto &n : nodes)
+        tree.append(n.tree);
+    const QVector<bool> kept = animRootKeptNodes(tree, anim.animRoot);
+    for (int i = 0; i < nodes.size(); ++i)
+        if (kept[i] && !nodes[i].channels.isEmpty())
+            anim.channels.insert(nodes[i].tree.name, nodes[i].channels);
+
     m_animations.append(anim);
 }
 
-void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimation &anim)
+QVector<bool> MdlScene::animRootKeptNodes(const QVector<MdlAnimTreeNode> &nodes,
+                                          const QString &animRoot)
+{
+    const int n = nodes.size();
+    QVector<bool> all(n, true);
+    if (n == 0 || animRoot.isEmpty() || animRoot.compare(QLatin1String("NULL"), Qt::CaseInsensitive) == 0)
+        return all;
+
+    auto isRootParent = [](const QString &p) {
+        return p.isEmpty() || p.compare(QLatin1String("NULL"), Qt::CaseInsensitive) == 0;
+    };
+
+    // Each node's parent, as cleanmodels' resolveAnimTree finds it: the
+    // nearest earlier node with the parent's name (any case), else the first
+    // other node with it anywhere. Hashes keep it linear.
+    QHash<QString, QPair<int, int>> firstTwoByName; // lowercased name -> first two indices
+    for (int i = 0; i < n; ++i) {
+        auto it = firstTwoByName.find(nodes[i].name.toLower());
+        if (it == firstTwoByName.end())
+            firstTwoByName.insert(nodes[i].name.toLower(), qMakePair(i, -1));
+        else if (it->second < 0)
+            it->second = i;
+    }
+    QVector<QVector<int>> children(n);
+    QHash<QString, int> lastByName;
+    for (int i = 0; i < n; ++i) {
+        const QString parentKey = nodes[i].parent.toLower();
+        if (!isRootParent(nodes[i].parent)) {
+            int parent = lastByName.value(parentKey, -1);
+            if (parent < 0) {
+                const auto it = firstTwoByName.constFind(parentKey);
+                if (it != firstTwoByName.constEnd())
+                    parent = it->first != i ? it->first : it->second;
+            }
+            if (parent >= 0)
+                children[parent].append(i);
+        }
+        lastByName.insert(nodes[i].name.toLower(), i);
+    }
+
+    int root = 0;
+    for (int i = 0; i < n; ++i) {
+        if (isRootParent(nodes[i].parent)) {
+            root = i;
+            break;
+        }
+    }
+
+    // Depth first from the root, children in file order, each node once;
+    // the first node named exactly the animroot (case counts) is the match.
+    // Iterative so a deep or cyclic tree cannot overflow the stack.
+    QVector<int> parentOf(n, -1);
+    QVector<bool> seen(n, false);
+    QVector<QPair<int, int>> stack{ qMakePair(root, -1) }; // node, the node that reached it
+    int found = -1;
+    while (!stack.isEmpty()) {
+        const auto [cur, from] = stack.takeLast();
+        if (seen[cur])
+            continue;
+        seen[cur] = true;
+        parentOf[cur] = from;
+        if (nodes[cur].name == animRoot) {
+            found = cur;
+            break;
+        }
+        const QVector<int> &ch = children[cur];
+        for (int k = ch.size() - 1; k >= 0; --k)
+            if (!seen[ch[k]])
+                stack.append(qMakePair(ch[k], cur));
+    }
+    if (found < 0 || found == root)
+        return all;
+
+    // Cut each node on the path to its one child on the path, then keep what
+    // the root still reaches.
+    for (int c = found; c != root && parentOf[c] >= 0; c = parentOf[c])
+        children[parentOf[c]] = { c };
+    QVector<bool> kept(n, false);
+    QVector<int> work{ root };
+    while (!work.isEmpty()) {
+        const int cur = work.takeLast();
+        if (kept[cur])
+            continue;
+        kept[cur] = true;
+        for (int c : children[cur])
+            if (!kept[c])
+                work.append(c);
+    }
+    return kept;
+}
+
+void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, QVector<ParsedAnimNode> &nodes)
 {
     // First line is "node TYPE NAME". Capture name only.
     QStringList header = lines[pos].trimmed().split(QRegularExpression("\\s+"));
@@ -720,16 +823,17 @@ void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimati
     if (header.size() < 3)
         return;
 
-    // Short-circuit when the per-animation channel cap is already hit:
+    // Short-circuit when the per-animation node cap is already hit:
     // walk to `endnode` without parsing keyframe lines. Avoids the same
     // wasted-parse-then-discard pattern as parseAnimBlock above.
-    if (anim.channels.size() >= kMaxChannelsPerAnim) {
+    if (nodes.size() >= kMaxChannelsPerAnim) {
         skipToTerminator(lines, pos, "endnode");
         return;
     }
 
-    QString nodeName = header[2];
-    MdlAnimNodeChannels ch;
+    ParsedAnimNode node;
+    node.tree.name = header[2];
+    MdlAnimNodeChannels &ch = node.channels;
 
     enum class KeyMode { None, Position, Orientation, Scale };
     KeyMode mode = KeyMode::None;
@@ -751,6 +855,10 @@ void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimati
         // Controller list openers — may have an optional count after them
         // ("positionkey 5"), or just stand alone. Switch mode and continue.
         const QString &k0 = tokens[0];
+        if (k0 == "parent" && mode == KeyMode::None) {
+            node.tree.parent = tokens.size() >= 2 ? tokens[1] : QString();
+            continue;
+        }
         if (k0 == "positionkey") { mode = KeyMode::Position;    continue; }
         if (k0 == "orientationkey") { mode = KeyMode::Orientation; continue; }
         if (k0 == "scalekey")    { mode = KeyMode::Scale;       continue; }
@@ -778,16 +886,23 @@ void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimati
         }
     }
 
-    if (!ch.isEmpty())
-        anim.channels.insert(nodeName, ch);
+    nodes.append(node);
 }
 
 QStringList MdlScene::animationNames() const
 {
+    // A name the model repeats is listed once: the game plays only the first
+    // animation of that name, and so does findAnimation.
     QStringList out;
     out.reserve(m_animations.size());
-    for (const auto &a : m_animations)
+    QSet<QString> seen;
+    for (const auto &a : m_animations) {
+        const QString key = a.name.toLower();
+        if (seen.contains(key))
+            continue;
+        seen.insert(key);
         out.append(a.name);
+    }
     return out;
 }
 

@@ -1,4 +1,5 @@
-﻿#include "constants.h"
+﻿#include "cacheprune.h"
+#include "constants.h"
 #include "fsmodel.h"
 #include "loghtml.h"
 #include "mainwindow.h"
@@ -234,6 +235,82 @@ void MainWindow::updateModeUI()
     // Shown only in Decompile mode; usable only when the CLI has the flag.
     m_checkKeepVertexSplits->setVisible(m_radioDecompile->isChecked());
     m_checkKeepVertexSplits->setEnabled(m_cliHasKeepVertexSplits);
+    // Likewise the compile cache folder, in Compile mode.
+    m_compileCacheRow->setVisible(m_radioCompile->isChecked());
+    m_compileCacheRow->setEnabled(m_cliHasCacheDir);
+    updateCachePruneButton();
+}
+
+// Prune cache… needs a cache folder and a CLI with `cache prune`, and one
+// prune at a time.
+void MainWindow::updateCachePruneButton()
+{
+    m_compileCachePrune->setEnabled(m_cliHasCachePrune && !m_cachePruneRunning
+                                    && !m_compileCacheEdit->text().trimmed().isEmpty());
+}
+
+// Asks how long a model must have gone unused, then runs
+// `cleanmodels cache prune --unused-for Nd <folder>` and logs its one-line
+// result, or its error.
+void MainWindow::pruneCompileCache()
+{
+    const QString cacheDir = m_compileCacheEdit->text().trimmed();
+    if (cacheDir.isEmpty() || !m_cliHasCachePrune || m_cachePruneRunning)
+        return;
+
+    bool ok = false;
+    const int days = QInputDialog::getInt(this, tr("Prune cache"),
+        tr("Remove the models no compile has used for this many days\n"
+           "from %1,\nand the files nothing refers to any more:").arg(QDir::toNativeSeparators(cacheDir)),
+        m_cachePruneDays, CachePrune::MinDays, CachePrune::MaxDays, 1, &ok);
+    if (!ok)
+        return;
+    m_cachePruneDays = days;
+
+    const QStringList args = CachePrune::args(cacheDir, days);
+    appendDebugHtml(LogHtml::span(LogColor::Command,
+        QStringLiteral("$ ") % m_sBinaryPath.toHtmlEscaped() % QStringLiteral(" ")
+        % args.join(" ").toHtmlEscaped()) % QStringLiteral("<br>"));
+
+    m_cachePruneRunning = true;
+    updateCachePruneButton();
+
+    auto *proc = new QProcess(this);
+    auto done = [this, proc] {
+        proc->deleteLater();
+        m_cachePruneRunning = false;
+        updateCachePruneButton();
+    };
+    connect(proc, &QProcess::errorOccurred, this, [this, proc, done](QProcess::ProcessError error) {
+        // A crash or kill also ends in finished(); only a failed start does not.
+        if (error != QProcess::FailedToStart)
+            return;
+        appendDebugHtml(LogHtml::span(LogColor::Error,
+            QStringLiteral("Prune cache: could not run ") % m_sBinaryPath.toHtmlEscaped()
+            % QStringLiteral(": ") % proc->errorString().toHtmlEscaped()) % QStringLiteral("<br>"));
+        done();
+    });
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, proc, done](int exitCode, QProcess::ExitStatus status) {
+        const QString output = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+        const QString errors = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        if (status == QProcess::NormalExit && exitCode == CliExit::Ok) {
+            appendDebugHtml(LogHtml::span(LogColor::Success,
+                QStringLiteral("Cache pruned: ") % output.toHtmlEscaped()) % QStringLiteral("<br>"));
+        } else {
+            QString msg = QStringLiteral("Prune cache failed");
+            if (status != QProcess::NormalExit)
+                msg += QStringLiteral(" (the program stopped)");
+            else
+                msg += QStringLiteral(" (exit code %1)").arg(exitCode);
+            QString html = LogHtml::span(LogColor::Error, msg.toHtmlEscaped()) % QStringLiteral("<br>");
+            if (!errors.isEmpty())
+                html += LogHtml::preBlock(LogColor::SevError, errors.toHtmlEscaped());
+            appendDebugHtml(html);
+        }
+        done();
+    });
+    proc->start(m_sBinaryPath, args);
 }
 
 static QFrame *makeHLine()
@@ -352,6 +429,40 @@ void MainWindow::buildUi()
     decompileRow->addWidget(m_checkKeepVertexSplits);
     decompileRow->addStretch();
     optionsLayout->addLayout(decompileRow);
+
+    // Compile: an optional cache folder (compile --cache-dir). A model whose
+    // file, supermodels, skeleton, capart.2da and materials are unchanged
+    // since its last compile with this cleanmodels is written from there.
+    m_compileCacheRow = new QWidget;
+    auto *compileCacheLayout = new QHBoxLayout(m_compileCacheRow);
+    compileCacheLayout->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    m_compileCacheEdit = new QLineEdit;
+    m_compileCacheEdit->setPlaceholderText("No cache: compile every model");
+    m_compileCacheEdit->setToolTip("Keep each compile in this folder and reuse it while the model, this cleanmodels and every\n"
+                                   "supermodel, skeleton, capart.2da and material the compile looked up are unchanged.\n"
+                                   "Binary input is always compiled. Created if missing; leave empty to compile every model.");
+    m_compileCacheEdit->setAccessibleName(tr("Compile cache folder"));
+    auto *compileCacheBrowse = new QPushButton("Browse…");
+    compileCacheBrowse->setAccessibleName(tr("Browse for the compile cache folder"));
+    compileCacheLayout->addWidget(new QLabel("Cache:"));
+    compileCacheLayout->addWidget(m_compileCacheEdit, 1);
+    compileCacheLayout->addWidget(compileCacheBrowse);
+    m_compileCachePrune = new QPushButton("Prune cache…");
+    m_compileCachePrune->setToolTip("Remove the models no compile has used for a while (you choose how long),\n"
+                                    "and the files nothing refers to any more (cleanmodels cache prune).");
+    m_compileCachePrune->setAccessibleName(tr("Prune the compile cache"));
+    m_compileCachePrune->setEnabled(false);
+    compileCacheLayout->addWidget(m_compileCachePrune);
+    m_compileCacheRow->setEnabled(false);
+    m_compileCacheRow->setVisible(false);
+    optionsLayout->addWidget(m_compileCacheRow);
+    connect(compileCacheBrowse, &QPushButton::clicked, this, [this] {
+        QString dir = QFileDialog::getExistingDirectory(this, "Compile cache folder", m_compileCacheEdit->text());
+        if (!dir.isEmpty())
+            m_compileCacheEdit->setText(dir);
+    });
+    connect(m_compileCacheEdit, &QLineEdit::textChanged, this, &MainWindow::updateCachePruneButton);
+    connect(m_compileCachePrune, &QPushButton::clicked, this, &MainWindow::pruneCompileCache);
 
     // ── All Fixes master checkbox ──────────────────────────────────────
     m_allFixesCheck = new QCheckBox("All Fixes (recommended)");
@@ -1224,6 +1335,33 @@ MainWindow::MainWindow(QWidget *parent) :
             updateModeUI();
         });
         decompileHelpProc->start(m_sBinaryPath, {"decompile", "--help"});
+
+        // And compile --cache-dir (cleanmodels 4.17 and later).
+        auto *compileHelpProc = new QProcess(this);
+        compileHelpProc->setProcessChannelMode(QProcess::MergedChannels);
+        connect(compileHelpProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, compileHelpProc](int, QProcess::ExitStatus) {
+            compileHelpProc->deleteLater();
+            m_cliHasCacheDir = compileHelpProc->readAll().contains("-cache-dir");
+            if (!m_cliHasCacheDir)
+                m_compileCacheRow->setToolTip("Needs cleanmodels 4.17 or later");
+            updateModeUI();
+        });
+        compileHelpProc->start(m_sBinaryPath, {"compile", "--help"});
+
+        // And cache prune (cleanmodels 4.17 and later): its usage names
+        // --unused-for; an older CLI prints its general usage instead.
+        auto *pruneHelpProc = new QProcess(this);
+        pruneHelpProc->setProcessChannelMode(QProcess::MergedChannels);
+        connect(pruneHelpProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, pruneHelpProc](int, QProcess::ExitStatus) {
+            pruneHelpProc->deleteLater();
+            m_cliHasCachePrune = CachePrune::helpListsPrune(pruneHelpProc->readAll());
+            if (!m_cliHasCachePrune)
+                m_compileCachePrune->setToolTip("Needs cleanmodels 4.17 or later");
+            updateCachePruneButton();
+        });
+        pruneHelpProc->start(m_sBinaryPath, CachePrune::helpArgs());
     }
     else
     {
@@ -1374,6 +1512,11 @@ void MainWindow::loadSettings()
     m_checkWrapRoot->setChecked(s.value(Setting::FixWrapRoot, true).toBool());
     m_checkSplitMultiEdge->setChecked(s.value(Setting::FixSplitMultiedge, true).toBool());
     m_checkKeepVertexSplits->setChecked(s.value(Setting::KeepVertexSplits, false).toBool());
+    m_compileCacheEdit->setText(s.value(Setting::CompileCacheDir).toString());
+    bool pruneDaysOk = false;
+    const int pruneDays = s.value(Setting::CachePruneDays, CachePrune::DefaultDays).toInt(&pruneDaysOk);
+    m_cachePruneDays = pruneDaysOk ? qBound(CachePrune::MinDays, pruneDays, CachePrune::MaxDays)
+                                   : CachePrune::DefaultDays;
 
     // Advanced
     m_scaleXSpin->setValue(s.value(Setting::RescaleX, 1.0).toDouble());
@@ -1467,6 +1610,8 @@ void MainWindow::saveSettings()
     s.setValue(Setting::FixWrapRoot, m_checkWrapRoot->isChecked());
     s.setValue(Setting::FixSplitMultiedge, m_checkSplitMultiEdge->isChecked());
     s.setValue(Setting::KeepVertexSplits, m_checkKeepVertexSplits->isChecked());
+    s.setValue(Setting::CompileCacheDir, m_compileCacheEdit->text());
+    s.setValue(Setting::CachePruneDays, m_cachePruneDays);
 
     s.setValue(Setting::RescaleX, m_scaleXSpin->value());
     s.setValue(Setting::RescaleY, m_scaleYSpin->value());

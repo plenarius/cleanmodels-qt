@@ -8,7 +8,9 @@ Qt6/C++17 desktop GUI for [cleanmodels](https://github.com/plenarius/cleanmodels
 - **modelviewport.cpp** — QOpenGLWidget subclass for 3D model preview (OpenGL 3.3 Core)
 - **variantsdialog.cpp** — Make Variants window: runs `cleanmodels variants --json-lines --preview-dir`, shows a ModelViewport per race and phenotype (variant on its body), remakes a tile with `--width`/`--length`/`--shape` (sliders disabled where the CLI's `adjusts` says they do nothing), shows `learnedFrom`
 - **renderer.cpp** — Scene graph traversal, shader compilation, mesh/texture upload
-- **mdlscene.cpp** — Lightweight ASCII MDL parser (preview-only, not the authoritative parser)
+- **mdlscene.cpp** — Lightweight ASCII MDL parser (preview-only, not the authoritative parser); prunes each animation to its animroot as the game does (MDL-NODE-045)
+- **cacheprune.h** — the `cleanmodels cache prune` command line behind Compile mode's Prune cache… button
+- **tests/** — Qt Test unit tests (`ctest --test-dir build`)
 - **gpumesh.cpp / gputexture.cpp** — GPU resource wrappers
 - **camera.cpp** — Orbit camera with mouse interaction
 - **fsmodel.cpp** — QFileSystemModel wrapper for directory completion
