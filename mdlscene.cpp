@@ -263,10 +263,11 @@ bool MdlScene::loadFromString(const QString &ascii)
         }
         else
         {
+            // The game does not stop at donemodel: it reads on to the end of
+            // the file and still runs the animations it finds there (nwn-mdl-spec
+            // MDL-ASCII-020, cleanmodels 4.18), so the preview reads them too.
             if (line.startsWith("newanim "))
                 parseAnimBlock(lines, pos);
-            else if (line.startsWith("donemodel"))
-                break;
             else
                 pos++;
         }
@@ -784,10 +785,18 @@ void MdlScene::parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimati
 
 QStringList MdlScene::animationNames() const
 {
+    // A name the model repeats is listed once: the game plays only the first
+    // animation of that name, and so does findAnimation.
     QStringList out;
     out.reserve(m_animations.size());
-    for (const auto &a : m_animations)
+    QSet<QString> seen;
+    for (const auto &a : m_animations) {
+        const QString key = a.name.toLower();
+        if (seen.contains(key))
+            continue;
+        seen.insert(key);
         out.append(a.name);
+    }
     return out;
 }
 

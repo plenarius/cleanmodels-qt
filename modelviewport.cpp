@@ -8,6 +8,7 @@
 #include <QPointer>
 #include <QResizeEvent>
 #include <QShowEvent>
+#include <QStringDecoder>
 #include <QTimer>
 #include <utility>
 
@@ -163,6 +164,19 @@ void ModelViewport::paintGL()
     m_renderer.render(this, m_camera);
 }
 
+// ASCII models are UTF-8 or, from older tools and from the decompiler, which
+// keeps a node name's bytes above 0x7F as the game stores them (cleanmodels
+// 4.18), Latin-1. Text that is not valid UTF-8 is read as Latin-1, so such a
+// name keeps its letter instead of becoming U+FFFD.
+static QString decodeMdlText(const QByteArray &bytes)
+{
+    QStringDecoder utf8(QStringDecoder::Utf8);
+    QString text = utf8(bytes);
+    if (utf8.hasError())
+        return QString::fromLatin1(bytes);
+    return text;
+}
+
 bool ModelViewport::fileIsBinaryMdl(const QString &path)
 {
     QFile f(path);
@@ -183,7 +197,7 @@ void ModelViewport::decompileAsync(const QString &mdlPath,
             onError("Cannot open " + mdlPath);
             return;
         }
-        onSuccess(QString::fromUtf8(f.readAll()));
+        onSuccess(decodeMdlText(f.readAll()));
         return;
     }
 
@@ -226,7 +240,7 @@ void ModelViewport::decompileAsync(const QString &mdlPath,
                     (err.isEmpty() ? QStringLiteral("exit code %1").arg(exitCode)
                                    : QString::fromUtf8(err)));
         } else {
-            onSuccess(QString::fromUtf8(proc->readAllStandardOutput()));
+            onSuccess(decodeMdlText(proc->readAllStandardOutput()));
         }
         proc->deleteLater();
     });
