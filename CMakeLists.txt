@@ -58,3 +58,20 @@ if(WIN32)
 endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+
+# Unit tests (Qt Test): ctest --test-dir build -C Release
+option(CLEANMODELS_QT_TESTS "Build the unit tests" ON)
+if(CLEANMODELS_QT_TESTS)
+    enable_testing()
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+
+    add_executable(tst_animroot tests/tst_animroot.cpp mdlscene.cpp)
+    target_include_directories(tst_animroot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(tst_animroot PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    add_test(NAME tst_animroot COMMAND tst_animroot)
+
+    add_executable(tst_cacheprune tests/tst_cacheprune.cpp)
+    target_include_directories(tst_cacheprune PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(tst_cacheprune PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME tst_cacheprune COMMAND tst_cacheprune)
+endif()

@@ -62,12 +62,21 @@ struct MdlAnimNodeChannels {
     }
 };
 
+// One node of an animation's own tree, as its ASCII names it: the node and
+// the `parent` line (empty or NULL for the root).
+struct MdlAnimTreeNode {
+    QString name;
+    QString parent;
+};
+
 struct MdlAnimation {
     QString name;
     float length = 0.0f;     // seconds; from "length T" in the anim header
     float transTime = 0.0f;  // seconds; transition fade hint, unused for now
     QString animRoot;        // subtree to apply to ("animroot NAME")
-    QHash<QString, MdlAnimNodeChannels> channels; // key: node name
+    // Key: node name. Only the nodes the game plays: the parser has already
+    // pruned the tree to the animroot (MdlScene::animRootKeptNodes).
+    QHash<QString, MdlAnimNodeChannels> channels;
 };
 
 struct MdlNode {
@@ -173,6 +182,19 @@ public:
     const QVector<MdlAnimation> &animations() const { return m_animations; }
     const MdlAnimation *findAnimation(const QString &name) const;
 
+    // Which of an animation's nodes (in file order) the game plays, after it
+    // prunes the animation to its animroot when it reads the ASCII
+    // (nwn-mdl-spec MDL-NODE-045; cleanmodels' pruneAnimTree). The animroot
+    // is looked up among the animation's own nodes, depth first from its
+    // root, by exact name: case counts, and the geometry is not searched.
+    // When a node other than the root matches, only the path from the root
+    // down to it and its own subtree are kept (the path keeps the subtree in
+    // place). When none matches, or the animroot is empty or NULL, every
+    // node is kept. Parents are found as the compiler finds them: the
+    // nearest earlier node of that name, any case, else the first anywhere.
+    static QVector<bool> animRootKeptNodes(const QVector<MdlAnimTreeNode> &nodes,
+                                           const QString &animRoot);
+
 private:
     QVector<MdlNode> m_nodes;
     // Name -> first-occurrence index. Built once in loadFromString so
@@ -214,7 +236,11 @@ private:
     // (no intervening `endnode`) from blowing the stack.
     void parseNodeBlock(const QStringList &lines, int &pos, int depth = 0);
     void parseAnimBlock(const QStringList &lines, int &pos);
-    void parseAnimNodeBlock(const QStringList &lines, int &pos, MdlAnimation &anim);
+    struct ParsedAnimNode {
+        MdlAnimTreeNode tree;
+        MdlAnimNodeChannels channels;
+    };
+    void parseAnimNodeBlock(const QStringList &lines, int &pos, QVector<ParsedAnimNode> &nodes);
     // Iterative DFS over the parent->child graph from `rootIdx`. The
     // `visited` set short-circuits cyclic chains (two nodes claiming
     // each other as parent, or longer cycles); the explicit

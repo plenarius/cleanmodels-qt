@@ -14,7 +14,8 @@ Qt6 GUI for [cleanmodels](https://github.com/plenarius/cleanmodels), a tool to v
 - **Make Variants** (*Tools* menu, or right-click a model): make a robe's, cloak's or armour part's versions for the other races (custom ones from your haks too) and phenotypes, see them all on their bodies in one grid, and reshape any of them with sliders (width, length, shoulders, chest, waist, hips, hem)
 - Full access to the cleanmodels repair, transform, and tile options
 - **Fix Shadows** mode: on binary models, opens the edges shared by three or more faces, where the game's shadow volume tears, by changing only the faces' stored neighbours (`repair --open-multiedges`). Decompile can **keep vertex splits** (`--keep-vertex-splits`) to write one position per binary vertex, as older versions did. Both appear when the cleanmodels CLI has them
-- Compile can keep a **cache folder** (`compile --cache-dir`, cleanmodels 4.17 and later): a model whose file, supermodels, skeleton, `capart.2da` and materials have not changed since its last compile is written from the cache, and the file list says *Compiled (from the cache)*
+- Compile can keep a **cache folder** (`compile --cache-dir`, cleanmodels 4.17 and later): a model whose file, supermodels, skeleton, `capart.2da` and materials have not changed since its last compile is written from the cache, and the file list says *Compiled (from the cache)*. **Prune cache…** removes the models no compile has used for as many days as you choose (30 by default), with `cleanmodels cache prune`
+- The preview plays each animation as the game does: one whose `animroot` names one of its nodes (case counts) moves only that node's subtree
 - Persistent settings for directories, options, and camera
 
 ## Screenshots
@@ -111,6 +112,10 @@ cd cleanmodels-qt
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:\Qt\6.7.0\msvc2022_64
 cmake --build build --config Release
 ```
+
+### Tests
+
+The unit tests (Qt Test) build with the app; run them with `ctest --test-dir build -C Release --output-on-failure`. Configure with `-DCLEANMODELS_QT_TESTS=OFF` to leave them out.
 
 ## License
 
