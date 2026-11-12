@@ -234,6 +234,9 @@ void MainWindow::updateModeUI()
     // Shown only in Decompile mode; usable only when the CLI has the flag.
     m_checkKeepVertexSplits->setVisible(m_radioDecompile->isChecked());
     m_checkKeepVertexSplits->setEnabled(m_cliHasKeepVertexSplits);
+    // Likewise the compile cache folder, in Compile mode.
+    m_compileCacheRow->setVisible(m_radioCompile->isChecked());
+    m_compileCacheRow->setEnabled(m_cliHasCacheDir);
 }
 
 static QFrame *makeHLine()
@@ -352,6 +355,32 @@ void MainWindow::buildUi()
     decompileRow->addWidget(m_checkKeepVertexSplits);
     decompileRow->addStretch();
     optionsLayout->addLayout(decompileRow);
+
+    // Compile: an optional cache folder (compile --cache-dir). A model whose
+    // file, supermodels, skeleton, capart.2da and materials are unchanged
+    // since its last compile with this cleanmodels is written from there.
+    m_compileCacheRow = new QWidget;
+    auto *compileCacheLayout = new QHBoxLayout(m_compileCacheRow);
+    compileCacheLayout->setContentsMargins(Layout::IndentLeft, 0, 0, 0);
+    m_compileCacheEdit = new QLineEdit;
+    m_compileCacheEdit->setPlaceholderText("No cache: compile every model");
+    m_compileCacheEdit->setToolTip("Keep each compile in this folder and reuse it while the model, this cleanmodels and every\n"
+                                   "supermodel, skeleton, capart.2da and material the compile looked up are unchanged.\n"
+                                   "Binary input is always compiled. Created if missing; leave empty to compile every model.");
+    m_compileCacheEdit->setAccessibleName(tr("Compile cache folder"));
+    auto *compileCacheBrowse = new QPushButton("Browse…");
+    compileCacheBrowse->setAccessibleName(tr("Browse for the compile cache folder"));
+    compileCacheLayout->addWidget(new QLabel("Cache:"));
+    compileCacheLayout->addWidget(m_compileCacheEdit, 1);
+    compileCacheLayout->addWidget(compileCacheBrowse);
+    m_compileCacheRow->setEnabled(false);
+    m_compileCacheRow->setVisible(false);
+    optionsLayout->addWidget(m_compileCacheRow);
+    connect(compileCacheBrowse, &QPushButton::clicked, this, [this] {
+        QString dir = QFileDialog::getExistingDirectory(this, "Compile cache folder", m_compileCacheEdit->text());
+        if (!dir.isEmpty())
+            m_compileCacheEdit->setText(dir);
+    });
 
     // ── All Fixes master checkbox ──────────────────────────────────────
     m_allFixesCheck = new QCheckBox("All Fixes (recommended)");
@@ -1224,6 +1253,19 @@ MainWindow::MainWindow(QWidget *parent) :
             updateModeUI();
         });
         decompileHelpProc->start(m_sBinaryPath, {"decompile", "--help"});
+
+        // And compile --cache-dir (cleanmodels 4.17 and later).
+        auto *compileHelpProc = new QProcess(this);
+        compileHelpProc->setProcessChannelMode(QProcess::MergedChannels);
+        connect(compileHelpProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, compileHelpProc](int, QProcess::ExitStatus) {
+            compileHelpProc->deleteLater();
+            m_cliHasCacheDir = compileHelpProc->readAll().contains("-cache-dir");
+            if (!m_cliHasCacheDir)
+                m_compileCacheRow->setToolTip("Needs cleanmodels 4.17 or later");
+            updateModeUI();
+        });
+        compileHelpProc->start(m_sBinaryPath, {"compile", "--help"});
     }
     else
     {
@@ -1374,6 +1416,7 @@ void MainWindow::loadSettings()
     m_checkWrapRoot->setChecked(s.value(Setting::FixWrapRoot, true).toBool());
     m_checkSplitMultiEdge->setChecked(s.value(Setting::FixSplitMultiedge, true).toBool());
     m_checkKeepVertexSplits->setChecked(s.value(Setting::KeepVertexSplits, false).toBool());
+    m_compileCacheEdit->setText(s.value(Setting::CompileCacheDir).toString());
 
     // Advanced
     m_scaleXSpin->setValue(s.value(Setting::RescaleX, 1.0).toDouble());
@@ -1467,6 +1510,7 @@ void MainWindow::saveSettings()
     s.setValue(Setting::FixWrapRoot, m_checkWrapRoot->isChecked());
     s.setValue(Setting::FixSplitMultiedge, m_checkSplitMultiEdge->isChecked());
     s.setValue(Setting::KeepVertexSplits, m_checkKeepVertexSplits->isChecked());
+    s.setValue(Setting::CompileCacheDir, m_compileCacheEdit->text());
 
     s.setValue(Setting::RescaleX, m_scaleXSpin->value());
     s.setValue(Setting::RescaleY, m_scaleYSpin->value());

@@ -87,6 +87,11 @@ private:
     // --keep-vertex-splits), asked of the CLI like the repair flags.
     QCheckBox *m_checkKeepVertexSplits;
     bool m_cliHasKeepVertexSplits = false;
+    // Compile with a cache folder (compile --cache-dir, cleanmodels 4.17):
+    // a model whose inputs have not changed is written from the cache.
+    QWidget *m_compileCacheRow;
+    QLineEdit *m_compileCacheEdit;
+    bool m_cliHasCacheDir = false;
 
     // --- Fixes ---
     QCheckBox *m_allFixesCheck;
@@ -224,6 +229,7 @@ private:
     bool m_bUpdateFilesAfterClean = false;
     bool m_bCleanRunning = false;
     int m_nMdlsCleaned = 0;
+    int m_nMdlsCached = 0;   // compile --cache-dir results written from the cache
     int m_nMdlsFailed = 0;
 
     ModelViewport *m_viewport = nullptr;

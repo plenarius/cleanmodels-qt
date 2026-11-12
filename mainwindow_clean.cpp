@@ -102,6 +102,14 @@ void MainWindow::onCaptureCleanModelsOutput()
             QStringList findings;
             QStringList allTooltipLines;
             QJsonObject result = evt["result"].toObject();
+
+            // compile --cache-dir (CLI 4.17 and later): the output is an earlier
+            // compile's, whose model and resources were all the same. Its
+            // warnings are that compile's, and come in the usual fields.
+            const bool cached = result["cached"].toBool();
+            if (cached)
+                m_nMdlsCached++;
+            const QString doneVerb = cached ? actionVerbPast % QStringLiteral(" (from the cache)") : actionVerbPast;
             QJsonArray checks = result["checks"].toArray();
             for (const auto &c : checks)
             {
@@ -171,7 +179,7 @@ void MainWindow::onCaptureCleanModelsOutput()
             }
 
             appendDebugHtml(QStringLiteral("<p>") % LogHtml::span(LogColor::Success,
-                QStringLiteral("<b>") % file.toHtmlEscaped() % QStringLiteral(" ") % actionVerbPast.toLower()
+                QStringLiteral("<b>") % file.toHtmlEscaped() % QStringLiteral(" ") % doneVerb.toLower()
                 % QStringLiteral(" (") % QString::number(fixes) % QStringLiteral(" fixes)</b>"))
                 % QStringLiteral("</p>"));
 
@@ -202,7 +210,7 @@ void MainWindow::onCaptureCleanModelsOutput()
 
             // Store per-file results for the detail panel
             QStringList fileHtmlLines;
-            fileHtmlLines << "<p><b>" % file.toHtmlEscaped() % "</b> — " % actionVerbPast.toLower() % " (" % QString::number(fixes) % " fixes, " % elapsedStr % ")</p>";
+            fileHtmlLines << "<p><b>" % file.toHtmlEscaped() % "</b> — " % doneVerb.toLower() % " (" % QString::number(fixes) % " fixes, " % elapsedStr % ")</p>";
             if (!detailHtml.isEmpty())
                 fileHtmlLines << detailHtml;
             m_fileResults[file] = fileHtmlLines;
@@ -216,9 +224,9 @@ void MainWindow::onCaptureCleanModelsOutput()
             if (row >= 0)
             {
                 auto *statusItem = new QTableWidgetItem();
-                statusItem->setText(actionVerbPast);
+                statusItem->setText(doneVerb);
                 statusItem->setIcon(style()->standardIcon(QStyle::SP_DialogApplyButton));
-                statusItem->setToolTip(actionVerbPast);
+                statusItem->setToolTip(doneVerb);
                 m_filesTable->setItem(row, 2, statusItem);
 
                 QString fixesText = QString::number(fixes);
@@ -308,6 +316,9 @@ QStringList MainWindow::buildCliArgs()
     else if (m_radioCompile->isChecked())
     {
         args << CliCommand::Compile << CliFlag::JsonLines;
+        const QString cacheDir = m_compileCacheEdit->text().trimmed();
+        if (!cacheDir.isEmpty() && m_cliHasCacheDir)
+            args << CliFlag::CacheDir << cacheDir;
     }
     else if (m_radioFixShadows->isChecked())
     {
@@ -605,6 +616,7 @@ void MainWindow::doClean()
 void MainWindow::onCleanStarted()
 {
     m_nMdlsCleaned = 0;
+    m_nMdlsCached = 0;
     m_nMdlsFailed = 0;
     m_mdlsCleanedLabel->setText("Cleaned: 0");
     m_mdlsFailedLabel->setText("Failed: 0");
@@ -689,6 +701,8 @@ void MainWindow::onCleanFinished(int exitCode, QProcess::ExitStatus exitStatus)
     m_batchSummary = QString("%1 files cleaned, %2 failed")
         .arg(m_nMdlsCleaned)
         .arg(m_nMdlsFailed);
+    if (m_nMdlsCached > 0)
+        m_batchSummary += QString(", %1 from the cache").arg(m_nMdlsCached);
 
     if (m_filesTable->currentRow() < 0)
         showBatchSummary();

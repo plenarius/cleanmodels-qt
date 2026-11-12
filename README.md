@@ -14,6 +14,7 @@ Qt6 GUI for [cleanmodels](https://github.com/plenarius/cleanmodels), a tool to v
 - **Make Variants** (*Tools* menu, or right-click a model): make a robe's, cloak's or armour part's versions for the other races (custom ones from your haks too) and phenotypes, see them all on their bodies in one grid, and reshape any of them with sliders (width, length, shoulders, chest, waist, hips, hem)
 - Full access to the cleanmodels repair, transform, and tile options
 - **Fix Shadows** mode: on binary models, opens the edges shared by three or more faces, where the game's shadow volume tears, by changing only the faces' stored neighbours (`repair --open-multiedges`). Decompile can **keep vertex splits** (`--keep-vertex-splits`) to write one position per binary vertex, as older versions did. Both appear when the cleanmodels CLI has them
+- Compile can keep a **cache folder** (`compile --cache-dir`, cleanmodels 4.17 and later): a model whose file, supermodels, skeleton, `capart.2da` and materials have not changed since its last compile is written from the cache, and the file list says *Compiled (from the cache)*
 - Persistent settings for directories, options, and camera
 
 ## Screenshots
