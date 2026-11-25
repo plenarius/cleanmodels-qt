@@ -43,6 +43,10 @@ jobs:
             cmake_extra: ""
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.name }}
+    # The signing secrets live in the tag-only "release" environment, so
+    # only the macOS leg of a tag build asks for it; PR and branch builds
+    # would otherwise be blocked by its tag rule.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'macos' && 'release' || '' }}
 
     steps:
       - uses: actions/checkout@v6
@@ -191,15 +195,119 @@ jobs:
 
           # Bundle the cleanmodels CLI inside the .app next to the GUI
           # binary. macdeployqt is finished by this point so we won't
-          # confuse it with extra Mach-O files. The CLI is unsigned —
-          # users opening the .app for the first time may need to clear
-          # quarantine from the bundled binary the same way they do for
-          # the GUI itself.
+          # confuse it with extra Mach-O files; the signing step below
+          # signs it along with everything else in the bundle.
           install -m 755 cli-bundle/cleanmodels build/cleanmodels-qt.app/Contents/MacOS/cleanmodels
 
-          mkdir dist
-          cp -R build/cleanmodels-qt.app dist/
-          cd dist && zip -r ../cleanmodels-qt-${{ matrix.name }}.zip cleanmodels-qt.app
+      - name: Import signing certificate (macOS, tags)
+        id: keychain
+        if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          echo "::add-mask::${KEYCHAIN_PASSWORD}"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$KEYCHAIN" -f pkcs12 \
+            -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/developer-id.p12"
+          # Lets codesign use the key without a UI prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          # codesign only finds identities in keychains on the search list.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" \
+            | awk -v team="(${TEAM_ID})" '/Developer ID Application/ && index($0, team) { print $2; exit }')
+          if [ -z "$IDENTITY" ]; then
+            echo "No Developer ID Application identity for team ${TEAM_ID} in the p12" >&2
+            exit 1
+          fi
+          echo "keychain=${KEYCHAIN}" >> "$GITHUB_OUTPUT"
+          echo "identity=${IDENTITY}" >> "$GITHUB_OUTPUT"
+
+      - name: Sign (macOS)
+        if: runner.os == 'macOS'
+        env:
+          KEYCHAIN: ${{ steps.keychain.outputs.keychain }}
+          IDENTITY: ${{ steps.keychain.outputs.identity }}
+        run: |
+          APP=build/cleanmodels-qt.app
+          if [ -n "$IDENTITY" ]; then
+            SIGN=(codesign --force --timestamp --options runtime --keychain "$KEYCHAIN" --sign "$IDENTITY")
+          else
+            # Non-tag builds sign ad hoc, which exercises the same inside-out
+            # order on every PR. No hardened runtime here: its library
+            # validation needs a Team ID that ad hoc signatures lack.
+            SIGN=(codesign --force --sign -)
+          fi
+
+          # Inside out, without --deep: loose Mach-O files first (plugins,
+          # dylibs, the bundled CLI), then each framework as a bundle, then
+          # the app, whose signature seals the main executable.
+          while IFS= read -r -d '' f; do
+            case "$f" in
+              *.framework/*|"$APP/Contents/MacOS/cleanmodels-qt") continue ;;
+            esac
+            if file -b "$f" | grep -q 'Mach-O'; then
+              "${SIGN[@]}" "$f"
+            fi
+          done < <(find "$APP/Contents" -type f -print0)
+          while IFS= read -r -d '' fw; do
+            "${SIGN[@]}" "$fw"
+          done < <(find "$APP/Contents" -type d -name '*.framework' -print0)
+          "${SIGN[@]}" "$APP"
+
+          codesign --verify --strict --deep --verbose=2 "$APP"
+          codesign --display --verbose=2 "$APP"
+
+      - name: Notarize (macOS, tags)
+        if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ vars.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ vars.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          APP=build/cleanmodels-qt.app
+          KEY="$RUNNER_TEMP/notary-key.p8"
+          printf '%s\n' "$NOTARY_KEY_P8" > "$KEY"
+          AUTH=(--key "$KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
+
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
+          RESULT=$(xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" "${AUTH[@]}" \
+            --wait --timeout 1h --output-format json)
+          echo "$RESULT"
+          SUBMISSION=$(jq -r .id <<< "$RESULT")
+          STATUS=$(jq -r .status <<< "$RESULT")
+          # The log lists every rejected file, so print it either way.
+          xcrun notarytool log "$SUBMISSION" "${AUTH[@]}" || true
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "Notarization ${STATUS}" >&2
+            exit 1
+          fi
+
+          # Stapling lets Gatekeeper accept the app offline.
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          spctl -a -vv -t exec "$APP"
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        # ditto keeps the signatures and stapled ticket intact.
+        run: ditto -c -k --keepParent build/cleanmodels-qt.app cleanmodels-qt-${{ matrix.name }}.zip
+
+      - name: Remove signing keychain (macOS)
+        if: always() && runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/notary-key.p8" "$RUNNER_TEMP/notarize.zip"
 
       - name: Deploy (Windows)
         if: runner.os == 'Windows'
