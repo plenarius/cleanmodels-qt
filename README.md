@@ -62,7 +62,7 @@ Grab the latest build for your platform from the [Releases](https://github.com/p
 
 Each release also has a `SHA256SUMS.txt` listing the checksum of every download.
 
-> **Windows warns about the download?** The Windows build is not code-signed yet, so SmartScreen may say "Windows protected your PC" (unknown publisher), and Defender sometimes flags unsigned programs, including the bundled `cleanmodels.exe`, by mistake. These warnings are about the files having no reputation yet, not about anything found in them. To check that your copy is the one GitHub Actions built from this repository, compare its checksum with the release's `SHA256SUMS.txt`:
+> **Windows warns about the download?** Windows builds are code-signed from the next release on. Earlier ones are not, so SmartScreen may say "Windows protected your PC" (unknown publisher), and Defender sometimes flags unsigned programs, including the bundled `cleanmodels.exe`, by mistake. These warnings are about the files having no reputation yet, not about anything found in them. To check that your copy is the one GitHub Actions built from this repository, compare its checksum with the release's `SHA256SUMS.txt`:
 >
 > ```
 > Get-FileHash cleanmodels-qt-windows-amd64.zip -Algorithm SHA256
