@@ -43,10 +43,13 @@ jobs:
             cmake_extra: ""
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.name }}
-    # The signing secrets live in the tag-only "release" environment, so
-    # only the macOS leg of a tag build asks for it; PR and branch builds
-    # would otherwise be blocked by its tag rule.
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'macos' && 'release' || '' }}
+    # The signing secrets and Azure IDs live in the tag-only "release"
+    # environment, so only the macOS and Windows legs of a tag build ask for
+    # it; PR and branch builds would otherwise be blocked by its tag rule.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && (matrix.name == 'macos' || matrix.name == 'windows-amd64') && 'release' || '' }}
+    permissions:
+      contents: read
+      id-token: write # Windows signing signs in to Azure with GitHub's OIDC token
 
     steps:
       - uses: actions/checkout@v6
@@ -317,9 +320,60 @@ jobs:
           Copy-Item build\Release\cleanmodels-qt.exe dist\cleanmodels-qt\
           & "$env:QT_ROOT_DIR\bin\windeployqt.exe" dist\cleanmodels-qt\cleanmodels-qt.exe --release --no-translations --no-system-d3d-compiler
 
+          # What the tag build signs: everything here that has no signature
+          # yet. Listed on every build so PRs exercise the selection.
+          Get-ChildItem dist\cleanmodels-qt -Recurse -Include *.exe,*.dll |
+            Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -eq 'NotSigned' } |
+            Resolve-Path -Relative | Set-Content -Encoding ascii $env:RUNNER_TEMP\to-sign.txt
+          Get-Content $env:RUNNER_TEMP\to-sign.txt
+
+      - name: Sign (Windows, tags)
+        # Authenticode signature from Azure Artifact Signing, so SmartScreen
+        # and antivirus see a verified publisher. GitHub's OIDC token signs in
+        # to Azure; no signing secret is stored. Signs the GUI and the Qt
+        # files windeployqt copied (the list from the deploy step).
+        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          mapfile -t FILES < <(tr -d '\r' < "$RUNNER_TEMP/to-sign.txt")
+          if [ "${#FILES[@]}" -eq 0 ]; then echo "Nothing to sign" >&2; exit 1; fi
+
+          JSIGN=jsign-7.6.jar
+          curl -fsSLO "https://github.com/ebourg/jsign/releases/download/7.6/${JSIGN}"
+          echo "6cf58aa080e7ff82656f320cff8d4a3bff30408df8766806dcba3740dd839fa5  ${JSIGN}" | sha256sum -c -
+          OIDC="$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | jq -r .value)"
+          echo "::add-mask::${OIDC}"
+          az login --service-principal -u "$AZURE_CLIENT_ID" -t "$AZURE_TENANT_ID" \
+            --federated-token "$OIDC" --allow-no-subscriptions >/dev/null
+          TOKEN="$(az account get-access-token --resource https://codesigning.azure.net --query accessToken -o tsv)"
+          echo "::add-mask::${TOKEN}"
+          java -jar "$JSIGN" --storetype TRUSTEDSIGNING --keystore eus.codesigning.azure.net \
+            --storepass "$TOKEN" --alias orthartifacts/orthca-public \
+            --tsaurl http://timestamp.acs.microsoft.com --tsmode RFC3161 \
+            "${FILES[@]}"
+          az logout
+          rm -f "$JSIGN"
+
+          pwsh -NoProfile -Command '
+            $bad = Get-Content $env:RUNNER_TEMP\to-sign.txt | Get-AuthenticodeSignature |
+              Where-Object Status -ne Valid
+            $bad | Format-Table Status,Path -AutoSize
+            Get-AuthenticodeSignature dist\cleanmodels-qt\cleanmodels-qt.exe | Format-List Status,SignerCertificate
+            if ($bad) { exit 1 }'
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
           # Bundle the cleanmodels CLI next to the GUI inside the same
           # zip, so the GUI's "alongside binary" lookup finds it without
-          # extra setup on the user's part.
+          # extra setup on the user's part. It comes from the cleanmodels
+          # release, which signs it there.
           Copy-Item cli-bundle\cleanmodels.exe dist\cleanmodels-qt\
 
           Compress-Archive -Path dist\cleanmodels-qt -DestinationPath cleanmodels-qt-${{ matrix.name }}.zip
