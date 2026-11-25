@@ -330,6 +330,7 @@ jobs:
           $sigs | Format-Table Status,@{n='Signer';e={$_.SignerCertificate.GetNameInfo('SimpleName',$false)}},@{n='File';e={Split-Path -Leaf $_.Path}} -AutoSize
           $sigs | Where-Object Status -eq NotSigned | ForEach-Object { Resolve-Path -Relative $_.Path } |
             Set-Content -Encoding ascii $env:RUNNER_TEMP\to-sign.txt
+          Get-Content $env:RUNNER_TEMP\to-sign.txt
 
       - name: Sign (Windows, tags)
         # Authenticode signature from Azure Artifact Signing, so SmartScreen
