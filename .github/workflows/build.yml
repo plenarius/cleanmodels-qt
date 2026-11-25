@@ -321,20 +321,21 @@ jobs:
           & "$env:QT_ROOT_DIR\bin\windeployqt.exe" dist\cleanmodels-qt\cleanmodels-qt.exe --release --no-translations --no-system-d3d-compiler
 
           # What the tag build signs: everything here that has no signature
-          # yet. Files that already carry their vendor's signature keep it.
+          # yet, in practice cleanmodels-qt.exe. Qt's DLLs already carry The
+          # Qt Company's signature and keep it.
           # Listed on every build so PRs exercise the selection.
           Push-Location dist\cleanmodels-qt
           $sigs = Get-ChildItem -Recurse -Include *.exe,*.dll | Get-AuthenticodeSignature
           Pop-Location
-          $sigs | Format-Table Status,@{n='Signer';e={$_.SignerCertificate.Subject}},Path -AutoSize -Wrap
+          $sigs | Format-Table Status,@{n='Signer';e={$_.SignerCertificate.GetNameInfo('SimpleName',$false)}},@{n='File';e={Split-Path -Leaf $_.Path}} -AutoSize
           $sigs | Where-Object Status -eq NotSigned | ForEach-Object { Resolve-Path -Relative $_.Path } |
             Set-Content -Encoding ascii $env:RUNNER_TEMP\to-sign.txt
 
       - name: Sign (Windows, tags)
         # Authenticode signature from Azure Artifact Signing, so SmartScreen
         # and antivirus see a verified publisher. GitHub's OIDC token signs in
-        # to Azure; no signing secret is stored. Signs the GUI and the Qt
-        # files windeployqt copied (the list from the deploy step).
+        # to Azure; no signing secret is stored. Signs the unsigned files the
+        # deploy step listed.
         if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
