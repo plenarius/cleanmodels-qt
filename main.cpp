@@ -2,6 +2,7 @@
 #include "mainwindow.h"
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QIcon>
 #include <QSurfaceFormat>
 
 int main(int argc, char *argv[])
@@ -17,6 +18,8 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName("Clean Models Community");
     QCoreApplication::setApplicationName("Clean Models::EE QT");
     QCoreApplication::setApplicationVersion(QT_VERSION_STR);
+    // Title bars and Linux docks; Windows and macOS also read the icon from the .exe and .app.
+    QApplication::setWindowIcon(QIcon(":/icons/app.png"));
 
     QCommandLineParser parser;
     parser.setApplicationDescription("Desktop GUI for cleanmodels, the NWN:EE model tool");

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9a5418"/>
+      <stop offset=".35" stop-color="#eaa75e"/>
+      <stop offset=".65" stop-color="#cf8636"/>
+      <stop offset="1" stop-color="#8a4a14"/>
+    </linearGradient>
+    <linearGradient id="straw" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d8b80c"/>
+      <stop offset=".3" stop-color="#fff58c"/>
+      <stop offset=".6" stop-color="#f5df3a"/>
+      <stop offset="1" stop-color="#c8a400"/>
+    </linearGradient>
+    <linearGradient id="strawTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7a5f00" stop-opacity=".28"/>
+      <stop offset=".22" stop-color="#7a5f00" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="band" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4b3384"/>
+      <stop offset=".4" stop-color="#9c84d8"/>
+      <stop offset="1" stop-color="#3d2870"/>
+    </linearGradient>
+    <radialGradient id="shadow">
+      <stop offset="0" stop-color="#000" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="262" cy="452" rx="170" ry="34" fill="url(#shadow)"/>
+  <g transform="rotate(24 256 256)">
+    <!-- handle: a paddle that widens to a rounded end with a hanging hole -->
+    <path d="M238 232 L232 86 Q228 34 256 30 Q284 34 280 86 L274 232 Z"
+          fill="url(#wood)" stroke="#5e2f0c" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="256" cy="70" rx="11" ry="15" fill="#fff" fill-opacity=".85" stroke="#5e2f0c" stroke-width="6"/>
+    <!-- bristles -->
+    <path id="b" d="M190 236 L322 236 Q350 330 380 432 Q362 450 340 440 Q322 458 300 444 Q280 460 258 446 Q236 460 216 444 Q194 458 176 440 Q154 450 136 432 Q164 330 190 236 Z"
+          fill="url(#straw)" stroke="#8f7400" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M190 236 L322 236 Q350 330 380 432 Q362 450 340 440 Q322 458 300 444 Q280 460 258 446 Q236 460 216 444 Q194 458 176 440 Q154 450 136 432 Q164 330 190 236 Z" fill="url(#strawTop)"/>
+    <g stroke="#b89600" stroke-width="5" stroke-linecap="round" fill="none" opacity=".75">
+      <path d="M212 290 L184 424"/><path d="M238 290 L226 432"/><path d="M262 290 L268 432"/><path d="M288 290 L310 428"/><path d="M308 300 L344 418"/>
+    </g>
+    <!-- binding -->
+    <rect x="182" y="218" width="148" height="40" rx="12" fill="url(#band)" stroke="#2c1b55" stroke-width="7"/>
+    <path d="M196 230 H316" stroke="#c9b8f2" stroke-width="5" stroke-linecap="round" opacity=".6"/>
+  </g>
+</svg>

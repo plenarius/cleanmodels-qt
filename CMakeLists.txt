@@ -38,7 +38,17 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core Qt6::Widgets Qt6::Gui Qt6::OpenGL Qt6::OpenGLWidgets)
 
 if(APPLE)
-    set_target_properties(${PROJECT_NAME} PROPERTIES MACOSX_BUNDLE TRUE)
+    # Finder and the Dock read the icon from the bundle's Resources, named in Info.plist.
+    set(CMQT_ICNS "${CMAKE_CURRENT_SOURCE_DIR}/cmicon.icns")
+    set_source_files_properties(${CMQT_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(${PROJECT_NAME} PRIVATE ${CMQT_ICNS})
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_ICON_FILE cmicon.icns
+        MACOSX_BUNDLE_GUI_IDENTIFIER ca.orth.cleanmodels-qt
+        MACOSX_BUNDLE_BUNDLE_NAME cleanmodels-qt
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${CLEANMODELS_QT_VERSION}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${CLEANMODELS_QT_VERSION}")
 endif()
 if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
