@@ -321,11 +321,14 @@ jobs:
           & "$env:QT_ROOT_DIR\bin\windeployqt.exe" dist\cleanmodels-qt\cleanmodels-qt.exe --release --no-translations --no-system-d3d-compiler
 
           # What the tag build signs: everything here that has no signature
-          # yet. Listed on every build so PRs exercise the selection.
-          Get-ChildItem dist\cleanmodels-qt -Recurse -Include *.exe,*.dll |
-            Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -eq 'NotSigned' } |
-            Resolve-Path -Relative | Set-Content -Encoding ascii $env:RUNNER_TEMP\to-sign.txt
-          Get-Content $env:RUNNER_TEMP\to-sign.txt
+          # yet. Files that already carry their vendor's signature keep it.
+          # Listed on every build so PRs exercise the selection.
+          Push-Location dist\cleanmodels-qt
+          $sigs = Get-ChildItem -Recurse -Include *.exe,*.dll | Get-AuthenticodeSignature
+          Pop-Location
+          $sigs | Format-Table Status,@{n='Signer';e={$_.SignerCertificate.Subject}},Path -AutoSize -Wrap
+          $sigs | Where-Object Status -eq NotSigned | ForEach-Object { Resolve-Path -Relative $_.Path } |
+            Set-Content -Encoding ascii $env:RUNNER_TEMP\to-sign.txt
 
       - name: Sign (Windows, tags)
         # Authenticode signature from Azure Artifact Signing, so SmartScreen
