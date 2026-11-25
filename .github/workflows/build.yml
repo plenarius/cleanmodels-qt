@@ -172,9 +172,7 @@ jobs:
           wget -q "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${ARCH}.AppImage"
           chmod +x linuxdeploy*.AppImage
 
-          # Convert ico to png for AppImage icon
-          convert cmicon.ico[0] -resize 256x256 cleanmodels-qt.png 2>/dev/null || \
-            cp icons/clean-button.png cleanmodels-qt.png
+          cp cmicon.png cleanmodels-qt.png
 
           # Build AppImage
           export QMAKE="$QT_ROOT_DIR/bin/qmake"

@@ -1,5 +1,6 @@
 <?xml version="1.0" ?>
 <RCC version="1.0">
 	<qresource prefix="icons">
+		<file alias="app.png">cmicon.png</file>
 	</qresource>
 </RCC>
