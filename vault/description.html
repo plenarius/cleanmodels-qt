@@ -1,0 +1,60 @@
+<p><strong>Always check GitHub for the latest version.</strong> The downloads on this page are only updated now and then, and fixes are released on GitHub first. Latest releases: <a href="https://github.com/plenarius/cleanmodels-qt/releases/latest">Application</a> and <a href="https://github.com/plenarius/cleanmodels/releases/latest">Command line</a>. The files on this page are cleanmodels {{cli}} and the application {{app}}.</p>
+<p>Cross Platform Command Line and UI upgrade for OldManBeard's awesome <a href="https://neverwintervault.org/project/nwn1/other/cleanmodels3">CleanModels3</a> program</p>
+<p>cleanmodels checks, repairs, compiles and decompiles Neverwinter Nights: Enhanced Edition MDL model files. It is a complete rewrite in Go: one small program per platform with nothing else to install, fast on whole folders of models, and it works the same on Windows, Linux and macOS. It comes as a command line tool and as a desktop app that has the command line tool built in.</p>
+<p><strong>What it does</strong></p>
+<ul>
+<li>Checks a model or a whole folder against 57 rules (walkmeshes, tile fade, texture coordinates, skin weights, animations, emitters, resref lengths and more) and explains each finding in plain language</li>
+<li>Repairs what can be repaired automatically: walkmesh pivots, AABB trees, tilefade, degenerate faces, zero-length tangents (white streaks), robe pieces the game draws turned the wrong way when worn (a cape standing up above the shoulder), animation lengths, duplicate node names and more, listing every change it made. Shadows that tear where three or more faces meet at one edge are fixed in a binary model by changing only those faces' stored neighbours, nothing else in the file</li>
+<li>Compiles ASCII to binary and decompiles binary to ASCII. The compiler follows the game's own mesh pipeline (normals, vertex merging, tangents) and is checked against models the game's compiler produced. Since 4.10, compiled models match the game's own compile on every test of a new conformance suite (animmesh animations no longer play scrambled, missing lines get the game's defaults, ASCII is read the way the game reads it). Since 4.18, every binary model in Layonara's haks (13,136 of them) survives decompile and compile again with nothing the game draws lost. A tile's walkmesh is written beside it as a .wok, as the old version did</li>
+<li>Also available as a Python package (decompile, parse and compile, checked byte for byte against the program) for tools that can't run it, such as <a href="https://github.com/plenarius/neverblender">Neverblender</a></li>
+<li>Makes a robe's, cloak's or armour part's versions for every other race and phenotype from one model, fitted to each body with the game's own data. Custom races in your haks are included. Armour parts also learn from the versions that already exist (Bioware's, or your own hand-made ones), which brings them closer to hand-made versions. Bodies of very different sizes (a custom race half a human's size) get robes and cloaks that fit, backpacks, coat tails and capes included, and a custom race with no cloaks of its own can get them too (command line: --to)</li>
+<li>A compile cache for builds that compile a whole hak every time: only the models whose inputs changed (the model, its supermodels, skeleton or materials) are compiled again</li>
+<li>Rescales models, snaps vertices, sets render and shadow flags and more</li>
+<li>Machine readable output (JSON) for scripts and build pipelines</li>
+</ul>
+<p><strong>Application ({{app}})</strong></p>
+<ul>
+<li>Pick a folder (or drag one in) and run Clean, Decompile, Compile or Fix Shadows over every model in it</li>
+<li>Compile can keep a cache folder, so a rebuild only compiles the models that changed (Prune cache clears out what hasn't been used for a while)</li>
+<li>Per file status, a fixes column, and a details pane showing what was fixed and what was only noted</li>
+<li>3D model preview with textures: double click a file in the list</li>
+<li>Make Variants (Tools menu, or right-click a robe, cloak or armour part). Every race and phenotype in one grid, each version textured on its body; wherever the body shows through, it is too tight. Click a version to adjust its width, length, shoulders, chest, waist, hips or hem with sliders (only the ones that change it are enabled); views turn and zoom together</li>
+<li>ASCII and binary models are marked, and a file that can't be processed is shown as Failed with the reason</li>
+<li>All the repair, transform and tile options in one panel, and save/load of your settings</li>
+<li>Report a problem from the right-click menu: it sends the model to the project's issue tracker for you, no account needed</li>
+</ul>
+<p><strong>Command line ({{cli}})</strong></p>
+<ul>
+<li>cleanmodels check models/ &nbsp;(any number of files and folders; check never writes a file)</li>
+<li>cleanmodels repair --all tiles/ cleaned/ &nbsp;(repair into a separate folder, originals untouched)</li>
+<li>cleanmodels repair --open-multiedges trees/ fixed/ &nbsp;(fix torn shadows in binary models, nothing else changed)</li>
+<li>cleanmodels compile plc_torch.mdl compiled/ &nbsp;(one file into a folder, or name the output file)</li>
+<li>cleanmodels decompile plc_torch.mdl</li>
+<li>cleanmodels compile --cache-dir ~/.cache/cleanmodels -r models/ compiled/ &nbsp;(only what changed is compiled; cleanmodels cache prune --unused-for 30d ~/.cache/cleanmodels clears out the rest)</li>
+<li>cleanmodels variants pmh0_robe200.mdl &nbsp;(every race and phenotype; add --resource-dir my_races.hak for custom races, --list-bodies to see which, --dry-run to see what it would do)</li>
+<li>cleanmodels --help lists everything. The old flat flag style of CleanModels still works</li>
+</ul>
+<p><strong>Safe by default</strong></p>
+<ul>
+<li>An existing file is never replaced with the result for a different model unless you pass --overwrite</li>
+<li>Compile always needs an output, so it can't overwrite your ASCII source by accident. To work in place, name the file twice (compile a.mdl a.mdl)</li>
+<li>A file that is not a model is reported as an error instead of being treated as an empty one</li>
+<li>When it can't write anything, it says so</li>
+</ul>
+<p><strong>Installation Instructions</strong></p>
+<p>Nothing needs installing: download the archive for your system and extract it anywhere.</p>
+<ul>
+<li>Application (cleanmodels-qt): Windows and macOS are zip files. Linux is a .7z (x86_64 or ARM64) containing an AppImage: extract it with 7-Zip or p7zip, mark the AppImage executable (chmod +x) and run it. (On GitHub the Linux download is the AppImage itself.) Each download already contains the matching command line tool. The 3D preview needs OpenGL 3.3</li>
+<li>Command line only (cleanmodels): download the zip for your system (Windows, Linux x86_64 or ARM64, macOS Intel or Apple Silicon), extract it anywhere, then run the program inside (cleanmodels-windows-amd64.exe, cleanmodels-linux-amd64 and so on; rename it to cleanmodels if you like) from a terminal</li>
+<li>Compiling and variants: it reads the game's own supermodels, materials, skeletons and body parts, so it looks for your NWN install in the usual Steam and GOG folders. If yours is somewhere else, give it with --game-dir or set NWN_ROOT. Without the game's data, a model whose tangents or node numbers depend on it can compile differently, a skinned body part can't be bound to its skeleton, and variants can't be made</li>
+</ul>
+<p><strong>Coming from the Prolog version</strong></p>
+<p>This replaces the Prolog based engine (3.7.0) and the 0.8.0 application. Those releases are still available on the projects' GitHub pages if you need them. The Go version does not need SWI-Prolog.</p>
+<p><strong>Source Code and Reporting Problems</strong></p>
+<ul>
+<li>UI: <a href="https://github.com/plenarius/cleanmodels-qt">https://github.com/plenarius/cleanmodels-qt</a></li>
+<li>CLI: <a href="https://github.com/plenarius/cleanmodels">https://github.com/plenarius/cleanmodels</a></li>
+<li>Downloads: <a href="https://github.com/plenarius/cleanmodels/releases">https://github.com/plenarius/cleanmodels/releases</a> (command line) and <a href="https://github.com/plenarius/cleanmodels-qt/releases">https://github.com/plenarius/cleanmodels-qt/releases</a> (application)</li>
+<li>Found a model it handles badly? In the application use Report Issue, on the command line run cleanmodels report model.mdl, or open an issue on GitHub. Please include the output of cleanmodels -v</li>
+</ul>
+<p>Thanks to OldManBeard for CleanModels3, which this builds on.</p>
