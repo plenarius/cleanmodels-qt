@@ -1,0 +1,22 @@
+# The Neverwinter Vault page (Clean Models Extended Edition), copied there after each release by the maintainer's
+# Vault update step. description.html is the page body; {{app}} and {{cli}} are the latest published versions.
+node: 30120
+version: "{{cli}}"
+description: description.html
+releases:
+  app: plenarius/cleanmodels-qt
+  cli: plenarius/cleanmodels
+checksums:
+  app: [SHA256SUMS.txt]
+  cli: [SHA256SUMS.txt]
+files:
+  - {release: app, asset: cleanmodels-qt-windows-amd64.zip, upload_as: "cleanmodels-qt-{{app}}-windows-amd64.zip", label: GUI Windows AMD64}
+  - {release: app, asset: cleanmodels-qt-macos.zip, upload_as: "cleanmodels-qt-{{app}}-macos.zip", label: GUI MacOS}
+  # The Vault doesn't take AppImage files, so they go up inside a .7z.
+  - {release: app, asset: cleanmodels-qt-linux-amd64.AppImage, upload_as: "cleanmodels-qt-{{app}}-linux-amd64.7z", pack: 7z, label: GUI Linux AMD64}
+  - {release: app, asset: cleanmodels-qt-linux-arm64.AppImage, upload_as: "cleanmodels-qt-{{app}}-linux-arm64.7z", pack: 7z, label: GUI Linux ARM64}
+  - {release: cli, asset: cleanmodels-windows-amd64.zip, upload_as: "cleanmodels-{{cli}}-windows-amd64.zip", label: CLI Windows AMD64}
+  - {release: cli, asset: cleanmodels-darwin-arm64.zip, upload_as: "cleanmodels-{{cli}}-macos-apple-silicon.zip", label: CLI MacOS Silicon}
+  - {release: cli, asset: cleanmodels-darwin-amd64.zip, upload_as: "cleanmodels-{{cli}}-macos-intel.zip", label: CLI MacOS Intel}
+  - {release: cli, asset: cleanmodels-linux-arm64.zip, upload_as: "cleanmodels-{{cli}}-linux-arm64.zip", label: CLI Linux ARM64}
+  - {release: cli, asset: cleanmodels-linux-amd64.zip, upload_as: "cleanmodels-{{cli}}-linux-amd64.zip", label: CLI Linux AMD64}
